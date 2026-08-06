@@ -1,6 +1,6 @@
-// Minimal placeholder schema — just enough for `prisma generate` to produce a
-// typed client so P0 infrastructure (BaseRepository<T>, database/prisma.service.ts)
-// compiles. The real data model (§5 of ARCHITECTURE.md) is P1-1's job.
+// Full data model — ARCHITECTURE.md §5. All 20 BRD entities + operational tables.
+// ContentChunk.embedding is Unsupported("vector(1536)") — pgvector has no native Prisma type;
+// the column, extension and HNSW index are created by the raw-SQL migration (P1-2).
 
 generator client {
   provider = "prisma-client-js"
@@ -8,4 +8,933 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Enums (§5.1)
+// ─────────────────────────────────────────────────────────────────────────
+
+enum PortalRole {
+  MANAGER
+  HR
+  CONTENT_MANAGER
+  ADMIN
+}
+
+enum ContentType {
+  DOCUMENT
+  SLIDES
+  TEXT
+  LINK
+  IMAGE
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum Language {
+  EN
+  AR
+}
+
+enum TrainingForm {
+  CONVERSATION
+  CASE
+  SIMULATION
+  ROLEPLAY
+}
+
+enum OutcomeStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ACHIEVED
+  NOT_ACHIEVED
+}
+
+enum SessionStatus {
+  SCHEDULED
+  INVITED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum SessionVerdict {
+  ACHIEVED
+  PARTIALLY_ACHIEVED
+  NOT_ACHIEVED
+}
+
+enum RsvpStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+}
+
+enum RecommendationStatus {
+  PROPOSED
+  CONFIRMED
+  OVERRIDDEN
+  REJECTED
+}
+
+enum RecommendationTrigger {
+  LEVEL_ASSIGNED
+  PLAN_BUILD
+  SESSION_ENDED
+  OUTCOME_FAILED
+  LEVEL_CHANGED
+  MANUAL
+}
+
+enum PlanStatus {
+  DRAFT
+  CONFIRMED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum MediaScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  FAILED
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATED
+  SENT
+  FAILED
+}
+
+enum ReportType {
+  SESSION
+  PLAN_SUMMARY
+}
+
+enum LearnerStatus {
+  ACTIVE
+  INACTIVE
+  REMOVED
+}
+
+enum SessionContentSource {
+  RECOMMENDED
+  MANUAL
+  IN_SESSION_REMEDIAL
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  AGENT
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tenancy root
+// ─────────────────────────────────────────────────────────────────────────
+
+model Organization {
+  id                      String   @id @default(cuid(2))
+  entraTenantId           String?  @unique
+  name                    String
+  defaultLanguage         Language @default(EN)
+  logoUrl                 String?
+  reportBranding          Json?
+  transcriptRetentionDays Int      @default(90)
+  auditRetentionDays      Int      @default(730)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  portalUsers     PortalUser[]
+  teams           Team[]
+  learners        Learner[]
+  tracks          Track[]
+  contentItems    ContentItem[]
+  recommendations Recommendation[]
+  trainingPlans   TrainingPlan[]
+  planTemplates   PlanTemplate[]
+  sessions        Session[]
+  reports         Report[]
+  auditLogs       AuditLog[]
+
+  @@map("organizations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Auth & Users
+// ─────────────────────────────────────────────────────────────────────────
+
+model PortalUser {
+  id             String     @id @default(cuid(2))
+  organizationId String
+  entraObjectId  String?    @unique
+  email          String
+  passwordHash   String?
+  name           String
+  role           PortalRole
+  locale         Language   @default(EN)
+  isActive       Boolean    @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization             Organization        @relation(fields: [organizationId], references: [id])
+  refreshTokens            RefreshToken[]
+  managedTeams             Team[]              @relation("TeamManager")
+  experienceLogs           LearnerExperience[] @relation("ExperienceRecordedBy")
+  assignments              LearnerAssignment[] @relation("AssignmentAssignedBy")
+  contentCreated           ContentItem[]       @relation("ContentCreatedBy")
+  recommendationsConfirmed Recommendation[]    @relation("RecommendationConfirmedBy")
+  plansCreated             TrainingPlan[]      @relation("PlanCreatedBy")
+  planTemplatesCreated     PlanTemplate[]      @relation("PlanTemplateCreatedBy")
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@map("portal_users")
+}
+
+model RefreshToken {
+  id           String    @id @default(cuid(2))
+  userId       String
+  tokenHash    String    @unique
+  familyId     String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @unique
+  createdAt    DateTime  @default(now())
+
+  user        PortalUser    @relation(fields: [userId], references: [id])
+  replacedBy  RefreshToken? @relation("TokenReplacement", fields: [replacedById], references: [id])
+  replacedFor RefreshToken? @relation("TokenReplacement")
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Teams & Learners
+// ─────────────────────────────────────────────────────────────────────────
+
+model Team {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  managerId      String
+  name           String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  manager      PortalUser   @relation("TeamManager", fields: [managerId], references: [id])
+  learners     Learner[]
+
+  @@index([organizationId])
+  @@index([managerId])
+  @@map("teams")
+}
+
+model Learner {
+  id                String        @id @default(cuid(2))
+  organizationId    String
+  teamId            String
+  entraObjectId     String
+  email             String
+  displayName       String
+  jobTitle          String?
+  department        String?
+  preferredLanguage Language      @default(EN)
+  status            LearnerStatus @default(ACTIVE)
+  deactivatedAt     DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  organization    Organization        @relation(fields: [organizationId], references: [id])
+  team            Team                @relation(fields: [teamId], references: [id])
+  experience      LearnerExperience?
+  assignments     LearnerAssignment[]
+  outcomes        LearnerOutcome[]
+  recommendations Recommendation[]
+  trainingPlans   TrainingPlan[]
+  sessions        Session[]
+  invitations     Invitation[]
+
+  @@unique([organizationId, entraObjectId])
+  @@index([organizationId])
+  @@index([teamId])
+  @@map("learners")
+}
+
+model LearnerExperience {
+  id                String   @id @default(cuid(2))
+  learnerId         String   @unique
+  background        String
+  yearsOfExperience Int
+  priorTraining     String?
+  notes             String?
+  recordedById      String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  learner    Learner    @relation(fields: [learnerId], references: [id])
+  recordedBy PortalUser @relation("ExperienceRecordedBy", fields: [recordedById], references: [id])
+
+  @@map("learner_experiences")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Catalogue: Tracks, Levels, Outcomes
+// ─────────────────────────────────────────────────────────────────────────
+
+model Track {
+  id               String       @id @default(cuid(2))
+  organizationId   String
+  key              String
+  nameEn           String
+  nameAr           String
+  descriptionEn    String
+  descriptionAr    String
+  department       String
+  targetSkills     String[]
+  trainingForm     TrainingForm
+  impactIndicators String[]
+  isEnabled        Boolean      @default(true)
+  sortOrder        Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  levels        Level[]
+  contentItems  ContentItem[]
+  planTemplates PlanTemplate[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+  @@map("tracks")
+}
+
+model Level {
+  id            String   @id @default(cuid(2))
+  trackId       String
+  key           String
+  nameEn        String
+  nameAr        String
+  descriptionEn String
+  descriptionAr String
+  order         Int
+  isEnabled     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  track         Track               @relation(fields: [trackId], references: [id])
+  outcomes      Outcome[]
+  contentItems  ContentItem[]
+  assignments   LearnerAssignment[]
+  planTemplates PlanTemplate[]
+
+  @@unique([trackId, order])
+  @@unique([trackId, key])
+  @@index([trackId])
+  @@map("levels")
+}
+
+model Outcome {
+  id            String       @id @default(cuid(2))
+  levelId       String
+  titleEn       String
+  titleAr       String
+  descriptionEn String
+  descriptionAr String
+  targetSkills  String[]
+  trainingForm  TrainingForm
+  order         Int
+  isEnabled     Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  level                Level                  @relation(fields: [levelId], references: [id])
+  contentOutcomes      ContentOutcome[]
+  prerequisiteFor      ContentPrerequisite[]  @relation("PrerequisiteOutcome")
+  learnerOutcomes      LearnerOutcome[]
+  questionBanks        QuestionBank[]
+  rubrics              Rubric[]
+  recommendationItems  RecommendationItem[]
+  sessionOutcomes      SessionOutcome[]
+  contentEffectiveness ContentEffectiveness[]
+  sessions             Session[]
+
+  @@unique([levelId, order])
+  @@index([levelId])
+  @@map("outcomes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Learner assignment & outcome tracking
+// ─────────────────────────────────────────────────────────────────────────
+
+model LearnerAssignment {
+  id           String    @id @default(cuid(2))
+  learnerId    String
+  trackId      String
+  levelId      String
+  assignedById String
+  assignedAt   DateTime  @default(now())
+  completedAt  DateTime?
+  isActive     Boolean   @default(true)
+
+  learner         Learner          @relation(fields: [learnerId], references: [id])
+  level           Level            @relation(fields: [levelId], references: [id])
+  assignedBy      PortalUser       @relation("AssignmentAssignedBy", fields: [assignedById], references: [id])
+  learnerOutcomes LearnerOutcome[]
+  recommendations Recommendation[]
+  trainingPlans   TrainingPlan[]
+
+  @@index([learnerId])
+  @@index([levelId])
+  @@map("learner_assignments")
+}
+
+model LearnerOutcome {
+  id           String        @id @default(cuid(2))
+  learnerId    String
+  outcomeId    String
+  assignmentId String
+  status       OutcomeStatus @default(NOT_STARTED)
+  priority     Int           @default(0)
+  isCustom     Boolean       @default(false)
+  attemptCount Int           @default(0)
+  lastScore    Int?
+  achievedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  learner    Learner           @relation(fields: [learnerId], references: [id])
+  outcome    Outcome           @relation(fields: [outcomeId], references: [id])
+  assignment LearnerAssignment @relation(fields: [assignmentId], references: [id])
+
+  @@unique([learnerId, outcomeId, assignmentId])
+  @@index([learnerId, status])
+  @@map("learner_outcomes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Content
+// ─────────────────────────────────────────────────────────────────────────
+
+model ContentItem {
+  id               String        @id @default(cuid(2))
+  organizationId   String
+  title            String
+  trackId          String
+  levelId          String
+  contentType      ContentType
+  textBody         String?
+  sourceUrl        String?
+  language         Language
+  estimatedMinutes Int
+  difficulty       Difficulty
+  status           ContentStatus @default(DRAFT)
+  version          Int           @default(1)
+  parentVersionId  String?       @unique
+  isMandatory      Boolean       @default(false)
+  skillTags        String[]
+  createdById      String
+  publishedAt      DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  track         Track        @relation(fields: [trackId], references: [id])
+  level         Level        @relation(fields: [levelId], references: [id])
+  createdBy     PortalUser   @relation("ContentCreatedBy", fields: [createdById], references: [id])
+  parentVersion ContentItem? @relation("ContentVersioning", fields: [parentVersionId], references: [id])
+  childVersion  ContentItem? @relation("ContentVersioning")
+
+  contentOutcomes     ContentOutcome[]
+  prerequisites       ContentPrerequisite[]  @relation("ContentPrerequisiteOf")
+  requiredBy          ContentPrerequisite[]  @relation("PrerequisiteContent")
+  mediaAssets         MediaAsset[]
+  contentChunks       ContentChunk[]
+  recommendationItems RecommendationItem[]
+  effectiveness       ContentEffectiveness[]
+  sessionContents     SessionContent[]
+
+  @@index([organizationId, status, trackId, levelId, language])
+  @@map("content_items")
+}
+
+model ContentOutcome {
+  contentItemId String
+  outcomeId     String
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+  outcome     Outcome     @relation(fields: [outcomeId], references: [id])
+
+  @@id([contentItemId, outcomeId])
+  @@index([outcomeId])
+  @@map("content_outcomes")
+}
+
+model ContentPrerequisite {
+  id                    String   @id @default(cuid(2))
+  contentItemId         String
+  prerequisiteContentId String?
+  prerequisiteOutcomeId String?
+  createdAt             DateTime @default(now())
+
+  contentItem         ContentItem  @relation("ContentPrerequisiteOf", fields: [contentItemId], references: [id])
+  prerequisiteContent ContentItem? @relation("PrerequisiteContent", fields: [prerequisiteContentId], references: [id])
+  prerequisiteOutcome Outcome?     @relation("PrerequisiteOutcome", fields: [prerequisiteOutcomeId], references: [id])
+
+  @@index([contentItemId])
+  @@map("content_prerequisites")
+}
+
+model MediaAsset {
+  id               String          @id @default(cuid(2))
+  contentItemId    String
+  blobKey          String
+  originalFilename String
+  mimeType         String
+  sizeBytes        Int
+  checksum         String
+  caption          String?
+  altTextEn        String?
+  altTextAr        String?
+  extractedText    String?
+  pageCount        Int?
+  scanStatus       MediaScanStatus @default(PENDING)
+  processedAt      DateTime?
+  createdAt        DateTime        @default(now())
+
+  contentItem   ContentItem    @relation(fields: [contentItemId], references: [id])
+  contentChunks ContentChunk[]
+
+  @@index([contentItemId])
+  @@map("media_assets")
+}
+
+/// ContentChunk.embedding is added, typed vector(1536) and HNSW-indexed by the
+/// raw-SQL migration in P1-2 — Prisma has no native pgvector type (see ARCHITECTURE §5.2).
+model ContentChunk {
+  id            String                  @id @default(cuid(2))
+  contentItemId String
+  mediaAssetId  String?
+  chunkIndex    Int
+  text          String
+  tokenCount    Int
+  embedding     Unsupported("vector(1536)")?
+  createdAt     DateTime                @default(now())
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+  mediaAsset  MediaAsset? @relation(fields: [mediaAssetId], references: [id])
+
+  @@index([contentItemId])
+  @@map("content_chunks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Question banks & rubrics
+// ─────────────────────────────────────────────────────────────────────────
+
+model QuestionBank {
+  id        String   @id @default(cuid(2))
+  outcomeId String
+  language  Language
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  outcome   Outcome    @relation(fields: [outcomeId], references: [id])
+  questions Question[]
+
+  @@unique([outcomeId, language])
+  @@index([outcomeId])
+  @@map("question_banks")
+}
+
+model Question {
+  id             String     @id @default(cuid(2))
+  questionBankId String
+  prompt         String
+  difficulty     Difficulty
+  expectedAnswer String?
+  modelAnswer    String?
+  order          Int
+
+  questionBank QuestionBank       @relation(fields: [questionBankId], references: [id])
+  answers      AssessmentAnswer[]
+
+  @@index([questionBankId])
+  @@map("questions")
+}
+
+model Rubric {
+  id            String   @id @default(cuid(2))
+  outcomeId     String
+  name          String
+  passThreshold Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  outcome     Outcome           @relation(fields: [outcomeId], references: [id])
+  criteria    RubricCriterion[]
+  assessments Assessment[]
+
+  @@index([outcomeId])
+  @@map("rubrics")
+}
+
+model RubricCriterion {
+  id          String @id @default(cuid(2))
+  rubricId    String
+  label       String
+  description String
+  weight      Int
+  order       Int
+
+  rubric Rubric @relation(fields: [rubricId], references: [id])
+
+  @@index([rubricId])
+  @@map("rubric_criteria")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Recommendation engine
+// ─────────────────────────────────────────────────────────────────────────
+
+model Recommendation {
+  id             String                @id @default(cuid(2))
+  organizationId String
+  learnerId      String
+  sessionId      String?
+  assignmentId   String
+  trigger        RecommendationTrigger
+  status         RecommendationStatus  @default(PROPOSED)
+  generatedAt    DateTime              @default(now())
+  confirmedAt    DateTime?
+  confirmedById  String?
+
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  learner      Learner              @relation(fields: [learnerId], references: [id])
+  session      Session?             @relation(fields: [sessionId], references: [id])
+  assignment   LearnerAssignment    @relation(fields: [assignmentId], references: [id])
+  confirmedBy  PortalUser?          @relation("RecommendationConfirmedBy", fields: [confirmedById], references: [id])
+  items        RecommendationItem[]
+
+  @@index([organizationId])
+  @@index([learnerId])
+  @@map("recommendations")
+}
+
+model RecommendationItem {
+  id               String               @id @default(cuid(2))
+  recommendationId String
+  contentItemId    String
+  outcomeId        String
+  rank             Int
+  score            Float
+  reasonCode       String
+  reasonEn         String
+  reasonAr         String
+  signalBreakdown  Json
+  status           RecommendationStatus @default(PROPOSED)
+  overriddenWithId String?              @unique
+
+  recommendation Recommendation      @relation(fields: [recommendationId], references: [id])
+  contentItem    ContentItem         @relation(fields: [contentItemId], references: [id])
+  outcome        Outcome             @relation(fields: [outcomeId], references: [id])
+  overriddenWith RecommendationItem? @relation("ItemOverride", fields: [overriddenWithId], references: [id])
+  overriddenBy   RecommendationItem? @relation("ItemOverride")
+
+  @@index([recommendationId])
+  @@map("recommendation_items")
+}
+
+model ContentEffectiveness {
+  id                 String   @id @default(cuid(2))
+  contentItemId      String
+  outcomeId          String
+  timesDelivered     Int      @default(0)
+  timesAchieved      Int      @default(0)
+  effectivenessScore Float    @default(0)
+  lastComputedAt     DateTime @default(now())
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+  outcome     Outcome     @relation(fields: [outcomeId], references: [id])
+
+  @@unique([contentItemId, outcomeId])
+  @@map("content_effectiveness")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Training plans & sessions
+// ─────────────────────────────────────────────────────────────────────────
+
+model TrainingPlan {
+  id             String     @id @default(cuid(2))
+  organizationId String
+  learnerId      String
+  assignmentId   String
+  title          String
+  trainingDays   Int
+  status         PlanStatus @default(DRAFT)
+  startDate      DateTime
+  endDate        DateTime
+  createdById    String
+  confirmedAt    DateTime?
+  templateId     String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  learner      Learner           @relation(fields: [learnerId], references: [id])
+  assignment   LearnerAssignment @relation(fields: [assignmentId], references: [id])
+  createdBy    PortalUser        @relation("PlanCreatedBy", fields: [createdById], references: [id])
+  template     PlanTemplate?     @relation(fields: [templateId], references: [id])
+  sessions     Session[]
+  reports      Report[]
+
+  @@index([organizationId])
+  @@index([learnerId])
+  @@map("training_plans")
+}
+
+model PlanTemplate {
+  id             String   @id @default(cuid(2))
+  organizationId String
+  name           String
+  trackId        String
+  levelId        String
+  structure      Json
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id])
+  track         Track          @relation(fields: [trackId], references: [id])
+  level         Level          @relation(fields: [levelId], references: [id])
+  createdBy     PortalUser     @relation("PlanTemplateCreatedBy", fields: [createdById], references: [id])
+  trainingPlans TrainingPlan[]
+
+  @@index([organizationId])
+  @@map("plan_templates")
+}
+
+model Session {
+  id               String          @id @default(cuid(2))
+  organizationId   String
+  planId           String
+  learnerId        String
+  primaryOutcomeId String
+  sequence         Int
+  scheduledStart   DateTime
+  scheduledEnd     DateTime
+  durationMinutes  Int
+  status           SessionStatus   @default(SCHEDULED)
+  verdict          SessionVerdict?
+  score            Int?
+  graphEventId     String?
+  joinUrl          String?
+  joinToken        String          @unique
+  startedAt        DateTime?
+  endedAt          DateTime?
+  cancelledAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  plan           TrainingPlan @relation(fields: [planId], references: [id])
+  learner        Learner      @relation(fields: [learnerId], references: [id])
+  primaryOutcome Outcome      @relation(fields: [primaryOutcomeId], references: [id])
+
+  sessionOutcomes SessionOutcome[]
+  sessionContents SessionContent[]
+  invitations     Invitation[]
+  assessments     Assessment[]
+  reports         Report[]
+  recommendations Recommendation[]
+
+  @@index([organizationId, scheduledStart])
+  @@index([planId, sequence])
+  @@map("sessions")
+}
+
+model SessionOutcome {
+  sessionId     String
+  outcomeId     String
+  isCarriedOver Boolean         @default(false)
+  verdict       SessionVerdict?
+  score         Int?
+
+  session Session @relation(fields: [sessionId], references: [id])
+  outcome Outcome @relation(fields: [outcomeId], references: [id])
+
+  @@id([sessionId, outcomeId])
+  @@map("session_outcomes")
+}
+
+model SessionContent {
+  id            String               @id @default(cuid(2))
+  sessionId     String
+  contentItemId String
+  order         Int
+  source        SessionContentSource @default(RECOMMENDED)
+  deliveredAt   DateTime?
+
+  session     Session     @relation(fields: [sessionId], references: [id])
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@index([sessionId])
+  @@map("session_contents")
+}
+
+model Invitation {
+  id                String     @id @default(cuid(2))
+  sessionId         String
+  learnerId         String
+  graphEventId      String
+  sentAt            DateTime   @default(now())
+  rsvpStatus        RsvpStatus @default(PENDING)
+  respondedAt       DateTime?
+  reminderSentAt    DateTime?
+  joinedAt          DateTime?
+  leftAt            DateTime?
+  attendanceMinutes Int?
+
+  session Session @relation(fields: [sessionId], references: [id])
+  learner Learner @relation(fields: [learnerId], references: [id])
+
+  @@index([sessionId])
+  @@index([learnerId])
+  @@map("invitations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Assessments
+// ─────────────────────────────────────────────────────────────────────────
+
+model Assessment {
+  id                       String         @id @default(cuid(2))
+  sessionId                String
+  rubricId                 String?
+  totalScore               Int
+  verdict                  SessionVerdict
+  strengths                String
+  gaps                     String
+  agentNotes               String
+  transcriptUrl            String?
+  transcriptRetentionUntil DateTime?
+  recordingConsentAt       DateTime?
+  completedAt              DateTime       @default(now())
+
+  session Session            @relation(fields: [sessionId], references: [id])
+  rubric  Rubric?            @relation(fields: [rubricId], references: [id])
+  answers AssessmentAnswer[]
+
+  @@index([sessionId])
+  @@map("assessments")
+}
+
+model AssessmentAnswer {
+  id              String   @id @default(cuid(2))
+  assessmentId    String
+  questionId      String?
+  outcomeId       String
+  questionText    String
+  answerText      String
+  score           Int
+  maxScore        Int
+  criterionScores Json
+  feedback        String?
+  answeredAt      DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id])
+  question   Question?  @relation(fields: [questionId], references: [id])
+
+  @@index([assessmentId])
+  @@map("assessment_answers")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Reports
+// ─────────────────────────────────────────────────────────────────────────
+
+model Report {
+  id             String       @id @default(cuid(2))
+  organizationId String
+  sessionId      String?
+  planId         String?
+  type           ReportType
+  language       Language
+  blobKey        String?
+  status         ReportStatus @default(PENDING)
+  generatedAt    DateTime?
+  recipients     Json
+  sentAt         DateTime?
+  failureReason  String?
+  resendCount    Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  session      Session?      @relation(fields: [sessionId], references: [id])
+  plan         TrainingPlan? @relation(fields: [planId], references: [id])
+
+  @@index([organizationId])
+  @@index([sessionId])
+  @@map("reports")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Public website
+// ─────────────────────────────────────────────────────────────────────────
+
+model DemoRequest {
+  id        String   @id @default(cuid(2))
+  name      String
+  email     String
+  company   String
+  phone     String?
+  message   String?
+  locale    Language @default(EN)
+  createdAt DateTime @default(now())
+
+  @@map("demo_requests")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Audit
+// ─────────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id             String         @id @default(cuid(2))
+  organizationId String
+  actorId        String?
+  actorType      AuditActorType
+  action         String
+  entityType     String
+  entityId       String
+  before         Json?
+  after          Json?
+  ip             String?
+  createdAt      DateTime       @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, entityType, entityId, createdAt(sort: Desc)])
+  @@map("audit_logs")
 }

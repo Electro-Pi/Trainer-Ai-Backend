@@ -24,8 +24,6 @@
       "@/*": ["./src/*"]
     },
 
-    "outDir": "dist",
-    "rootDir": "src",
     "declaration": false,
     "sourceMap": true
   },

@@ -17,39 +17,43 @@ export interface FindManyOptions {
 /**
  * The minimal structural shape every generated Prisma model delegate
  * satisfies (`prisma.<model>`). Kept structural rather than importing
- * Prisma's own generic delegate type — with no models in the schema yet
- * (P1-1 owns the data model) there is nothing concrete to instantiate that
- * type against, and the generic `Prisma.TypeMap` machinery is not meant to
- * be parameterized by hand. Concrete repositories narrow `TDelegate` to
- * their real generated delegate type once models exist.
+ * Prisma's own generic delegate type, whose `TypeMap` machinery isn't meant
+ * to be parameterized by hand outside the generated client.
+ *
+ * `where`/`data` on the mutating methods are typed `never` on purpose.
+ * Prisma's real per-model input types (`TrackWhereUniqueInput`,
+ * `TrackUpdateInput`, ...) don't unify across models, and `BaseRepository`
+ * never constructs those args from this interface — it either casts a bare
+ * `{ id }` `as never` (findUnique/update/delete) or recovers the real
+ * per-model type via `Parameters<TDelegate['create']>[0]['data']` (create).
+ * `never` is assignable *to* any narrower real parameter type (parameters
+ * are contravariant), so every generated delegate satisfies this shape.
  */
-export interface PrismaDelegate<
-  T,
-  WhereInput = Record<string, unknown>,
-  CreateInput = Partial<T>,
-  UpdateInput = Partial<T>,
-> {
-  findUnique(args: { where: WhereInput }): Promise<T | null>;
+export interface PrismaDelegate<T, WhereInput = Record<string, unknown>> {
+  findUnique(args: { where: never }): Promise<T | null>;
   findFirst(args: { where: WhereInput }): Promise<T | null>;
   findMany(args: {
     where?: WhereInput;
     take?: number;
-    cursor?: WhereInput;
-    skip?: number;
     orderBy?: Record<string, 'asc' | 'desc'>;
   }): Promise<T[]>;
-  create(args: { data: CreateInput }): Promise<T>;
-  update(args: { where: WhereInput; data: UpdateInput }): Promise<T>;
-  delete(args: { where: WhereInput }): Promise<T>;
+  create(args: { data: never }): Promise<T>;
+  update(args: { where: never; data: never }): Promise<T>;
+  delete(args: { where: never }): Promise<T>;
 }
 
 /**
  * Shared CRUD + cursor pagination every module repository extends
- * (ARCHITECTURE §4.3). Tenant scoping (`organizationId` injected via the
- * Prisma client extension, §7.3) and the real soft-delete semantics behind
- * non-negotiable 17 land with P1-4, once concrete models exist to scope and
- * version. This class provides the shape; each module's repository supplies
- * its concrete `TDelegate`, id field and sort field.
+ * (ARCHITECTURE §4.3). Tenant scoping is transparent: the Prisma client
+ * passed in from `database/prisma.service.ts` is already wrapped in the
+ * tenant-isolation extension (§7.3), so every call through `this.delegate`
+ * is scoped by the request's `organizationId` without this class knowing
+ * about tenancy at all. This class provides CRUD + pagination only; the
+ * real soft-delete semantics behind non-negotiable 17 (deactivate/archive/
+ * version, never hard-delete) are each module's responsibility to apply
+ * before calling `.delete()`, which stays available for genuinely disposable
+ * rows. Each module's repository supplies its concrete `TDelegate`, id field
+ * and sort field.
  */
 export abstract class BaseRepository<
   T extends { id: string },
