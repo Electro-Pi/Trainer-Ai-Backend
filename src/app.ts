@@ -13,6 +13,9 @@ import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
 import { authRouter } from '@/modules/auth/auth.module.js';
+import { directoryRouter } from '@/modules/directory/directory.module.js';
+import { learnersRouter, teamMembersRouter } from '@/modules/learners/learners.module.js';
+import { teamsRouter } from '@/modules/teams/teams.module.js';
 import { usersRouter } from '@/modules/users/users.module.js';
 import { mountSwagger } from '@/swagger/swagger.js';
 
@@ -87,6 +90,10 @@ export function createApp(): Express {
 
   v1.use('/auth', authRouter);
   v1.use('/users', usersRouter);
+  v1.use('/directory', directoryRouter);
+  v1.use('/teams', teamsRouter);
+  v1.use('/teams', teamMembersRouter);
+  v1.use('/learners', learnersRouter);
 
   mountSwagger(app);
 

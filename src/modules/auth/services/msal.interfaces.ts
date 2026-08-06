@@ -31,4 +31,12 @@ export interface EntraSignInResult {
 export interface IMsalService {
   createAuthCodeUrl(): Promise<{ url: string; state: string; codeVerifier: string }>;
   acquireTokenByCode(code: string, codeVerifier: string): Promise<EntraSignInResult>;
+
+  /**
+   * `TM-01` — restores `serializedTokenCache` into a client and resolves a
+   * fresh Graph access token for `homeAccountId` via `acquireTokenSilent()`,
+   * refreshing behind the scenes if MSAL's cached token expired. The first
+   * real caller of the pattern `EntraSignInResult`'s doc comment described.
+   */
+  acquireGraphTokenSilent(homeAccountId: string, serializedTokenCache: string): Promise<string>;
 }

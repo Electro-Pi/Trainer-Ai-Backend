@@ -72,4 +72,14 @@ export class PortalUserRepository extends BaseRepository<PortalUser, PortalUserD
       this.delegate.findFirst({ where: { id: match.id } }),
     );
   }
+
+  /**
+   * For callers that already have an active tenant context (`req.auth`
+   * exists) and need to verify a request-supplied user id belongs to the
+   * caller's own org — e.g. `teams` validating a `managerId` — `findFirst`
+   * IS scoped by the tenant extension, unlike `findById`/`findUnique`.
+   */
+  async findByIdScoped(id: string): Promise<PortalUser | null> {
+    return this.delegate.findFirst({ where: { id } });
+  }
 }

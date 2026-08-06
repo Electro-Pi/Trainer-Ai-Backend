@@ -42,4 +42,11 @@ export class FakeMsalService implements IMsalService {
       serializedTokenCache: JSON.stringify({ fake: true }),
     });
   }
+
+  async acquireGraphTokenSilent(
+    homeAccountId: string,
+    _serializedTokenCache: string,
+  ): Promise<string> {
+    return Promise.resolve(`fake-graph-token.${homeAccountId}`);
+  }
 }

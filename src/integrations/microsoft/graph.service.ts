@@ -2,7 +2,7 @@ import { ExternalServiceError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
 
-import type { GraphService } from './graph.interfaces.js';
+import type { GraphService, GraphUser, GraphUserCollection } from './graph.interfaces.js';
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 const MAX_RETRIES = 3;
@@ -43,6 +43,27 @@ export class RealGraphService implements GraphService {
     }
 
     throw new ExternalServiceError('Microsoft Graph request exhausted retries');
+  }
+
+  /** `TM-01` — `$search` on displayName/mail/userPrincipalName, tenant-wide. */
+  async searchUsers(query: string, accessToken: string): Promise<GraphUser[]> {
+    const search = encodeURIComponent(`"displayName:${query}" OR "mail:${query}"`);
+    const select = 'id,displayName,mail,userPrincipalName';
+    const result = await this.get<GraphUserCollection>(
+      `/users?$search=${search}&$select=${select}`,
+      accessToken,
+    );
+    return result.value;
+  }
+
+  /** `TM-06` — members of a Microsoft 365 group / Teams channel roster. */
+  async getGroupMembers(groupId: string, accessToken: string): Promise<GraphUser[]> {
+    const select = 'id,displayName,mail,userPrincipalName';
+    const result = await this.get<GraphUserCollection>(
+      `/groups/${groupId}/members?$select=${select}`,
+      accessToken,
+    );
+    return result.value;
   }
 }
 

@@ -3,6 +3,11 @@ import type { Team } from '@prisma/client';
 import { BaseRepository } from '@/common/repositories/base.repository.js';
 import { prisma } from '@/database/prisma.service.js';
 
+// Re-exported so services/controllers (banned from importing `@prisma/client`
+// directly — D-12b) can still type against the model shape this repository
+// returns.
+export type { Team };
+
 type TeamDelegate = typeof prisma.team;
 
 export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
@@ -12,5 +17,16 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
 
   async findByManager(managerId: string): Promise<Team[]> {
     return this.delegate.findMany({ where: { managerId } });
+  }
+
+  /**
+   * `BaseRepository.findById` uses `findUnique`, which the tenant extension
+   * cannot scope even for a covered model like `Team` (see the extension's
+   * doc comment) — a request-supplied `teamId` must resolve through this
+   * `findFirst` instead, or a MANAGER in org A could read/manage a team
+   * belonging to org B by guessing a CUID.
+   */
+  async findByIdScoped(id: string): Promise<Team | null> {
+    return this.delegate.findFirst({ where: { id } });
   }
 }

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 
+import { logger } from '@/logger/logger.service.js';
 import type { Logger } from '@/logger/logger.service.js';
 
 import type { EventName, EventPayloads } from './events.js';
@@ -39,3 +40,8 @@ export class EventBus {
     });
   }
 }
+
+// Process-wide singleton — every module publishes/subscribes through this
+// one instance rather than constructing its own `EventBus` (which would
+// give each caller an isolated emitter that never sees the others' events).
+export const eventBus = new EventBus(logger);

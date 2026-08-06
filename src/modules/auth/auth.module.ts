@@ -1,8 +1,14 @@
 import { openApiRegistry } from '@/swagger/swagger.js';
 
 import { createAuthRouter } from './auth.routes.js';
+import { createMsalService } from './services/msal.service.js';
 
 export const authRouter = createAuthRouter();
+
+// Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `directory`
+// (P3) resolves a caller's Graph access token through this instead of
+// deep-importing `modules/auth/services/msal.service.ts`.
+export const msalService = createMsalService();
 
 openApiRegistry.registerPath({
   method: 'get',

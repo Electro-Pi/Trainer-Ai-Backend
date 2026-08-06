@@ -117,6 +117,32 @@ export class RealMsalService implements IMsalService {
       serializedTokenCache: this.client.getTokenCache().serialize(),
     };
   }
+
+  async acquireGraphTokenSilent(
+    homeAccountId: string,
+    serializedTokenCache: string,
+  ): Promise<string> {
+    const client = createMsalClient();
+    client.getTokenCache().deserialize(serializedTokenCache);
+
+    const account = await client.getTokenCache().getAccountByHomeId(homeAccountId);
+    if (!account) {
+      throw new ExternalServiceError('No cached Microsoft account for this user');
+    }
+
+    let result: AuthenticationResult | null;
+    try {
+      result = await client.acquireTokenSilent({ account, scopes: SCOPES });
+    } catch (error) {
+      throw new ExternalServiceError('Failed to refresh Microsoft Graph token', error);
+    }
+
+    if (!result?.accessToken) {
+      throw new ExternalServiceError('Microsoft token refresh returned no access token');
+    }
+
+    return result.accessToken;
+  }
 }
 
 let cachedInstance: IMsalService | undefined;

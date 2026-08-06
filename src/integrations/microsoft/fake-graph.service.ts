@@ -13,6 +13,12 @@ const FAKE_USERS: GraphUser[] = [
     mail: 'omar.khalil@example.com',
     userPrincipalName: 'omar.khalil@example.com',
   },
+  {
+    id: 'fake-user-3',
+    displayName: 'Layla Hassan',
+    mail: 'layla.hassan@example.com',
+    userPrincipalName: 'layla.hassan@example.com',
+  },
 ];
 
 /** Deterministic dev/test default (ARCHITECTURE §4.5, D-14) — no Azure tenant required. */
@@ -25,5 +31,21 @@ export class FakeGraphService implements GraphService {
       return Promise.resolve(FAKE_USERS as T);
     }
     return Promise.resolve({} as T);
+  }
+
+  async searchUsers(query: string, _accessToken: string): Promise<GraphUser[]> {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return Promise.resolve(FAKE_USERS);
+    return Promise.resolve(
+      FAKE_USERS.filter(
+        (user) =>
+          user.displayName.toLowerCase().includes(needle) ||
+          (user.mail?.toLowerCase().includes(needle) ?? false),
+      ),
+    );
+  }
+
+  async getGroupMembers(_groupId: string, _accessToken: string): Promise<GraphUser[]> {
+    return Promise.resolve(FAKE_USERS);
   }
 }
