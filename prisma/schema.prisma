@@ -180,18 +180,22 @@ model Organization {
 // ─────────────────────────────────────────────────────────────────────────
 
 model PortalUser {
-  id             String     @id @default(cuid(2))
-  organizationId String
-  entraObjectId  String?    @unique
-  email          String
-  passwordHash   String?
-  name           String
-  role           PortalRole
-  locale         Language   @default(EN)
-  isActive       Boolean    @default(true)
-  lastLoginAt    DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id                         String     @id @default(cuid(2))
+  organizationId             String
+  entraObjectId              String?    @unique
+  email                      String
+  passwordHash               String?
+  name                       String
+  role                       PortalRole
+  locale                     Language   @default(EN)
+  isActive                   Boolean    @default(true)
+  lastLoginAt                DateTime?
+  graphTokenCacheEncrypted   String?
+  graphHomeAccountId         String?
+  failedLoginCount           Int        @default(0)
+  lockedUntil                DateTime?
+  createdAt                  DateTime   @default(now())
+  updatedAt                  DateTime   @updatedAt
 
   organization             Organization        @relation(fields: [organizationId], references: [id])
   refreshTokens            RefreshToken[]
@@ -533,14 +537,14 @@ model MediaAsset {
 /// ContentChunk.embedding is added, typed vector(1536) and HNSW-indexed by the
 /// raw-SQL migration in P1-2 — Prisma has no native pgvector type (see ARCHITECTURE §5.2).
 model ContentChunk {
-  id            String                  @id @default(cuid(2))
+  id            String                       @id @default(cuid(2))
   contentItemId String
   mediaAssetId  String?
   chunkIndex    Int
   text          String
   tokenCount    Int
   embedding     Unsupported("vector(1536)")?
-  createdAt     DateTime                @default(now())
+  createdAt     DateTime                     @default(now())
 
   contentItem ContentItem @relation(fields: [contentItemId], references: [id])
   mediaAsset  MediaAsset? @relation(fields: [mediaAssetId], references: [id])

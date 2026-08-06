@@ -12,6 +12,8 @@ import { rateLimitMiddleware } from '@/common/middleware/rate-limit.middleware.j
 import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
+import { authRouter } from '@/modules/auth/auth.module.js';
+import { usersRouter } from '@/modules/users/users.module.js';
 import { mountSwagger } from '@/swagger/swagger.js';
 
 interface DependencyCheck {
@@ -82,6 +84,9 @@ export function createApp(): Express {
 
   const v1 = express.Router();
   app.use('/api/v1', v1);
+
+  v1.use('/auth', authRouter);
+  v1.use('/users', usersRouter);
 
   mountSwagger(app);
 

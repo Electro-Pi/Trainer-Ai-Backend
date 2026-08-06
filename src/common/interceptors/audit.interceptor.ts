@@ -1,3 +1,5 @@
+import { AuditLogRepository } from '@/common/repositories/audit-log.repository.js';
+
 export type AuditActorType = 'USER' | 'SYSTEM' | 'AGENT';
 
 export interface AuditLogEntry {
@@ -12,10 +14,27 @@ export interface AuditLogEntry {
   ip?: string;
 }
 
-/**
- * Shape only — real audit writes start in P2-7, inside the same transaction
- * as the mutation they record (ARCHITECTURE §6.6). This stub exists so
- * services written before P2-7 can already call `writeAuditLog(...)` with
- * the final signature instead of being rewritten later.
- */
 export type WriteAuditLog = (entry: AuditLogEntry) => Promise<void>;
+
+const auditLogs = new AuditLogRepository();
+
+/**
+ * Writes one `AuditLog` row (non-negotiable 15). Callers invoke this inside
+ * the same Prisma transaction as the mutation it records — this function
+ * itself has no transaction boundary of its own, since `BaseRepository`
+ * calls go through the tenant-scoped Prisma client already bound to
+ * whatever `$transaction` the caller is inside.
+ */
+export const writeAuditLog: WriteAuditLog = async (entry) => {
+  await auditLogs.create({
+    organizationId: entry.organizationId,
+    actorId: entry.actorId ?? null,
+    actorType: entry.actorType,
+    action: entry.action,
+    entityType: entry.entityType,
+    entityId: entry.entityId,
+    before: entry.before ?? null,
+    after: entry.after ?? null,
+    ip: entry.ip ?? null,
+  } as never);
+};

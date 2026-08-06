@@ -1,9 +1,12 @@
 import { env } from '@/config/env.js';
+import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js';
+import type { GraphService } from '@/integrations/microsoft/graph.interfaces.js';
+import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
 
 // DI wiring shape (ARCHITECTURE §4.5). Every external dependency resolves
-// to a fake by default via its `<X>_PROVIDER` env flag. The concrete real
-// and fake implementations do not exist yet — Graph, AI, storage, scanner,
-// embedding, OCR and email each arrive with the phase that needs them. This
+// to a fake by default via its `<X>_PROVIDER` env flag. AI, storage,
+// scanner, embedding, OCR and email implementations don't exist yet and
+// still throw — Graph is P2's, so it's the first to actually resolve. This
 // file fixes the *pattern* other phases plug into: one `registerXxx()`
 // factory per provider interface, switched on its env flag, resolved once
 // and cached.
@@ -21,7 +24,7 @@ class NotImplementedYetError extends Error {
 }
 
 export interface Container {
-  resolveGraph<T>(): T;
+  resolveGraph(): GraphService;
   resolveAiService<T>(): T;
   resolveStorage<T>(): T;
   resolveScanner<T>(): T;
@@ -43,8 +46,14 @@ export function createContainer(): Container {
     throw new NotImplementedYetError(kind, provider);
   };
 
+  let graphService: GraphService | undefined;
+
   return {
-    resolveGraph: <T>() => notYet('graph', env.GRAPH_PROVIDER) as T,
+    resolveGraph: () => {
+      graphService ??=
+        env.GRAPH_PROVIDER === 'real' ? new RealGraphService() : new FakeGraphService();
+      return graphService;
+    },
     resolveAiService: <T>() => notYet('aiService', env.AI_SERVICE_PROVIDER) as T,
     resolveStorage: <T>() => notYet('storage', env.STORAGE_PROVIDER) as T,
     resolveScanner: <T>() => notYet('scanner', env.SCANNER_PROVIDER) as T,
