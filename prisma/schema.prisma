@@ -1,0 +1,11 @@
+// Minimal placeholder schema — just enough for `prisma generate` to produce a
+// typed client so P0 infrastructure (BaseRepository<T>, database/prisma.service.ts)
+// compiles. The real data model (§5 of ARCHITECTURE.md) is P1-1's job.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

@@ -1,0 +1,88 @@
+# `docker compose up` is the only setup command a new developer needs
+# (BUILD_PLAN.md Phase 0 exit criterion).
+
+services:
+  postgres:
+    # pgvector/pgvector, not plain postgres — CM-09's knowledge base needs
+    # the pgvector extension baked into the image rather than installed
+    # after the fact.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: trainer_ai
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    ports:
+      - '3310:3310'
+    healthcheck:
+      test: ['CMD-SHELL', 'clamdcheck.sh || exit 1']
+      # ClamAV downloads virus definitions on first start, which can take
+      # several minutes — a short start_period would flap the container.
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trainer_ai?schema=public
+      REDIS_URL: redis://redis:6379
+      CLAMAV_HOST: clamav
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ['node', 'dist/queue/worker.js']
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trainer_ai?schema=public
+      REDIS_URL: redis://redis:6379
+      CLAMAV_HOST: clamav
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
