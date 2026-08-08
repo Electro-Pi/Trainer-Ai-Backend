@@ -15,7 +15,10 @@ import { createHttpLogger, logger } from '@/logger/logger.service.js';
 import { authRouter } from '@/modules/auth/auth.module.js';
 import { directoryRouter } from '@/modules/directory/directory.module.js';
 import { learnersRouter, teamMembersRouter } from '@/modules/learners/learners.module.js';
+import { levelsRouter, trackLevelsRouter } from '@/modules/levels/levels.module.js';
+import { levelOutcomesRouter, outcomesRouter } from '@/modules/outcomes/outcomes.module.js';
 import { teamsRouter } from '@/modules/teams/teams.module.js';
+import { tracksRouter } from '@/modules/tracks/tracks.module.js';
 import { usersRouter } from '@/modules/users/users.module.js';
 import { mountSwagger } from '@/swagger/swagger.js';
 
@@ -94,6 +97,11 @@ export function createApp(): Express {
   v1.use('/teams', teamsRouter);
   v1.use('/teams', teamMembersRouter);
   v1.use('/learners', learnersRouter);
+  v1.use('/tracks', tracksRouter);
+  v1.use('/tracks/:trackId/levels', trackLevelsRouter);
+  v1.use('/levels', levelsRouter);
+  v1.use('/levels/:levelId/outcomes', levelOutcomesRouter);
+  v1.use('/outcomes', outcomesRouter);
 
   mountSwagger(app);
 

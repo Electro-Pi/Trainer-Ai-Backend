@@ -26,4 +26,22 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
     }
     return this.delegate.findFirst({ where: { id, level: { track: { organizationId } } } });
   }
+
+  /**
+   * `P4-6` — transactional reorder within one level. Two-phase for the same
+   * reason as `LevelRepository.reorder`: `(levelId, order)` is a
+   * non-deferred unique constraint, so intermediate collisions are possible
+   * writing final positions directly.
+   */
+  async reorder(order: string[]): Promise<void> {
+    const offset = order.length + 1000;
+    await prisma.$transaction([
+      ...order.map((id, index) =>
+        this.delegate.update({ where: { id } as never, data: { order: offset + index } as never }),
+      ),
+      ...order.map((id, index) =>
+        this.delegate.update({ where: { id } as never, data: { order: index } as never }),
+      ),
+    ]);
+  }
 }

@@ -33,4 +33,28 @@ export class LevelRepository extends BaseRepository<Level, LevelDelegate> {
     }
     return this.delegate.findFirst({ where: { id, track: { organizationId } } });
   }
+
+  async findByTrackAndKey(trackId: string, key: string): Promise<Level | null> {
+    return this.delegate.findFirst({ where: { trackId, key } });
+  }
+
+  /**
+   * `P4-6` — transactional reorder within one track; `order` must be exactly
+   * that track's levels, verified by the caller. Two-phase: `(trackId,
+   * order)` is a non-deferred unique constraint, so writing final positions
+   * directly can collide mid-transaction with a row that hasn't moved off
+   * its old slot yet (e.g. swapping two levels). Offsetting every row past
+   * the max possible index first guarantees no intermediate collision.
+   */
+  async reorder(order: string[]): Promise<void> {
+    const offset = order.length + 1000;
+    await prisma.$transaction([
+      ...order.map((id, index) =>
+        this.delegate.update({ where: { id } as never, data: { order: offset + index } as never }),
+      ),
+      ...order.map((id, index) =>
+        this.delegate.update({ where: { id } as never, data: { order: index } as never }),
+      ),
+    ]);
+  }
 }
