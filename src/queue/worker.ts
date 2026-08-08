@@ -1,31 +1,44 @@
-import { Worker } from 'bullmq';
+import { Job, Worker } from 'bullmq';
 
 import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
 
+import { processEmbedContentJob } from './jobs/embed-content.job.js';
+import { processExtractTextJob } from './jobs/extract-text.job.js';
+import { processScanMediaJob } from './jobs/scan-media.job.js';
 import { createQueueConnection } from './queue.service.js';
-import { QUEUE_NAMES } from './queues.js';
+import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
 
 const connection = createQueueConnection();
 
+type Processor<K extends QueueName> = (payload: QueuePayloads[K]) => Promise<void>;
+
 /**
- * One `Worker` per queue, all sharing a connection. No job processors exist
- * yet — every queue currently resolves with a no-op — real processors
- * arrive with the phases that need them (media scan in P5, meeting create
- * in P7, etc.). Concurrency/backoff/retries per ARCHITECTURE §10 are real,
- * not placeholders, so a phase adding a real processor doesn't have to
- * revisit this file's policy.
+ * Real processors, one per queue that a shipped phase owns. Queues without
+ * an entry here fall through to the no-op default — real processors arrive
+ * with the phase that needs them (meeting create in P7, report generate in
+ * P9, etc.), per this file's original P0 comment.
  */
-const workers = QUEUE_NAMES.map(
-  (name) =>
-    new Worker(
-      name,
-      async (job) => {
+const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
+  'media.scan': processScanMediaJob,
+  'media.extract': processExtractTextJob,
+  'content.embed': processEmbedContentJob,
+};
+
+const workers = QUEUE_NAMES.map((name) => {
+  const processor = PROCESSORS[name];
+  return new Worker(
+    name,
+    async (job: Job) => {
+      if (!processor) {
         logger.info({ queue: name, jobId: job.id }, 'No-op processor — no handler registered yet');
-      },
-      { connection, concurrency: 5 },
-    ),
-);
+        return;
+      }
+      await processor(job.data as never);
+    },
+    { connection, concurrency: 5 },
+  );
+});
 
 for (const worker of workers) {
   worker.on('failed', (job, err) => {

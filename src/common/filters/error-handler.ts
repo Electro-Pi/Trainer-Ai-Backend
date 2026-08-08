@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { MulterError } from 'multer';
 import { ZodError } from 'zod';
 
 import {
@@ -76,6 +77,13 @@ function normalizeToAppError(err: unknown): AppError {
 
   if (err instanceof ZodError) {
     return new ValidationError(zodIssuesToValidationIssues(err));
+  }
+
+  if (err instanceof MulterError) {
+    return new ValidationError(
+      [{ path: 'file', code: err.code, message: err.message }],
+      'File upload rejected',
+    );
   }
 
   return new InternalError(undefined, err);

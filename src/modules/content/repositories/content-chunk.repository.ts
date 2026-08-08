@@ -31,6 +31,11 @@ export class ContentChunkRepository extends BaseRepository<ContentChunk, Content
     return this.delegate.findMany({ where: { contentItemId }, orderBy: { chunkIndex: 'asc' } });
   }
 
+  /** Re-embedding (publish, new-version, edited text) replaces the whole chunk set rather than diffing it. */
+  async deleteByContentItem(contentItemId: string): Promise<void> {
+    await prisma.contentChunk.deleteMany({ where: { contentItemId } });
+  }
+
   async setEmbedding(chunkId: string, embedding: number[]): Promise<void> {
     const vectorLiteral = `[${embedding.join(',')}]`;
     await prisma.$executeRaw`

@@ -24,6 +24,17 @@ export class ContentOutcomeRepository {
     });
   }
 
+  /** Batched variant for list views — avoids one query per row. */
+  async findByContentItems(
+    contentItemIds: string[],
+  ): Promise<{ contentItemId: string; outcomeId: string }[]> {
+    if (contentItemIds.length === 0) return [];
+    return prisma.contentOutcome.findMany({
+      where: { contentItemId: { in: contentItemIds } },
+      select: { contentItemId: true, outcomeId: true },
+    });
+  }
+
   async findByOutcome(outcomeId: string): Promise<{ contentItemId: string }[]> {
     return prisma.contentOutcome.findMany({
       where: { outcomeId },

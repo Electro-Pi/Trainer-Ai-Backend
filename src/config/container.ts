@@ -1,7 +1,16 @@
+import { AzureEmbeddingService } from '@/ai/embedding.service.js';
+import { FakeEmbeddingService } from '@/ai/fakes/fake-embedding.service.js';
+import { FakeOcrService } from '@/ai/fakes/fake-ocr.service.js';
+import { AzureOcrService } from '@/ai/ocr.service.js';
 import { env } from '@/config/env.js';
 import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js';
 import type { GraphService } from '@/integrations/microsoft/graph.interfaces.js';
 import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
+import type { EmbeddingService, OcrService, Scanner, StorageService } from '@/shared-types.js';
+import { AzureStorageService } from '@/storage/azure-storage.service.js';
+import { LocalStorageService } from '@/storage/local-storage.service.js';
+import { ClamAvScanner } from '@/storage/scanner/clamav.scanner.js';
+import { FakeScanner } from '@/storage/scanner/fake-scanner.service.js';
 
 // DI wiring shape (ARCHITECTURE §4.5). Every external dependency resolves
 // to a fake by default via its `<X>_PROVIDER` env flag. AI, storage,
@@ -47,6 +56,10 @@ export function createContainer(): Container {
   };
 
   let graphService: GraphService | undefined;
+  let storageService: StorageService | undefined;
+  let scanner: Scanner | undefined;
+  let ocrService: OcrService | undefined;
+  let embeddingService: EmbeddingService | undefined;
 
   return {
     resolveGraph: () => {
@@ -55,10 +68,26 @@ export function createContainer(): Container {
       return graphService;
     },
     resolveAiService: <T>() => notYet('aiService', env.AI_SERVICE_PROVIDER) as T,
-    resolveStorage: <T>() => notYet('storage', env.STORAGE_PROVIDER) as T,
-    resolveScanner: <T>() => notYet('scanner', env.SCANNER_PROVIDER) as T,
-    resolveEmbedding: <T>() => notYet('embedding', env.EMBEDDING_PROVIDER) as T,
-    resolveOcr: <T>() => notYet('ocr', env.OCR_PROVIDER) as T,
+    resolveStorage: <T>() => {
+      storageService ??=
+        env.STORAGE_PROVIDER === 'azure' ? new AzureStorageService() : new LocalStorageService();
+      return storageService as T;
+    },
+    resolveScanner: <T>() => {
+      scanner ??= env.SCANNER_PROVIDER === 'clamav' ? new ClamAvScanner() : new FakeScanner();
+      return scanner as T;
+    },
+    resolveEmbedding: <T>() => {
+      embeddingService ??=
+        env.EMBEDDING_PROVIDER === 'azure'
+          ? new AzureEmbeddingService()
+          : new FakeEmbeddingService();
+      return embeddingService as T;
+    },
+    resolveOcr: <T>() => {
+      ocrService ??= env.OCR_PROVIDER === 'azure' ? new AzureOcrService() : new FakeOcrService();
+      return ocrService as T;
+    },
     resolveEmail: <T>() => notYet('email', env.EMAIL_PROVIDER) as T,
   };
 }

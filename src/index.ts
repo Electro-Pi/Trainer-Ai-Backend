@@ -6,12 +6,10 @@ import { env } from '@/config/env.js';
 import { createApp } from '@/app.js';
 import { disconnectPrisma } from '@/database/prisma.service.js';
 import { logger } from '@/logger/logger.service.js';
-import { createQueueConnection, createQueueService } from '@/queue/queue.service.js';
+import { closeQueueService } from '@/queue/queue-instance.js';
 /* eslint-enable import-x/order */
 
 const app = createApp();
-const queueConnection = createQueueConnection();
-const queueService = createQueueService(queueConnection);
 
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Server started');
@@ -29,8 +27,7 @@ async function shutdown(signal: string): Promise<void> {
     logger.info('HTTP server closed');
   });
 
-  await queueService.closeAll();
-  await queueConnection.quit();
+  await closeQueueService();
   await disconnectPrisma();
 
   process.exit(0);

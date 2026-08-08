@@ -102,7 +102,8 @@ export default tseslint.config(
         'error',
         {
           selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
-          message: 'process.env may only be read inside src/config/. Add the var to env.ts instead.',
+          message:
+            'process.env may only be read inside src/config/. Add the var to env.ts instead.',
         },
       ],
     },
@@ -118,7 +119,8 @@ export default tseslint.config(
         'error',
         {
           selector: "MemberExpression[object.object.name='process'][object.property.name='env']",
-          message: 'process.env may only be read inside src/config/. Add the var to env.ts instead.',
+          message:
+            'process.env may only be read inside src/config/. Add the var to env.ts instead.',
         },
         {
           selector: 'TSTypeReference[typeName.name=/^(Request|Response)$/]',
@@ -142,13 +144,15 @@ export default tseslint.config(
           paths: [
             {
               name: '@prisma/client',
-              message: 'Only repositories/ touch Prisma — go through a repository extending BaseRepository<T>.',
+              message:
+                'Only repositories/ touch Prisma — go through a repository extending BaseRepository<T>.',
             },
           ],
           patterns: [
             {
               group: ['**/prisma/generated/**', '**/database/prisma.service*'],
-              message: 'Only repositories/ touch Prisma — go through a repository extending BaseRepository<T>.',
+              message:
+                'Only repositories/ touch Prisma — go through a repository extending BaseRepository<T>.',
             },
           ],
         },
@@ -186,7 +190,8 @@ export default tseslint.config(
           paths: [
             {
               name: '@prisma/client',
-              message: 'Services never touch Prisma directly — go through a repository extending BaseRepository<T>.',
+              message:
+                'Services never touch Prisma directly — go through a repository extending BaseRepository<T>.',
             },
             {
               name: 'express',
@@ -197,7 +202,8 @@ export default tseslint.config(
           patterns: [
             {
               group: ['**/prisma/generated/**', '**/database/prisma.service*'],
-              message: 'Services never touch Prisma directly — go through a repository extending BaseRepository<T>.',
+              message:
+                'Services never touch Prisma directly — go through a repository extending BaseRepository<T>.',
             },
             {
               group: CROSS_MODULE_DEEP_IMPORT_PATTERNS,

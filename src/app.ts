@@ -1,3 +1,6 @@
+import { mkdir } from 'node:fs/promises';
+
+import { BlobServiceClient } from '@azure/storage-blob';
 import express, { type Express } from 'express';
 import { Redis } from 'ioredis';
 
@@ -12,7 +15,12 @@ import { rateLimitMiddleware } from '@/common/middleware/rate-limit.middleware.j
 import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
+import {
+  outcomeAssessmentsRouter,
+  questionsRouter,
+} from '@/modules/assessments/assessments.module.js';
 import { authRouter } from '@/modules/auth/auth.module.js';
+import { contentRouter, mediaRouter } from '@/modules/content/content.module.js';
 import { directoryRouter } from '@/modules/directory/directory.module.js';
 import { learnersRouter, teamMembersRouter } from '@/modules/learners/learners.module.js';
 import { levelsRouter, trackLevelsRouter } from '@/modules/levels/levels.module.js';
@@ -20,6 +28,7 @@ import { levelOutcomesRouter, outcomesRouter } from '@/modules/outcomes/outcomes
 import { teamsRouter } from '@/modules/teams/teams.module.js';
 import { tracksRouter } from '@/modules/tracks/tracks.module.js';
 import { usersRouter } from '@/modules/users/users.module.js';
+import { createLocalBlobsRouter } from '@/storage/storage.module.js';
 import { mountSwagger } from '@/swagger/swagger.js';
 
 interface DependencyCheck {
@@ -59,12 +68,21 @@ async function checkRedis(): Promise<DependencyCheck> {
 }
 
 async function checkStorage(): Promise<DependencyCheck> {
-  // Real check (Azure Blob ping) arrives with P5; the local dev provider has
-  // nothing external to fail against, so it always reports healthy.
-  if (env.STORAGE_PROVIDER === 'local') {
+  try {
+    if (env.STORAGE_PROVIDER === 'local') {
+      await mkdir(env.STORAGE_LOCAL_PATH, { recursive: true });
+      return { name: 'storage', ok: true };
+    }
+    const client = BlobServiceClient.fromConnectionString(env.AZURE_STORAGE_CONNECTION_STRING);
+    await client.getContainerClient(env.AZURE_STORAGE_CONTAINER).getProperties();
     return { name: 'storage', ok: true };
+  } catch (error) {
+    return {
+      name: 'storage',
+      ok: false,
+      error: error instanceof Error ? error.message : 'unknown error',
+    };
   }
-  return { name: 'storage', ok: true };
 }
 
 /**
@@ -101,7 +119,12 @@ export function createApp(): Express {
   v1.use('/tracks/:trackId/levels', trackLevelsRouter);
   v1.use('/levels', levelsRouter);
   v1.use('/levels/:levelId/outcomes', levelOutcomesRouter);
+  v1.use('/outcomes/:id', outcomeAssessmentsRouter);
   v1.use('/outcomes', outcomesRouter);
+  v1.use('/questions', questionsRouter);
+  v1.use('/content', contentRouter);
+  v1.use('/media', mediaRouter);
+  v1.use('/local-blobs', createLocalBlobsRouter());
 
   mountSwagger(app);
 
