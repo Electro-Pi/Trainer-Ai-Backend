@@ -131,5 +131,15 @@ export function createTrainingPlansRouter(): Router {
     },
   );
 
+  router.post(
+    '/:id/summary-report',
+    authorize(...WRITE_ROLES),
+    validate({ params: planIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      controller.summaryReport(req, res).catch(next);
+    },
+  );
+
   return router;
 }

@@ -1,0 +1,22 @@
+import { z } from 'zod';
+
+export const trackKeyParamsSchema = z.object({
+  key: z.string().min(1).max(100),
+});
+
+/**
+ * `WS-01` — `website` is the honeypot: a hidden field real browsers never
+ * fill, only fetched by naive bots submitting every field blindly. Kept
+ * optional/nullable rather than rejected at the schema level so the request
+ * still validates — `PublicService.submitDemoRequest` checks it and silently
+ * drops honeypot-tripped submissions (never reveals detection to the caller).
+ */
+export const demoRequestSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  email: z.email(),
+  company: z.string().trim().min(1).max(200),
+  phone: z.string().trim().max(50).optional(),
+  message: z.string().trim().max(2000).optional(),
+  locale: z.enum(['EN', 'AR']).default('EN'),
+  website: z.string().max(500).optional(),
+});

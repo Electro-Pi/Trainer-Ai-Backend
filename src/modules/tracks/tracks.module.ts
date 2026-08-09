@@ -3,6 +3,8 @@ import { openApiRegistry } from '@/swagger/swagger.js';
 import { TrackRepository } from './repositories/track.repository.js';
 import { createTracksRouter } from './tracks.routes.js';
 
+export type { Track } from './repositories/track.repository.js';
+
 export const tracksRouter = createTracksRouter();
 
 // Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `learners`

@@ -1,0 +1,62 @@
+import type { Request, Response } from 'express';
+
+import type { AuthContext } from '@/common/types/express.js';
+import { container } from '@/config/container.js';
+import type { StorageService } from '@/shared-types.js';
+
+import type { ReportResponseDto } from '../dto/report.dto.js';
+import type { Report } from '../repositories/report.repository.js';
+import { type ActingUser, ReportService } from '../services/report.service.js';
+
+const reports = new ReportService();
+
+function toActingUser(auth: AuthContext): ActingUser {
+  return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
+}
+
+function toResponseDto(report: Report): ReportResponseDto {
+  return {
+    id: report.id,
+    sessionId: report.sessionId,
+    planId: report.planId,
+    type: report.type,
+    language: report.language,
+    status: report.status,
+    generatedAt: report.generatedAt?.toISOString() ?? null,
+    sentAt: report.sentAt?.toISOString() ?? null,
+    failureReason: report.failureReason,
+    resendCount: report.resendCount,
+    createdAt: report.createdAt.toISOString(),
+  };
+}
+
+export class ReportController {
+  async list(req: Request, res: Response): Promise<void> {
+    const query = req.query as { sessionId?: string; planId?: string; status?: string };
+    const results = await reports.list(query);
+    res.status(200).json({
+      data: results.map(toResponseDto),
+      pageInfo: { nextCursor: null, hasNextPage: false },
+    });
+  }
+
+  /** `RP-06` — returns metadata plus a time-limited SAS/signed download URL, never the PDF bytes inline. */
+  async getById(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const report = await reports.getById(id);
+
+    let downloadUrl: string | null = null;
+    if (report.blobKey) {
+      const storage = container.resolveStorage<StorageService>();
+      downloadUrl = await storage.getDownloadUrl(report.blobKey);
+    }
+
+    res.status(200).json({ ...toResponseDto(report), downloadUrl });
+  }
+
+  async resend(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const report = await reports.resend(toActingUser(req.auth!), id);
+    res.status(200).json(toResponseDto(report));
+  }
+}

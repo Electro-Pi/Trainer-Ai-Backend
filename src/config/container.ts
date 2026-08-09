@@ -6,34 +6,27 @@ import { HttpAiServiceClient } from '@/ai/http-ai-service-client.js';
 import type { AiServiceClient } from '@/ai/interfaces/ai-service-client.interface.js';
 import { AzureOcrService } from '@/ai/ocr.service.js';
 import { env } from '@/config/env.js';
+import { FakeEmailService } from '@/email/fakes/fake-email.service.js';
+import { GraphEmailService } from '@/email/graph-email.service.js';
+import { SmtpEmailService } from '@/email/smtp-email.service.js';
 import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js';
 import type { GraphService } from '@/integrations/microsoft/graph.interfaces.js';
 import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
-import type { EmbeddingService, OcrService, Scanner, StorageService } from '@/shared-types.js';
+import type {
+  EmailService,
+  EmbeddingService,
+  OcrService,
+  Scanner,
+  StorageService,
+} from '@/shared-types.js';
 import { AzureStorageService } from '@/storage/azure-storage.service.js';
 import { LocalStorageService } from '@/storage/local-storage.service.js';
 import { ClamAvScanner } from '@/storage/scanner/clamav.scanner.js';
 import { FakeScanner } from '@/storage/scanner/fake-scanner.service.js';
 
 // DI wiring shape (ARCHITECTURE §4.5). Every external dependency resolves
-// to a fake by default via its `<X>_PROVIDER` env flag. AI, storage,
-// scanner, embedding, OCR and email implementations don't exist yet and
-// still throw — Graph is P2's, so it's the first to actually resolve. This
-// file fixes the *pattern* other phases plug into: one `registerXxx()`
-// factory per provider interface, switched on its env flag, resolved once
-// and cached.
-
-export type ProviderKind =
-  'graph' | 'aiService' | 'storage' | 'scanner' | 'embedding' | 'ocr' | 'email';
-
-class NotImplementedYetError extends Error {
-  constructor(kind: ProviderKind, provider: string) {
-    super(
-      `No implementation registered yet for provider "${kind}" (configured: "${provider}"). This lands with the phase that owns it.`,
-    );
-    this.name = 'NotImplementedYetError';
-  }
-}
+// to a fake by default via its `<X>_PROVIDER` env flag, lazily constructed
+// and cached as a singleton per `resolveX()` call.
 
 export interface Container {
   resolveGraph(): GraphService;
@@ -45,25 +38,14 @@ export interface Container {
   resolveEmail<T>(): T;
 }
 
-/**
- * Placeholder container — every branch currently throws
- * `NotImplementedYetError` rather than fabricating a fake class that a
- * later phase is supposed to author for real (e.g. `FakeLlmService` is
- * ai/fakes' job, not P0's). Real registration replaces each `resolveX`
- * body with a lazily-constructed singleton, still switched on the same
- * `env.*_PROVIDER` flag.
- */
 export function createContainer(): Container {
-  const notYet = (kind: ProviderKind, provider: string): never => {
-    throw new NotImplementedYetError(kind, provider);
-  };
-
   let graphService: GraphService | undefined;
   let storageService: StorageService | undefined;
   let scanner: Scanner | undefined;
   let ocrService: OcrService | undefined;
   let embeddingService: EmbeddingService | undefined;
   let aiServiceClient: AiServiceClient | undefined;
+  let emailService: EmailService | undefined;
 
   return {
     resolveGraph: () => {
@@ -96,7 +78,15 @@ export function createContainer(): Container {
       ocrService ??= env.OCR_PROVIDER === 'azure' ? new AzureOcrService() : new FakeOcrService();
       return ocrService as T;
     },
-    resolveEmail: <T>() => notYet('email', env.EMAIL_PROVIDER) as T,
+    resolveEmail: <T>() => {
+      emailService ??=
+        env.EMAIL_PROVIDER === 'graph'
+          ? new GraphEmailService()
+          : env.EMAIL_PROVIDER === 'smtp'
+            ? new SmtpEmailService()
+            : new FakeEmailService();
+      return emailService as T;
+    },
   };
 }
 

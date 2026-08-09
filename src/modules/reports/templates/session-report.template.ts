@@ -1,0 +1,267 @@
+import type { SessionReportData } from '../services/report-data.service.js';
+
+type Language = 'EN' | 'AR';
+
+const COPY = {
+  EN: {
+    title: 'Training Session Report',
+    learner: 'Learner',
+    manager: 'Manager',
+    track: 'Track',
+    level: 'Level',
+    date: 'Session date',
+    overallVerdict: 'Overall verdict',
+    overallScore: 'Overall score',
+    outcomes: 'Outcomes covered',
+    outcome: 'Outcome',
+    verdict: 'Verdict',
+    score: 'Score',
+    carriedOver: 'Carried over',
+    newOutcome: 'New',
+    content: 'Content covered',
+    contentTitle: 'Title',
+    contentType: 'Type',
+    delivered: 'Delivered',
+    notDelivered: 'Not delivered',
+    strengths: 'Strengths',
+    gaps: 'Gaps',
+    notes: 'Agent notes',
+    questionsAnswered: 'Questions answered',
+    verdicts: {
+      ACHIEVED: 'Achieved',
+      PARTIALLY_ACHIEVED: 'Partially achieved',
+      NOT_ACHIEVED: 'Not achieved',
+    },
+  },
+  AR: {
+    title: 'تقرير جلسة تدريبية',
+    learner: 'المتدرب',
+    manager: 'المدير',
+    track: 'المسار',
+    level: 'المستوى',
+    date: 'تاريخ الجلسة',
+    overallVerdict: 'التقييم العام',
+    overallScore: 'الدرجة الإجمالية',
+    outcomes: 'المخرجات المستهدفة',
+    outcome: 'المخرج',
+    verdict: 'التقييم',
+    score: 'الدرجة',
+    carriedOver: 'مرحّل من جلسة سابقة',
+    newOutcome: 'جديد',
+    content: 'المحتوى المقدم',
+    contentTitle: 'العنوان',
+    contentType: 'النوع',
+    delivered: 'تم تقديمه',
+    notDelivered: 'لم يُقدَّم',
+    strengths: 'نقاط القوة',
+    gaps: 'نقاط الضعف',
+    notes: 'ملاحظات المدرب الذكي',
+    questionsAnswered: 'عدد الأسئلة المجابة',
+    verdicts: {
+      ACHIEVED: 'محقَّق',
+      PARTIALLY_ACHIEVED: 'محقَّق جزئياً',
+      NOT_ACHIEVED: 'غير محقَّق',
+    },
+  },
+} as const;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatDate(iso: string, locale: Language): string {
+  return new Date(iso).toLocaleDateString(locale === 'AR' ? 'ar-EG' : 'en-GB', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+/** Verdict is never conveyed by color alone — always paired with the localized label text. */
+function verdictBadgeClass(verdict: string | null): string {
+  if (verdict === 'ACHIEVED') return 'badge badge-achieved';
+  if (verdict === 'PARTIALLY_ACHIEVED') return 'badge badge-partial';
+  return 'badge badge-not-achieved';
+}
+
+/**
+ * `RP-03` — logical CSS properties (`margin-inline`, `text-align: start`) so
+ * the layout mirrors correctly under `dir="rtl"` without a second stylesheet.
+ * Font stack relies on the renderer host's installed fonts (`Tahoma`/`Segoe
+ * UI` on Windows render Arabic correctly, live-verified) rather than a
+ * bundled webfont — production Linux containers need an Arabic-capable font
+ * package installed (e.g. `fonts-noto`), flagged for the deploy runbook (P12).
+ */
+function baseStyles(branding: SessionReportData['branding']): string {
+  const accent = branding.primaryColor ?? '#1f5fb0';
+  return `
+    :root {
+      --color-accent: ${accent};
+      --color-text: #1a1a1a;
+      --color-muted: #5a5a5a;
+      --color-border: #dcdcdc;
+      --color-bg-subtle: #f6f7f9;
+      --color-achieved: #1a7f37;
+      --color-achieved-bg: #eaf7ee;
+      --color-partial: #9a6700;
+      --color-partial-bg: #fff6e0;
+      --color-not-achieved: #b3261e;
+      --color-not-achieved-bg: #fbeaea;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      color: var(--color-text);
+      font-size: 12pt;
+      line-height: 1.6;
+      margin: 0;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid var(--color-accent);
+      padding-block-end: 12pt;
+      margin-block-end: 16pt;
+    }
+    .header img { max-height: 48pt; }
+    .header h1 { font-size: 16pt; margin: 0; color: var(--color-accent); }
+    .org-name { font-size: 10pt; color: var(--color-muted); }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6pt 24pt;
+      margin-block-end: 18pt;
+      padding: 12pt;
+      background: var(--color-bg-subtle);
+      border-radius: 6pt;
+    }
+    .meta-item .label { font-size: 9pt; color: var(--color-muted); text-transform: uppercase; }
+    .meta-item .value { font-size: 11pt; font-weight: 600; }
+    section { margin-block-end: 18pt; }
+    h2 {
+      font-size: 12pt;
+      color: var(--color-accent);
+      border-inline-start: 4pt solid var(--color-accent);
+      padding-inline-start: 8pt;
+      margin-block-end: 8pt;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+    th, td {
+      text-align: start;
+      padding: 6pt 8pt;
+      border-bottom: 1px solid var(--color-border);
+    }
+    th { color: var(--color-muted); font-weight: 600; font-size: 9pt; text-transform: uppercase; }
+    .badge {
+      display: inline-block;
+      padding: 2pt 8pt;
+      border-radius: 10pt;
+      font-size: 9pt;
+      font-weight: 600;
+    }
+    .badge-achieved { color: var(--color-achieved); background: var(--color-achieved-bg); }
+    .badge-partial { color: var(--color-partial); background: var(--color-partial-bg); }
+    .badge-not-achieved { color: var(--color-not-achieved); background: var(--color-not-achieved-bg); }
+    .prose { white-space: pre-wrap; font-size: 10.5pt; }
+    .footer { margin-block-start: 24pt; padding-block-start: 8pt; border-top: 1px solid var(--color-border); font-size: 8pt; color: var(--color-muted); text-align: center; }
+  `;
+}
+
+export function renderSessionReportHtml(data: SessionReportData, language: Language): string {
+  const t = COPY[language];
+  const dir = language === 'AR' ? 'rtl' : 'ltr';
+
+  const outcomeRows = data.outcomes
+    .map(
+      (outcome) => `
+      <tr>
+        <td>${escapeHtml(language === 'AR' ? outcome.titleAr : outcome.titleEn)}</td>
+        <td><span class="${verdictBadgeClass(outcome.verdict)}">${outcome.verdict ? t.verdicts[outcome.verdict] : '—'}</span></td>
+        <td>${outcome.score ?? '—'}</td>
+        <td>${outcome.isCarriedOver ? t.carriedOver : t.newOutcome}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const contentRows = data.content
+    .map(
+      (item) => `
+      <tr>
+        <td>${escapeHtml(item.title)}</td>
+        <td>${escapeHtml(item.contentType)}</td>
+        <td>${item.delivered ? t.delivered : t.notDelivered}</td>
+      </tr>`,
+    )
+    .join('');
+
+  return `<!doctype html>
+<html lang="${language.toLowerCase()}" dir="${dir}">
+<head>
+<meta charset="utf-8" />
+<title>${t.title}</title>
+<style>${baseStyles(data.branding)}</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>${t.title}</h1>
+      <div class="org-name">${escapeHtml(data.branding.organizationName)}</div>
+    </div>
+    ${data.branding.logoUrl ? `<img src="${escapeHtml(data.branding.logoUrl)}" alt="" />` : ''}
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-item"><div class="label">${t.learner}</div><div class="value">${escapeHtml(data.learnerName)}</div></div>
+    <div class="meta-item"><div class="label">${t.manager}</div><div class="value">${escapeHtml(data.managerName)}</div></div>
+    <div class="meta-item"><div class="label">${t.track}</div><div class="value">${escapeHtml(language === 'AR' ? data.trackNameAr : data.trackNameEn)}</div></div>
+    <div class="meta-item"><div class="label">${t.level}</div><div class="value">${escapeHtml(language === 'AR' ? data.levelNameAr : data.levelNameEn)}</div></div>
+    <div class="meta-item"><div class="label">${t.date}</div><div class="value">${formatDate(data.sessionDate, language)}</div></div>
+    <div class="meta-item"><div class="label">${t.overallScore}</div><div class="value">${data.overallScore}</div></div>
+  </div>
+
+  <section>
+    <h2>${t.overallVerdict}</h2>
+    <span class="${verdictBadgeClass(data.overallVerdict)}">${t.verdicts[data.overallVerdict]}</span>
+  </section>
+
+  <section>
+    <h2>${t.outcomes}</h2>
+    <table>
+      <thead><tr><th>${t.outcome}</th><th>${t.verdict}</th><th>${t.score}</th><th></th></tr></thead>
+      <tbody>${outcomeRows}</tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>${t.content}</h2>
+    <table>
+      <thead><tr><th>${t.contentTitle}</th><th>${t.contentType}</th><th></th></tr></thead>
+      <tbody>${contentRows}</tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>${t.strengths}</h2>
+    <div class="prose">${escapeHtml(data.strengths || '—')}</div>
+  </section>
+
+  <section>
+    <h2>${t.gaps}</h2>
+    <div class="prose">${escapeHtml(data.gaps || '—')}</div>
+  </section>
+
+  <section>
+    <h2>${t.notes}</h2>
+    <div class="prose">${escapeHtml(data.agentNotes || '—')}</div>
+    <div class="prose" style="margin-block-start: 6pt; color: var(--color-muted);">${t.questionsAnswered}: ${data.answerCount}</div>
+  </section>
+
+  <div class="footer">${escapeHtml(data.branding.organizationName)} · ${t.title}</div>
+</body>
+</html>`;
+}

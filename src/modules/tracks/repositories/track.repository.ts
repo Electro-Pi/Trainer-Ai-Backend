@@ -127,4 +127,28 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
   async findByIdScoped(id: string): Promise<Track | null> {
     return this.delegate.findFirst({ where: { id } });
   }
+
+  /**
+   * `WS-02` — the public marketing site has no tenant/auth context, but
+   * `Track` is tenant-scoped (the extension refuses any query outside
+   * `runWithTenant()`, by design — see `tenant.extension.ts`'s doc comment).
+   * Every org gets its own copy of the same 8 BRD tracks at seed time
+   * (P1-6), so this deliberately bypasses the extension via raw SQL — the
+   * same escape hatch `SessionRepository.findByJoinToken` uses — reading
+   * across every org's enabled tracks and keeping one row per `key` (the
+   * shared BRD content, not any one tenant's customized copy). Narrow on
+   * purpose (`isEnabled` only, `SELECT *` on one row per key), never exposed
+   * as a general cross-tenant finder.
+   */
+  async findPublicByKey(): Promise<Track[]> {
+    return prisma.$queryRaw<Track[]>`
+      SELECT * FROM (
+        SELECT DISTINCT ON ("key") *
+        FROM "tracks"
+        WHERE "isEnabled" = true
+        ORDER BY "key", "sortOrder" ASC
+      ) AS deduped
+      ORDER BY "sortOrder" ASC
+    `;
+  }
 }

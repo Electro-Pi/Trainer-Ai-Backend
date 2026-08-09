@@ -8,6 +8,7 @@ import type {
   GraphService,
   GraphUser,
   GraphUserCollection,
+  SendGraphMailInput,
 } from './graph.interfaces.js';
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
@@ -130,6 +131,24 @@ export class RealGraphService implements GraphService {
 
   async cancelMeeting(meetingId: string, accessToken: string): Promise<void> {
     await this.request<void>('DELETE', `/me/onlineMeetings/${meetingId}`, accessToken);
+  }
+
+  /** `RP-02` — sends from the caller's own mailbox via Graph `sendMail`. */
+  async sendMail(input: SendGraphMailInput, accessToken: string): Promise<void> {
+    await this.request<void>('POST', '/me/sendMail', accessToken, {
+      message: {
+        subject: input.subject,
+        body: { contentType: 'HTML', content: input.html },
+        toRecipients: [{ emailAddress: { address: input.to } }],
+        attachments: input.attachments?.map((attachment) => ({
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: attachment.filename,
+          contentType: attachment.contentType,
+          contentBytes: attachment.contentBytes,
+        })),
+      },
+      saveToSentItems: true,
+    });
   }
 }
 

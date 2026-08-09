@@ -25,6 +25,14 @@ export interface GraphMeeting {
   joinWebUrl: string;
 }
 
+/** `RP-02` — an email with an optional PDF attachment, sent via Graph `sendMail`. */
+export interface SendGraphMailInput {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: { filename: string; contentType: string; contentBytes: string }[];
+}
+
 export interface GraphService {
   /** GET on an arbitrary Graph resource path (e.g. `/me`), token-cached, 429-retried. */
   get<T>(resourcePath: string, accessToken: string): Promise<T>;
@@ -47,4 +55,7 @@ export interface GraphService {
 
   /** Cancels a meeting on session cancellation — best-effort, never blocks the cancel itself. */
   cancelMeeting(meetingId: string, accessToken: string): Promise<void>;
+
+  /** `RP-02` — sends mail from the caller's own mailbox via Graph `sendMail`. */
+  sendMail(input: SendGraphMailInput, accessToken: string): Promise<void>;
 }

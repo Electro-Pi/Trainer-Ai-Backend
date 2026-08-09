@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { logger } from '@/logger/logger.service.js';
+
 import type {
   CreateMeetingInput,
   GraphMeeting,
   GraphService,
   GraphUser,
+  SendGraphMailInput,
 } from './graph.interfaces.js';
 
 const FAKE_USERS: GraphUser[] = [
@@ -76,6 +79,14 @@ export class FakeGraphService implements GraphService {
   }
 
   async cancelMeeting(_meetingId: string, _accessToken: string): Promise<void> {
+    return Promise.resolve();
+  }
+
+  async sendMail(input: SendGraphMailInput, _accessToken: string): Promise<void> {
+    logger.info(
+      { to: input.to, subject: input.subject, attachments: input.attachments?.length ?? 0 },
+      'FakeGraphService.sendMail — no real mail sent',
+    );
     return Promise.resolve();
   }
 }

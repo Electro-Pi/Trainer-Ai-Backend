@@ -86,3 +86,11 @@ openApiRegistry.registerPath({
   summary: 'Saves a plan’s session structure as a reusable template (`TP-07`)',
   responses: { 201: { description: 'Created template' } },
 });
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/plans/{id}/summary-report',
+  tags: ['Reports'],
+  summary: 'Requests an end-of-plan summary report, one PDF per recipient language (`RP-05`)',
+  responses: { 202: { description: 'Report(s) queued for generation' } },
+});

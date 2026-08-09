@@ -1,6 +1,14 @@
 import type { Request, Response } from 'express';
 
+import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { AuthContext } from '@/common/types/express.js';
+import { learnerRepository } from '@/modules/learners/learners.module.js';
+import {
+  createPlanSummaryReports,
+  type PlanSummaryRecipient,
+} from '@/modules/reports/reports.module.js';
+import { teamRepository } from '@/modules/teams/teams.module.js';
+import { portalUserRepository } from '@/modules/users/users.module.js';
 
 import type {
   CreateTrainingPlanDto,
@@ -107,5 +115,55 @@ export class TrainingPlanController {
     const { trackId, levelId } = req.query as { trackId: string; levelId: string };
     const templates = await plans.listTemplates(trackId, levelId);
     res.status(200).json({ data: templates, pageInfo: { nextCursor: null, hasNextPage: false } });
+  }
+
+  /**
+   * `RP-05` — end-of-plan summary report, one PDF per distinct recipient
+   * language among {manager, learner} (`RP-02`'s rule extends to plans).
+   */
+  async summaryReport(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const auth = req.auth!;
+    const plan = await plans.getById(id);
+
+    const learner = await learnerRepository.findByIdScoped(plan.learnerId);
+    if (!learner) throw new Error('Learner not found for plan');
+
+    const team = await teamRepository.findByIdScoped(learner.teamId);
+    const manager = team ? await portalUserRepository.findByIdScoped(team.managerId) : null;
+
+    const recipientsByLanguage = new Map<'EN' | 'AR', PlanSummaryRecipient[]>();
+    const addRecipient = (language: 'EN' | 'AR', recipient: PlanSummaryRecipient): void => {
+      const existing = recipientsByLanguage.get(language) ?? [];
+      existing.push(recipient);
+      recipientsByLanguage.set(language, existing);
+    };
+
+    addRecipient(learner.preferredLanguage, {
+      role: 'LEARNER',
+      email: learner.email,
+      name: learner.displayName,
+    });
+    if (manager) {
+      addRecipient(manager.locale, {
+        role: 'MANAGER',
+        portalUserId: manager.id,
+        email: manager.email,
+        name: manager.name,
+      });
+    }
+
+    const created = await createPlanSummaryReports(auth.orgId, id, recipientsByLanguage);
+
+    await writeAuditLog({
+      organizationId: auth.orgId,
+      actorId: auth.sub,
+      actorType: 'USER',
+      action: 'report.plan_summary_requested',
+      entityType: 'TrainingPlan',
+      entityId: id,
+    });
+
+    res.status(202).json({ data: created.map((r) => ({ id: r.id, language: r.language })) });
   }
 }

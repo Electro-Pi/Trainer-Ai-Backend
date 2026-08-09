@@ -6,9 +6,11 @@ import { logger } from '@/logger/logger.service.js';
 import { processCreateMeetingJob } from './jobs/create-meeting.job.js';
 import { processEmbedContentJob } from './jobs/embed-content.job.js';
 import { processExtractTextJob } from './jobs/extract-text.job.js';
+import { processGenerateReportJob } from './jobs/generate-report.job.js';
 import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
 import { processScanMediaJob } from './jobs/scan-media.job.js';
 import { processSendReminderJob } from './jobs/send-reminder.job.js';
+import { processSendReportJob } from './jobs/send-report.job.js';
 import { createQueueConnection } from './queue.service.js';
 import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
 
@@ -29,6 +31,8 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'meeting.create': processCreateMeetingJob,
   'meeting.update': processMeetingUpdateJob,
   'session.reminder': processSendReminderJob,
+  'report.generate': processGenerateReportJob,
+  'report.send': processSendReportJob,
 };
 
 const workers = QUEUE_NAMES.map((name) => {

@@ -1,9 +1,19 @@
 import { runWithTenant } from '@/database/tenant-context.js';
 import { eventBus } from '@/events/event-bus.js';
+import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { RecommendationService } from '@/modules/recommendations/recommendations.module.js';
 import { reportRepository } from '@/modules/reports/reports.module.js';
 import { sessionRepository } from '@/modules/sessions/sessions.module.js';
+import { teamRepository } from '@/modules/teams/teams.module.js';
+import { portalUserRepository } from '@/modules/users/users.module.js';
 import { queueService } from '@/queue/queue-instance.js';
+
+export interface ReportRecipient {
+  role: 'MANAGER' | 'LEARNER';
+  portalUserId?: string;
+  email: string;
+  name: string;
+}
 
 /**
  * `P8-8b`, ARCHITECTURE §4.3's own worked example — `session.completed`
@@ -17,28 +27,57 @@ import { queueService } from '@/queue/queue-instance.js';
  * inside the publishing request's `AsyncLocalStorage` frame.
  */
 export function registerSessionCompletedHandlers(): void {
-  // `RP-01` — creates the `Report` row here (P9 hasn't built its module
-  // surface yet, but the schema and queue contract already exist) and
-  // enqueues generation; P9's real Playwright renderer is the consumer.
+  // `RP-01`, `RP-02` — creates one `Report` row per distinct recipient
+  // language among {manager, learner} ("one session can produce two PDFs",
+  // ARCHITECTURE §9/P9's exit criterion) and enqueues generation for each.
   eventBus.subscribe('session.completed', async (payload) => {
     await runWithTenant(payload.organizationId, async () => {
       const session = await sessionRepository.findByIdScoped(payload.sessionId);
       if (!session) return;
 
-      const report = await reportRepository.create({
-        organizationId: payload.organizationId,
-        sessionId: payload.sessionId,
-        planId: session.planId,
-        type: 'SESSION',
-        language: 'EN',
-        status: 'PENDING',
-        recipients: [],
-      } as never);
+      const learner = await learnerRepository.findByIdScoped(payload.learnerId);
+      if (!learner) return;
 
-      await queueService.enqueue('report.generate', {
-        reportId: report.id,
-        organizationId: payload.organizationId,
+      const team = await teamRepository.findByIdScoped(learner.teamId);
+      const manager = team ? await portalUserRepository.findByIdScoped(team.managerId) : null;
+
+      const recipientsByLanguage = new Map<'EN' | 'AR', ReportRecipient[]>();
+      const addRecipient = (language: 'EN' | 'AR', recipient: ReportRecipient): void => {
+        const existing = recipientsByLanguage.get(language) ?? [];
+        existing.push(recipient);
+        recipientsByLanguage.set(language, existing);
+      };
+
+      addRecipient(learner.preferredLanguage, {
+        role: 'LEARNER',
+        email: learner.email,
+        name: learner.displayName,
       });
+      if (manager) {
+        addRecipient(manager.locale, {
+          role: 'MANAGER',
+          portalUserId: manager.id,
+          email: manager.email,
+          name: manager.name,
+        });
+      }
+
+      for (const [language, recipients] of recipientsByLanguage) {
+        const report = await reportRepository.create({
+          organizationId: payload.organizationId,
+          sessionId: payload.sessionId,
+          planId: session.planId,
+          type: 'SESSION',
+          language,
+          status: 'PENDING',
+          recipients,
+        } as never);
+
+        await queueService.enqueue('report.generate', {
+          reportId: report.id,
+          organizationId: payload.organizationId,
+        });
+      }
     });
   });
 

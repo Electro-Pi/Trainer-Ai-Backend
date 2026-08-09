@@ -42,3 +42,30 @@ export interface EmbeddingService {
   embed(text: string): Promise<number[]>;
   readonly dimensions: number;
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// P9 — Notifications (ARCHITECTURE §4.5, `RP-02`)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+}
+
+export interface SendMailInput {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+  /** `GraphEmailService` sends "as" this `PortalUser` (their own Graph session, `Mail.Send` scope); ignored by SMTP/fake. */
+  senderPortalUserId?: string;
+}
+
+/**
+ * Mail delivery (`GraphEmailService` primary via Graph `sendMail`, `SmtpEmailService`
+ * fallback, `FakeEmailService` dev/test default — never send real mail from dev, §4.5).
+ */
+export interface EmailService {
+  send(input: SendMailInput): Promise<void>;
+}
