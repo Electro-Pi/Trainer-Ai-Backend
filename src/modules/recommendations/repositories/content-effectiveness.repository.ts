@@ -3,6 +3,8 @@ import type { ContentEffectiveness } from '@prisma/client';
 import { BaseRepository } from '@/common/repositories/base.repository.js';
 import { prisma } from '@/database/prisma.service.js';
 
+export type { ContentEffectiveness };
+
 type ContentEffectivenessDelegate = typeof prisma.contentEffectiveness;
 
 /** Recomputed by `recompute-effectiveness.job` (nightly cron), never inline (`RC-13`). */

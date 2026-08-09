@@ -11,6 +11,7 @@ export const EVENT_NAMES = [
   'report.failed',
   'content.published',
   'learner.level.assigned',
+  'recommendation.coverage_gap',
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];
@@ -60,5 +61,11 @@ export interface EventPayloads {
     trackId: string;
     levelId: string;
     assignedById: string;
+  };
+  'recommendation.coverage_gap': {
+    recommendationId: string;
+    organizationId: string;
+    learnerId: string;
+    outcomeIds: string[];
   };
 }

@@ -2,8 +2,14 @@ import { openApiRegistry } from '@/swagger/swagger.js';
 
 import { createLearnersRouter, createTeamMembersRouter } from './learners.routes.js';
 import { LearnerAssignmentRepository } from './repositories/learner-assignment.repository.js';
+import { LearnerExperienceRepository } from './repositories/learner-experience.repository.js';
 import { LearnerOutcomeRepository } from './repositories/learner-outcome.repository.js';
 import { LearnerRepository } from './repositories/learner.repository.js';
+
+export type { LearnerOutcome, OutcomeStatus } from './repositories/learner-outcome.repository.js';
+export type { LearnerAssignment } from './repositories/learner-assignment.repository.js';
+export type { LearnerExperience } from './repositories/learner-experience.repository.js';
+export type { Learner } from './repositories/learner.repository.js';
 
 export const learnersRouter = createLearnersRouter();
 export const teamMembersRouter = createTeamMembersRouter();
@@ -14,6 +20,7 @@ export const teamMembersRouter = createTeamMembersRouter();
 export const learnerRepository = new LearnerRepository();
 export const learnerAssignmentRepository = new LearnerAssignmentRepository();
 export const learnerOutcomeRepository = new LearnerOutcomeRepository();
+export const learnerExperienceRepository = new LearnerExperienceRepository();
 
 openApiRegistry.registerPath({
   method: 'get',

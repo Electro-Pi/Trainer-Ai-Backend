@@ -2,14 +2,21 @@ import { openApiRegistry } from '@/swagger/swagger.js';
 
 import { createContentRouter, createMediaRouter } from './content.routes.js';
 import { ContentItemRepository } from './repositories/content-item.repository.js';
+import { ContentOutcomeRepository } from './repositories/content-outcome.repository.js';
+import { ContentPrerequisiteRepository } from './repositories/content-prerequisite.repository.js';
+
+export type { ContentItem, ContentType } from './repositories/content-item.repository.js';
+export type { ContentPrerequisite } from './repositories/content-prerequisite.repository.js';
 
 export const contentRouter = createContentRouter();
 export const mediaRouter = createMediaRouter();
 
 // Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `recommendations`
-// (P6) resolves the candidate pool through this instead of deep-importing
-// `modules/content/repositories/*`.
+// (P6) resolves the candidate pool, outcome bindings and prerequisite edges
+// through these instead of deep-importing `modules/content/repositories/*`.
 export const contentItemRepository = new ContentItemRepository();
+export const contentOutcomeRepository = new ContentOutcomeRepository();
+export const contentPrerequisiteRepository = new ContentPrerequisiteRepository();
 
 openApiRegistry.registerPath({
   method: 'get',

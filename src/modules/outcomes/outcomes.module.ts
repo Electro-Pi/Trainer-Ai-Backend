@@ -3,6 +3,8 @@ import { openApiRegistry } from '@/swagger/swagger.js';
 import { createLevelOutcomesRouter, createOutcomesRouter } from './outcomes.routes.js';
 import { OutcomeRepository } from './repositories/outcome.repository.js';
 
+export type { Outcome } from './repositories/outcome.repository.js';
+
 export const levelOutcomesRouter = createLevelOutcomesRouter();
 export const outcomesRouter = createOutcomesRouter();
 
