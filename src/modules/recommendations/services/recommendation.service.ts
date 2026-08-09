@@ -37,6 +37,8 @@ export interface GenerateRecommendationInput {
   learnerId: string;
   trigger: RecommendationTrigger;
   sessionId?: string;
+  /** `RC-14` — content ids to exclude regardless of score. `OUTCOME_FAILED`'s caller (P8) passes what was already delivered on the failed outcome. */
+  excludeContentItemIds?: ReadonlySet<string>;
 }
 
 export interface GenerateRecommendationResult {
@@ -89,6 +91,9 @@ export class RecommendationService {
       levelId: assignment.levelId,
       language: learner.preferredLanguage,
       requiredOutcomes,
+      ...(input.excludeContentItemIds
+        ? { excludeContentItemIds: input.excludeContentItemIds }
+        : {}),
     });
 
     const scored = await this.scoreAndRank(

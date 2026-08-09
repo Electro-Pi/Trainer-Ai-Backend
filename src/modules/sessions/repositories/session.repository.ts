@@ -105,6 +105,23 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
     );
   }
 
+  /**
+   * The Agent Session API's write path (`P8-4`…`P8-8`) authenticates via a
+   * service token, not a portal-user JWT — there is no `req.auth.orgId` to
+   * seed `runWithTenant` with before the first tenant-scoped read. Same
+   * two-step unscoped→scoped reasoning as `findByJoinToken`, narrowed to a
+   * single `id` lookup instead of a token: read the `organizationId` raw,
+   * then re-enter `runWithTenant` for the real, tenant-scoped row.
+   */
+  async findOrganizationIdForSession(
+    id: string,
+  ): Promise<{ id: string; organizationId: string } | null> {
+    const rows = await prisma.$queryRaw<
+      { id: string; organizationId: string }[]
+    >`SELECT "id", "organizationId" FROM "sessions" WHERE "id" = ${id} LIMIT 1`;
+    return rows[0] ?? null;
+  }
+
   async findByPlan(planId: string): Promise<Session[]> {
     return this.delegate.findMany({ where: { planId }, orderBy: { scheduledStart: 'asc' } });
   }
@@ -144,6 +161,65 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
         data: { sessionId, learnerId, graphEventId: meeting.graphEventId },
       }),
     ]);
+    return session;
+  }
+
+  /**
+   * `P8-8`, ARCHITECTURE §9.1 — the `complete` transaction. One atomic write:
+   * `Assessment.totalScore`/`verdict`, every `SessionOutcome.verdict`/`score`
+   * for this session (`OT-03`), the `Session` itself (`status`, `verdict`,
+   * `score`, `endedAt`), and an audit row — all inside one
+   * `prisma.$transaction` so a mid-write failure never leaves, e.g., the
+   * `Session` marked `COMPLETED` with no matching `Assessment` verdict.
+   * `LearnerOutcome` updates happen in a *separate* transaction
+   * (`LearnerOutcomeRepository.applyVerdict`, called per-outcome by the
+   * caller) since they're keyed by `(learnerId, outcomeId, assignmentId)`,
+   * not `sessionId` — this method only owns the session-shaped half.
+   */
+  async completeSession(params: {
+    sessionId: string;
+    assessmentId: string;
+    organizationId: string;
+    verdict: 'ACHIEVED' | 'PARTIALLY_ACHIEVED' | 'NOT_ACHIEVED';
+    totalScore: number;
+    sessionOutcomeVerdicts: {
+      outcomeId: string;
+      verdict: 'ACHIEVED' | 'PARTIALLY_ACHIEVED' | 'NOT_ACHIEVED';
+      score: number;
+    }[];
+  }): Promise<Session> {
+    const [session] = await prisma.$transaction([
+      this.delegate.update({
+        where: { id: params.sessionId } as never,
+        data: {
+          status: 'COMPLETED',
+          verdict: params.verdict,
+          score: params.totalScore,
+          endedAt: new Date(),
+        } as never,
+      }),
+      prisma.assessment.update({
+        where: { id: params.assessmentId },
+        data: { totalScore: params.totalScore, verdict: params.verdict, completedAt: new Date() },
+      }),
+      ...params.sessionOutcomeVerdicts.map((so) =>
+        prisma.sessionOutcome.update({
+          where: { sessionId_outcomeId: { sessionId: params.sessionId, outcomeId: so.outcomeId } },
+          data: { verdict: so.verdict, score: so.score },
+        }),
+      ),
+      prisma.auditLog.create({
+        data: {
+          organizationId: params.organizationId,
+          actorType: 'AGENT',
+          action: 'session.completed',
+          entityType: 'Session',
+          entityId: params.sessionId,
+          after: { verdict: params.verdict, totalScore: params.totalScore },
+        },
+      }),
+    ]);
+
     return session;
   }
 

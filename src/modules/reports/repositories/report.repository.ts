@@ -3,6 +3,8 @@ import type { Report } from '@prisma/client';
 import { BaseRepository } from '@/common/repositories/base.repository.js';
 import { prisma } from '@/database/prisma.service.js';
 
+export type { Report };
+
 type ReportDelegate = typeof prisma.report;
 
 export class ReportRepository extends BaseRepository<Report, ReportDelegate> {

@@ -15,6 +15,7 @@ import { rateLimitMiddleware } from '@/common/middleware/rate-limit.middleware.j
 import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
+import { agentRouter } from '@/modules/agent/agent.module.js';
 import {
   outcomeAssessmentsRouter,
   questionsRouter,
@@ -136,6 +137,7 @@ export function createApp(): Express {
   v1.use('/plans', trainingPlansRouter);
   v1.use('/sessions', sessionsRouter);
   v1.use('/webhooks', rsvpWebhookRouter);
+  v1.use('/agent', agentRouter);
 
   mountSwagger(app);
 

@@ -30,6 +30,8 @@ export class CandidatePoolService {
     levelId: string;
     language: Language;
     requiredOutcomes: LearnerOutcome[];
+    /** `RC-14` — content ids to drop from the pool regardless of score (repeat-failure remediation excluding what was already delivered). */
+    excludeContentItemIds?: ReadonlySet<string>;
   }): Promise<CandidatePoolResult> {
     const outstandingOutcomeIds = new Set(
       params.requiredOutcomes.filter((lo) => lo.status !== 'ACHIEVED').map((lo) => lo.outcomeId),
@@ -57,7 +59,9 @@ export class CandidatePoolService {
 
     // `CM-17`: `findCandidates` already filters to PUBLISHED, so no separate
     // archived-exclusion step is needed — ARCHIVED items never reach here.
-    const candidates = published.filter((item) => boundOutcomesByContent.has(item.id));
+    const candidates = published.filter(
+      (item) => boundOutcomesByContent.has(item.id) && !params.excludeContentItemIds?.has(item.id),
+    );
     const mandatoryContentIds = new Set(
       candidates.filter((item) => item.isMandatory).map((item) => item.id),
     );

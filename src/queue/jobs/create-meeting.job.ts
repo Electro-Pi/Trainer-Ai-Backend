@@ -1,4 +1,6 @@
+import type { AiServiceClient } from '@/ai/interfaces/ai-service-client.interface.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
+import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { graphMeetingsService } from '@/integrations/microsoft/graph.meetings.js';
 import { logger } from '@/logger/logger.service.js';
@@ -64,10 +66,44 @@ export async function processCreateMeetingJob(
       attendeeEmails: [learner.email],
     });
 
-    await sessions.recordMeetingCreated(session.id, session.learnerId, {
+    const updated = await sessions.recordMeetingCreated(session.id, session.learnerId, {
       graphEventId: meeting.id,
       joinUrl: meeting.joinWebUrl,
     });
+
+    // `P8-10`, ARCHITECTURE §9.11 rule 6 — asks the AI service to join the
+    // meeting. Best-effort: a dispatch failure marks the session and
+    // notifies the manager rather than silently producing a no-show, but
+    // does not fail this job or undo the meeting/invitation already created
+    // — the meeting is real on Graph either way, and retrying the whole job
+    // would re-run the (already-guarded, idempotent) steps above for nothing.
+    try {
+      const aiClient = container.resolveAiService<AiServiceClient>();
+      const result = await aiClient.dispatchSession({
+        sessionId: updated.id,
+        joinUrl: updated.joinUrl ?? meeting.joinWebUrl,
+        scheduledStart: updated.scheduledStart.toISOString(),
+        learnerDisplayName: learner.displayName,
+        language: learner.preferredLanguage,
+      });
+
+      if (!result.accepted) {
+        throw new Error('AI service declined the session dispatch');
+      }
+    } catch (error) {
+      logger.error(
+        { sessionId: session.id, err: error },
+        'create-meeting: AI service dispatch failed, notifying manager',
+      );
+      await writeAuditLog({
+        organizationId: payload.organizationId,
+        actorType: 'SYSTEM',
+        action: 'session.dispatch_failed',
+        entityType: 'Session',
+        entityId: session.id,
+        after: { reason: error instanceof Error ? error.message : 'unknown' },
+      });
+    }
 
     const reminderDelayMs = session.scheduledStart.getTime() - REMINDER_LEAD_TIME_MS - Date.now();
     if (reminderDelayMs > 0) {

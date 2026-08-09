@@ -1,6 +1,9 @@
 import { AzureEmbeddingService } from '@/ai/embedding.service.js';
 import { FakeEmbeddingService } from '@/ai/fakes/fake-embedding.service.js';
+import { FakeLlmService } from '@/ai/fakes/fake-llm.service.js';
 import { FakeOcrService } from '@/ai/fakes/fake-ocr.service.js';
+import { HttpAiServiceClient } from '@/ai/http-ai-service-client.js';
+import type { AiServiceClient } from '@/ai/interfaces/ai-service-client.interface.js';
 import { AzureOcrService } from '@/ai/ocr.service.js';
 import { env } from '@/config/env.js';
 import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js';
@@ -60,6 +63,7 @@ export function createContainer(): Container {
   let scanner: Scanner | undefined;
   let ocrService: OcrService | undefined;
   let embeddingService: EmbeddingService | undefined;
+  let aiServiceClient: AiServiceClient | undefined;
 
   return {
     resolveGraph: () => {
@@ -67,7 +71,11 @@ export function createContainer(): Container {
         env.GRAPH_PROVIDER === 'real' ? new RealGraphService() : new FakeGraphService();
       return graphService;
     },
-    resolveAiService: <T>() => notYet('aiService', env.AI_SERVICE_PROVIDER) as T,
+    resolveAiService: <T>() => {
+      aiServiceClient ??=
+        env.AI_SERVICE_PROVIDER === 'real' ? new HttpAiServiceClient() : new FakeLlmService();
+      return aiServiceClient as T;
+    },
     resolveStorage: <T>() => {
       storageService ??=
         env.STORAGE_PROVIDER === 'azure' ? new AzureStorageService() : new LocalStorageService();

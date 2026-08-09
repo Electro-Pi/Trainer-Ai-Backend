@@ -43,3 +43,21 @@ export function strictRateLimitMiddleware() {
     store: createStore('rl:strict:'),
   });
 }
+
+/**
+ * `P8-2` — the AI team's service-token traffic (Agent Session API) is
+ * higher-volume than a human's (per-question answer posts, content
+ * delivered markers mid-session) but still bounded per session; generous
+ * enough not to throttle a real session, tight enough to bound a
+ * misbehaving/compromised caller (§9.11 rule 4 — their API is untrusted
+ * input).
+ */
+export function agentRateLimitMiddleware() {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    limit: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: createStore('rl:agent:'),
+  });
+}
