@@ -16,6 +16,7 @@ import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
 import { agentRouter } from '@/modules/agent/agent.module.js';
+import { analyticsRouter } from '@/modules/analytics/analytics.module.js';
 import {
   outcomeAssessmentsRouter,
   questionsRouter,
@@ -141,6 +142,7 @@ export function createApp(): Express {
   v1.use('/webhooks', rsvpWebhookRouter);
   v1.use('/agent', agentRouter);
   v1.use('/reports', reportsRouter);
+  v1.use('/analytics', analyticsRouter);
   v1.use('/public', publicRouter);
 
   mountSwagger(app);

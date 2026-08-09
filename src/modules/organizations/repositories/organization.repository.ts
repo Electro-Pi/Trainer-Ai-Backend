@@ -21,4 +21,10 @@ export class OrganizationRepository extends BaseRepository<Organization, Organiz
   async findByEntraTenantId(entraTenantId: string): Promise<Organization | null> {
     return this.delegate.findFirst({ where: { entraTenantId } });
   }
+
+  /** Nightly cron jobs with no org-scoped payload (`effectiveness.recompute`, `cleanup`) iterate every tenant with this. */
+  async findAllIds(): Promise<string[]> {
+    const rows = await this.delegate.findMany({ take: 100_000, orderBy: { id: 'asc' } as never });
+    return rows.map((row) => row.id);
+  }
 }

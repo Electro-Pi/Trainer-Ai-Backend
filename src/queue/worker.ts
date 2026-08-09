@@ -8,10 +8,11 @@ import { processEmbedContentJob } from './jobs/embed-content.job.js';
 import { processExtractTextJob } from './jobs/extract-text.job.js';
 import { processGenerateReportJob } from './jobs/generate-report.job.js';
 import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
+import { processRecomputeEffectivenessJob } from './jobs/recompute-effectiveness.job.js';
 import { processScanMediaJob } from './jobs/scan-media.job.js';
 import { processSendReminderJob } from './jobs/send-reminder.job.js';
 import { processSendReportJob } from './jobs/send-report.job.js';
-import { createQueueConnection } from './queue.service.js';
+import { createQueueConnection, createQueueService } from './queue.service.js';
 import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
 
 const connection = createQueueConnection();
@@ -33,6 +34,7 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'session.reminder': processSendReminderJob,
   'report.generate': processGenerateReportJob,
   'report.send': processSendReportJob,
+  'effectiveness.recompute': processRecomputeEffectivenessJob,
 };
 
 const workers = QUEUE_NAMES.map((name) => {
@@ -55,6 +57,16 @@ for (const worker of workers) {
     logger.error({ queue: worker.name, jobId: job?.id, err }, 'Job failed');
   });
 }
+
+// Nightly cron registration (§10.1, `RC-13`) — `upsertJobScheduler` is
+// idempotent by `schedulerId`, so re-running this on every worker boot
+// updates the pattern in place rather than accumulating duplicate schedulers.
+const queueService = createQueueService(connection);
+void queueService
+  .scheduleCron('effectiveness-recompute-nightly', 'effectiveness.recompute', {}, '0 2 * * *')
+  .catch((err: unknown) => {
+    logger.error({ err }, 'Failed to register effectiveness.recompute cron scheduler');
+  });
 
 logger.info({ queues: QUEUE_NAMES, env: env.NODE_ENV }, 'Worker process started');
 

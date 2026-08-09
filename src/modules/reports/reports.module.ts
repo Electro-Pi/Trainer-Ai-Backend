@@ -7,6 +7,7 @@ export type { Report } from './repositories/report.repository.js';
 export type { ReportListFilters };
 export type { PlanSummaryRecipient } from './services/report.service.js';
 export { createPlanSummaryReports } from './services/report.service.js';
+export { pdfRendererService } from './services/pdf-renderer.service.js';
 
 export const reportsRouter = createReportsRouter();
 

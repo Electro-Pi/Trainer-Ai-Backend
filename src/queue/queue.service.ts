@@ -55,6 +55,29 @@ export class QueueService {
     await job?.remove();
   }
 
+  /**
+   * Registers (or re-registers, idempotently) a cron-repeating job —
+   * `effectiveness.recompute` nightly (`RC-13`, P10-5) today, `cleanup`
+   * nightly (§10.1, P12) later. `upsertJobScheduler` is BullMQ v6's
+   * replacement for the deprecated `queue.add({ repeat })` form — calling it
+   * again with the same `schedulerId` updates the pattern in place instead of
+   * creating a duplicate scheduler, so this is safe to call on every worker
+   * boot.
+   */
+  async scheduleCron<K extends QueueName>(
+    schedulerId: string,
+    name: K,
+    payload: QueuePayloads[K],
+    cronPattern: string,
+  ): Promise<void> {
+    const queue = this.getQueue(name);
+    await queue.upsertJobScheduler(
+      schedulerId,
+      { pattern: cronPattern, tz: 'UTC' },
+      { name, data: payload },
+    );
+  }
+
   async closeAll(): Promise<void> {
     await Promise.all(Array.from(this.queues.values()).map((queue) => queue.close()));
   }
