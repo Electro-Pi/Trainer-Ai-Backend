@@ -12,6 +12,19 @@ export interface GraphUserCollection {
   value: GraphUser[];
 }
 
+/** `IV-01`, `IV-05` — a Teams online meeting, lobby-restricted to invited participants. */
+export interface CreateMeetingInput {
+  subject: string;
+  startDateTime: string;
+  endDateTime: string;
+  attendeeEmails: string[];
+}
+
+export interface GraphMeeting {
+  id: string;
+  joinWebUrl: string;
+}
+
 export interface GraphService {
   /** GET on an arbitrary Graph resource path (e.g. `/me`), token-cached, 429-retried. */
   get<T>(resourcePath: string, accessToken: string): Promise<T>;
@@ -21,4 +34,17 @@ export interface GraphService {
 
   /** `TM-06` — lists the members of a Microsoft 365 group or Teams channel roster. */
   getGroupMembers(groupId: string, accessToken: string): Promise<GraphUser[]>;
+
+  /** `IV-01` — creates a Teams online meeting with the lobby restricted to invited participants and the AI agent as presenter (`IV-05`). */
+  createMeeting(input: CreateMeetingInput, accessToken: string): Promise<GraphMeeting>;
+
+  /** `TP-06` — updates an existing meeting's time window on reschedule. */
+  updateMeeting(
+    meetingId: string,
+    input: Pick<CreateMeetingInput, 'startDateTime' | 'endDateTime'>,
+    accessToken: string,
+  ): Promise<GraphMeeting>;
+
+  /** Cancels a meeting on session cancellation — best-effort, never blocks the cancel itself. */
+  cancelMeeting(meetingId: string, accessToken: string): Promise<void>;
 }

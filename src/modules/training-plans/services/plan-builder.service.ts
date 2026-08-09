@@ -1,0 +1,130 @@
+import type { ContentItem } from '@/modules/content/content.module.js';
+import { contentItemRepository } from '@/modules/content/content.module.js';
+import type { LearnerOutcome } from '@/modules/learners/learners.module.js';
+import { learnerOutcomeRepository } from '@/modules/learners/learners.module.js';
+import type {
+  RecommendationItemResult,
+  ScoredItem,
+} from '@/modules/recommendations/recommendations.module.js';
+import {
+  DurationFitService,
+  RecommendationService,
+} from '@/modules/recommendations/recommendations.module.js';
+
+const DEFAULT_SESSION_DURATION_MINUTES = 60;
+
+export interface SuggestedSession {
+  sequence: number;
+  primaryOutcomeId: string;
+  durationMinutes: number;
+  contentItemIds: string[];
+}
+
+export interface SuggestedBreakdown {
+  sessions: SuggestedSession[];
+  /** Ranked items that didn't fit into `trainingDays` sessions — surfaced, never silently dropped. */
+  deferredItemCount: number;
+}
+
+/**
+ * `TP-05` — `PLAN_BUILD` trigger (ARCHITECTURE §8.2): runs the same
+ * deterministic pipeline as `LEVEL_ASSIGNED` (P6) to get a full ranked,
+ * ordered set covering every required outcome, then applies `DurationFitService`
+ * (P6-5, deliberately unused by `LEVEL_ASSIGNED`) to split it across
+ * `trainingDays` one-outcome-per-session slices — the manager adjusts the
+ * result afterward via `PATCH /plans/:id`, this only proposes a starting point.
+ */
+export class PlanBuilderService {
+  private readonly recommendations = new RecommendationService();
+  private readonly durationFit = new DurationFitService();
+
+  async suggest(params: {
+    organizationId: string;
+    learnerId: string;
+    trainingDays: number;
+    sessionDurationMinutes?: number;
+  }): Promise<SuggestedBreakdown> {
+    const durationMinutes = params.sessionDurationMinutes ?? DEFAULT_SESSION_DURATION_MINUTES;
+
+    const { items } = await this.recommendations.generate({
+      organizationId: params.organizationId,
+      learnerId: params.learnerId,
+      trigger: 'PLAN_BUILD',
+    });
+
+    if (items.length === 0) {
+      return { sessions: [], deferredItemCount: 0 };
+    }
+
+    const requiredOutcomes = await learnerOutcomeRepository.findByLearner(params.learnerId);
+
+    // Fetched once for the whole breakdown — every session slot below scores
+    // against the same content set, so this must not re-query per slot.
+    const contentItems = await contentItemRepository.findManyByIdsScoped(
+      items.map((item) => item.contentItemId),
+    );
+    const contentById = new Map<string, ContentItem>(contentItems.map((item) => [item.id, item]));
+    const mandatoryContentIds = new Set(
+      contentItems.filter((item) => item.isMandatory).map((item) => item.id),
+    );
+
+    const sessions: SuggestedSession[] = [];
+    let remainingItems = items;
+    let sequence = 1;
+
+    for (; sequence <= params.trainingDays && remainingItems.length > 0; sequence++) {
+      const primaryOutcomeId = this.pickPrimaryOutcome(remainingItems, requiredOutcomes);
+      const candidatesForSlot = remainingItems.filter(
+        (item) => item.outcomeId === primaryOutcomeId,
+      );
+      const otherItems = remainingItems.filter((item) => item.outcomeId !== primaryOutcomeId);
+
+      const scoredForFit = this.toScoredItems(candidatesForSlot, contentById);
+      const fit = this.durationFit.fit(scoredForFit, durationMinutes, mandatoryContentIds);
+
+      sessions.push({
+        sequence,
+        primaryOutcomeId,
+        durationMinutes,
+        contentItemIds: fit.fitted.map((item) => item.contentItem.id),
+      });
+
+      const deferredIds = new Set(fit.deferred.map((item) => item.contentItem.id));
+      remainingItems = [
+        ...otherItems,
+        ...candidatesForSlot.filter((item) => deferredIds.has(item.contentItemId)),
+      ];
+    }
+
+    return { sessions, deferredItemCount: remainingItems.length };
+  }
+
+  /** Earliest not-yet-scheduled outcome, in the ranked list's own order — keeps session sequencing stable with the pipeline's own priority ordering. */
+  private pickPrimaryOutcome(
+    items: RecommendationItemResult[],
+    requiredOutcomes: LearnerOutcome[],
+  ): string {
+    const outcomeOrder = new Map(requiredOutcomes.map((lo) => [lo.outcomeId, lo.priority]));
+    const outcomeIds = [...new Set(items.map((item) => item.outcomeId))];
+    outcomeIds.sort((a, b) => (outcomeOrder.get(a) ?? 0) - (outcomeOrder.get(b) ?? 0));
+    return outcomeIds[0]!;
+  }
+
+  private toScoredItems(
+    items: RecommendationItemResult[],
+    contentById: Map<string, ContentItem>,
+  ): ScoredItem[] {
+    return items
+      .map((item): ScoredItem | null => {
+        const contentItem = contentById.get(item.contentItemId);
+        if (!contentItem) return null;
+        return {
+          contentItem,
+          outcomeId: item.outcomeId,
+          score: item.score,
+          signalBreakdown: item.signalBreakdown as ScoredItem['signalBreakdown'],
+        };
+      })
+      .filter((item): item is ScoredItem => item !== null);
+  }
+}

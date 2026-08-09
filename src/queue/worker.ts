@@ -3,9 +3,12 @@ import { Job, Worker } from 'bullmq';
 import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
 
+import { processCreateMeetingJob } from './jobs/create-meeting.job.js';
 import { processEmbedContentJob } from './jobs/embed-content.job.js';
 import { processExtractTextJob } from './jobs/extract-text.job.js';
+import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
 import { processScanMediaJob } from './jobs/scan-media.job.js';
+import { processSendReminderJob } from './jobs/send-reminder.job.js';
 import { createQueueConnection } from './queue.service.js';
 import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
 
@@ -23,6 +26,9 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'media.scan': processScanMediaJob,
   'media.extract': processExtractTextJob,
   'content.embed': processEmbedContentJob,
+  'meeting.create': processCreateMeetingJob,
+  'meeting.update': processMeetingUpdateJob,
+  'session.reminder': processSendReminderJob,
 };
 
 const workers = QUEUE_NAMES.map((name) => {

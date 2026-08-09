@@ -29,8 +29,10 @@ import {
   learnerRecommendationsRouter,
   recommendationsRouter,
 } from '@/modules/recommendations/recommendations.module.js';
+import { rsvpWebhookRouter, sessionsRouter } from '@/modules/sessions/sessions.module.js';
 import { teamsRouter } from '@/modules/teams/teams.module.js';
 import { tracksRouter } from '@/modules/tracks/tracks.module.js';
+import { trainingPlansRouter } from '@/modules/training-plans/training-plans.module.js';
 import { usersRouter } from '@/modules/users/users.module.js';
 import { createLocalBlobsRouter } from '@/storage/storage.module.js';
 import { mountSwagger } from '@/swagger/swagger.js';
@@ -131,6 +133,9 @@ export function createApp(): Express {
   v1.use('/content', contentRouter);
   v1.use('/media', mediaRouter);
   v1.use('/local-blobs', createLocalBlobsRouter());
+  v1.use('/plans', trainingPlansRouter);
+  v1.use('/sessions', sessionsRouter);
+  v1.use('/webhooks', rsvpWebhookRouter);
 
   mountSwagger(app);
 

@@ -2,7 +2,13 @@ import { ExternalServiceError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
 
-import type { GraphService, GraphUser, GraphUserCollection } from './graph.interfaces.js';
+import type {
+  CreateMeetingInput,
+  GraphMeeting,
+  GraphService,
+  GraphUser,
+  GraphUserCollection,
+} from './graph.interfaces.js';
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 const MAX_RETRIES = 3;
@@ -19,11 +25,25 @@ async function sleep(ms: number): Promise<void> {
  */
 export class RealGraphService implements GraphService {
   async get<T>(resourcePath: string, accessToken: string): Promise<T> {
+    return this.request<T>('GET', resourcePath, accessToken);
+  }
+
+  private async request<T>(
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    resourcePath: string,
+    accessToken: string,
+    body?: unknown,
+  ): Promise<T> {
     const url = `${GRAPH_BASE_URL}${resourcePath}`;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
       });
 
       if (response.status === 429 && attempt < MAX_RETRIES) {
@@ -37,6 +57,10 @@ export class RealGraphService implements GraphService {
         throw new ExternalServiceError(
           `Microsoft Graph request failed: ${response.status} ${response.statusText}`,
         );
+      }
+
+      if (response.status === 204) {
+        return undefined as T;
       }
 
       return (await response.json()) as T;
@@ -64,6 +88,48 @@ export class RealGraphService implements GraphService {
       accessToken,
     );
     return result.value;
+  }
+
+  /** `IV-01`, `IV-05` — lobby restricted to invited participants, agent joins as presenter. */
+  async createMeeting(input: CreateMeetingInput, accessToken: string): Promise<GraphMeeting> {
+    const result = await this.request<{ id: string; joinWebUrl: string }>(
+      'POST',
+      '/me/onlineMeetings',
+      accessToken,
+      {
+        subject: input.subject,
+        startDateTime: input.startDateTime,
+        endDateTime: input.endDateTime,
+        lobbyBypassSettings: { scope: 'invited', isDialInBypassEnabled: false },
+        allowedPresenters: 'roleIsPresenter',
+        participants: {
+          attendees: input.attendeeEmails.map((email) => ({
+            upn: email,
+            role: 'attendee',
+          })),
+        },
+      },
+    );
+    return { id: result.id, joinWebUrl: result.joinWebUrl };
+  }
+
+  /** `TP-06` — updates the meeting's time window on reschedule. */
+  async updateMeeting(
+    meetingId: string,
+    input: Pick<CreateMeetingInput, 'startDateTime' | 'endDateTime'>,
+    accessToken: string,
+  ): Promise<GraphMeeting> {
+    const result = await this.request<{ id: string; joinWebUrl: string }>(
+      'PATCH',
+      `/me/onlineMeetings/${meetingId}`,
+      accessToken,
+      { startDateTime: input.startDateTime, endDateTime: input.endDateTime },
+    );
+    return { id: result.id, joinWebUrl: result.joinWebUrl };
+  }
+
+  async cancelMeeting(meetingId: string, accessToken: string): Promise<void> {
+    await this.request<void>('DELETE', `/me/onlineMeetings/${meetingId}`, accessToken);
   }
 }
 

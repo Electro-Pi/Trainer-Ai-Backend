@@ -39,10 +39,20 @@ export class QueueService {
   async enqueue<K extends QueueName>(
     name: K,
     payload: QueuePayloads[K],
-    options?: { jobId?: string },
+    options?: { jobId?: string; delayMs?: number },
   ): Promise<void> {
     const queue = this.getQueue(name);
-    await queue.add(name, payload, options?.jobId ? { jobId: options.jobId } : undefined);
+    await queue.add(name, payload, {
+      ...(options?.jobId ? { jobId: options.jobId } : {}),
+      ...(options?.delayMs !== undefined ? { delay: options.delayMs } : {}),
+    });
+  }
+
+  /** Removes a job by its `jobId` if it's still pending/delayed — used to cancel a stale `session.reminder` on reschedule. A no-op if the job already ran or never existed. */
+  async removeJob<K extends QueueName>(name: K, jobId: string): Promise<void> {
+    const queue = this.getQueue(name);
+    const job = await queue.getJob(jobId);
+    await job?.remove();
   }
 
   async closeAll(): Promise<void> {

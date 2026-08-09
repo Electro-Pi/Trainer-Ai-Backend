@@ -31,6 +31,7 @@ const envSchema = z.object({
   GRAPH_CLIENT_SECRET: z.string().default(''),
   GRAPH_TENANT_ID: z.string().default('common'),
   GRAPH_REDIRECT_URI: z.string().default(''),
+  GRAPH_WEBHOOK_CLIENT_STATE: z.string().default('dev-webhook-client-state'),
 
   AI_SERVICE_PROVIDER: z.enum(['fake', 'real']).default('fake'),
   AI_SERVICE_BASE_URL: z.string().default(''),

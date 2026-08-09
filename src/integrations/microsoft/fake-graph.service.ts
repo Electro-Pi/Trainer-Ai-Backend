@@ -1,4 +1,11 @@
-import type { GraphService, GraphUser } from './graph.interfaces.js';
+import { randomUUID } from 'node:crypto';
+
+import type {
+  CreateMeetingInput,
+  GraphMeeting,
+  GraphService,
+  GraphUser,
+} from './graph.interfaces.js';
 
 const FAKE_USERS: GraphUser[] = [
   {
@@ -47,5 +54,28 @@ export class FakeGraphService implements GraphService {
 
   async getGroupMembers(_groupId: string, _accessToken: string): Promise<GraphUser[]> {
     return Promise.resolve(FAKE_USERS);
+  }
+
+  async createMeeting(input: CreateMeetingInput, _accessToken: string): Promise<GraphMeeting> {
+    const id = randomUUID();
+    return Promise.resolve({
+      id,
+      joinWebUrl: `https://teams.microsoft.com/fake-meeting/${id}?subject=${encodeURIComponent(input.subject)}`,
+    });
+  }
+
+  async updateMeeting(
+    meetingId: string,
+    _input: Pick<CreateMeetingInput, 'startDateTime' | 'endDateTime'>,
+    _accessToken: string,
+  ): Promise<GraphMeeting> {
+    return Promise.resolve({
+      id: meetingId,
+      joinWebUrl: `https://teams.microsoft.com/fake-meeting/${meetingId}`,
+    });
+  }
+
+  async cancelMeeting(_meetingId: string, _accessToken: string): Promise<void> {
+    return Promise.resolve();
   }
 }
