@@ -3,7 +3,11 @@ import { z } from 'zod';
 // Shared field-level primitives (ARCHITECTURE §6.2). Defined once; every
 // module composes these instead of re-typing a field rule (AGENTS.md #3).
 
-export const emailSchema = z.email().trim().toLowerCase().max(254);
+// `.trim()`/`.toLowerCase()` must run BEFORE `.email()`'s format check, not
+// after — chaining `z.email().trim()` validates the raw untrimmed string
+// first, so a pasted email with surrounding whitespace fails validation
+// instead of being cleaned (caught by P11-4's validator tests).
+export const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
 
 // A small inline blocklist, not a full dictionary — enough to reject the
 // most common weak passwords without shipping a dependency for it.

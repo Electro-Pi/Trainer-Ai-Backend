@@ -3,6 +3,8 @@ dist/
 build/
 coverage/
 .storage/
+.storage-test/
+.test-env.json
 
 .env
 .env.local

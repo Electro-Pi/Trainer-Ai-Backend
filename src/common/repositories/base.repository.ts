@@ -1,6 +1,32 @@
 import type { CursorParts } from '@/common/utils/pagination.js';
 import { decodeCursor, encodeCursor } from '@/common/utils/pagination.js';
 
+// `CursorParts.sortValue` is always a string, but the sort field it filters
+// against isn't always a string column: `Track.sortOrder`, `Level.order`,
+// `Outcome.order` etc. are `Int`; `Team.createdAt`, `Report.createdAt` etc.
+// are `DateTime`. Prisma rejects `{ gt: "0" }` against an Int column outright
+// (caught by P11-8's repository tests) — a cursor value that round-trips
+// through `Number(String(n))` losslessly is safe to compare numerically.
+// `Date` values must be serialized with `.toISOString()` on encode (below),
+// never `String(date)` (locale-formatted, not what Prisma expects for a
+// DateTime comparison) — decoding just parses that ISO string back into a
+// real `Date`, which is what Prisma's DateTime `gt` filter actually needs,
+// not the ISO string itself. Anything else (a genuine string sort key) is
+// left as-is.
+const ISO_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+function coerceCursorSortValue(value: string): string | number | Date {
+  if (ISO_DATETIME_PATTERN.test(value)) {
+    return new Date(value);
+  }
+  const asNumber = Number(value);
+  return Number.isFinite(asNumber) && String(asNumber) === value ? asNumber : value;
+}
+
+function encodeCursorSortValue(value: unknown): string {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+
 export interface PageResult<T> {
   data: T[];
   nextCursor: string | null;
@@ -74,7 +100,9 @@ export abstract class BaseRepository<
 
     const where = {
       ...(options.where ?? {}),
-      ...(cursorParts ? { [this.sortField]: { gt: cursorParts.sortValue } } : {}),
+      ...(cursorParts
+        ? { [this.sortField]: { gt: coerceCursorSortValue(cursorParts.sortValue) } }
+        : {}),
     } as never;
 
     const rows = await this.delegate.findMany({
@@ -89,7 +117,7 @@ export abstract class BaseRepository<
 
     const nextCursor =
       hasNextPage && last
-        ? encodeCursor({ sortValue: String(last[this.sortField]), id: last.id })
+        ? encodeCursor({ sortValue: encodeCursorSortValue(last[this.sortField]), id: last.id })
         : null;
 
     return { data, nextCursor, hasNextPage };

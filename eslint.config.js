@@ -91,6 +91,18 @@ export default tseslint.config(
     ...tseslint.configs.disableTypeChecked,
   },
 
+  // CI/dev helper scripts run standalone under plain Node, outside
+  // tsconfig.json's `include` — same treatment as the config files above,
+  // plus the two Node globals they actually use (no `globals` package
+  // dependency needed for just these).
+  {
+    files: ['scripts/**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly' },
+    },
+  },
+
   // ── no-restricted-syntax: process.env scoping + services' req/res ban ──
   // Combined into two mutually-exclusive file classes so neither clobbers
   // the other.
