@@ -19,6 +19,8 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/trainer_ai?schema=public
         run: npm ci
 
       - name: Lint
