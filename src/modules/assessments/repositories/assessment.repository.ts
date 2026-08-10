@@ -41,4 +41,37 @@ export class AssessmentRepository extends BaseRepository<Assessment, AssessmentD
       },
     } as never);
   }
+
+  /**
+   * `cleanup.job` (§10.1) — GDPR transcript retention. `Assessment` is on the
+   * hard-boundary list (never touch the row), so this only ever finds
+   * candidates whose `transcriptRetentionUntil` has passed; the caller nulls
+   * `transcriptUrl`/`transcriptRetentionUntil` via `clearExpiredTranscript`
+   * after deleting the underlying blob, leaving the scoring record intact.
+   */
+  async findWithExpiredTranscripts(cutoff: Date, batchSize: number): Promise<Assessment[]> {
+    return this.delegate.findMany({
+      where: {
+        transcriptUrl: { not: null },
+        transcriptRetentionUntil: { lt: cutoff },
+      },
+      take: batchSize,
+    });
+  }
+
+  async clearExpiredTranscript(id: string): Promise<void> {
+    await this.delegate.update({
+      where: { id } as never,
+      data: { transcriptUrl: null, transcriptRetentionUntil: null } as never,
+    });
+  }
+
+  /** Every transcript URL still on record (expired or not) — `cleanup.job`'s orphaned-blob sweep excludes these from deletion. */
+  async findAllTranscriptUrls(): Promise<string[]> {
+    const rows = await this.delegate.findMany({
+      where: { transcriptUrl: { not: null } },
+      take: 1_000_000,
+    });
+    return rows.map((row) => row.transcriptUrl).filter((url): url is string => url !== null);
+  }
 }

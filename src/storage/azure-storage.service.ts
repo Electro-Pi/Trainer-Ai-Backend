@@ -7,7 +7,7 @@ import {
 
 import { ExternalServiceError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
-import type { StorageService } from '@/shared-types.js';
+import type { StorageBlobListing, StorageService } from '@/shared-types.js';
 
 function parseConnectionString(connectionString: string): {
   accountName: string;
@@ -71,5 +71,17 @@ export class AzureStorageService implements StorageService {
   async delete(blobKey: string): Promise<void> {
     const containerClient = this.client.getContainerClient(this.containerName);
     await containerClient.getBlockBlobClient(blobKey).deleteIfExists();
+  }
+
+  async list(): Promise<StorageBlobListing[]> {
+    const containerClient = this.client.getContainerClient(this.containerName);
+    const blobs: StorageBlobListing[] = [];
+    for await (const blob of containerClient.listBlobsFlat()) {
+      blobs.push({
+        blobKey: blob.name,
+        createdAt: blob.properties.createdOn ?? blob.properties.lastModified,
+      });
+    }
+    return blobs;
   }
 }

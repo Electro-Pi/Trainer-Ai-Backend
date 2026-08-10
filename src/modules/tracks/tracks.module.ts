@@ -15,7 +15,7 @@ export const trackRepository = new TrackRepository();
 openApiRegistry.registerPath({
   method: 'get',
   path: '/tracks',
-  tags: ['Catalogue'],
+  tags: ['Tracks'],
   summary: 'Lists tracks (`TC-01`)',
   responses: { 200: { description: 'Track list' } },
 });
@@ -23,7 +23,7 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: 'post',
   path: '/tracks',
-  tags: ['Catalogue'],
+  tags: ['Tracks'],
   summary: 'Creates a track (MANAGER, CONTENT_MANAGER, ADMIN)',
   responses: { 201: { description: 'Created track' } },
 });
@@ -31,7 +31,7 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: 'get',
   path: '/tracks/{id}',
-  tags: ['Catalogue'],
+  tags: ['Tracks'],
   summary: 'Gets a track by id',
   responses: { 200: { description: 'Track' } },
 });
@@ -39,7 +39,7 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: 'patch',
   path: '/tracks/{id}',
-  tags: ['Catalogue'],
+  tags: ['Tracks'],
   summary: 'Updates a track’s fields',
   responses: { 200: { description: 'Updated track' } },
 });
@@ -47,7 +47,7 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: 'patch',
   path: '/tracks/{id}/enabled',
-  tags: ['Catalogue'],
+  tags: ['Tracks'],
   summary: 'Enables/disables a track without deleting it or its history (`TC-06`)',
   responses: { 200: { description: 'Updated track' } },
 });
@@ -55,7 +55,7 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: 'post',
   path: '/tracks/{id}/duplicate',
-  tags: ['Catalogue'],
+  tags: ['Tracks'],
   summary: 'Deep-copies a track with its levels and outcomes (`TC-07`)',
   responses: { 201: { description: 'New (disabled) track copy' } },
 });
@@ -63,7 +63,7 @@ openApiRegistry.registerPath({
 openApiRegistry.registerPath({
   method: 'patch',
   path: '/tracks/reorder',
-  tags: ['Catalogue'],
+  tags: ['Tracks'],
   summary: 'Reorders tracks transactionally',
   responses: { 200: { description: 'New order' } },
 });

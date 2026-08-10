@@ -1,9 +1,6 @@
-import { mkdir } from 'node:fs/promises';
-
-import { BlobServiceClient } from '@azure/storage-blob';
 import express, { type Express } from 'express';
-import { Redis } from 'ioredis';
 
+import { createAdminQueuesRouter } from '@/admin/admin.module.js';
 import { NotFoundError } from '@/common/exceptions/app-error.js';
 import { errorHandler } from '@/common/filters/error-handler.js';
 import { requestIdInterceptor } from '@/common/interceptors/request-id.interceptor.js';
@@ -12,8 +9,8 @@ import { corsMiddleware } from '@/common/middleware/cors.middleware.js';
 import { helmetMiddleware } from '@/common/middleware/helmet.middleware.js';
 import { localeMiddleware } from '@/common/middleware/locale.middleware.js';
 import { rateLimitMiddleware } from '@/common/middleware/rate-limit.middleware.js';
-import { env } from '@/config/env.js';
-import { prisma } from '@/database/prisma.service.js';
+import { container } from '@/config/container.js';
+import { runAllHealthChecks } from '@/health/health-checks.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
 import { agentRouter } from '@/modules/agent/agent.module.js';
 import { analyticsRouter } from '@/modules/analytics/analytics.module.js';
@@ -38,62 +35,9 @@ import { teamsRouter } from '@/modules/teams/teams.module.js';
 import { tracksRouter } from '@/modules/tracks/tracks.module.js';
 import { trainingPlansRouter } from '@/modules/training-plans/training-plans.module.js';
 import { usersRouter } from '@/modules/users/users.module.js';
+import type { ErrorTracker } from '@/shared-types.js';
 import { createLocalBlobsRouter } from '@/storage/storage.module.js';
 import { mountSwagger } from '@/swagger/swagger.js';
-
-interface DependencyCheck {
-  name: string;
-  ok: boolean;
-  error?: string;
-}
-
-async function checkDatabase(): Promise<DependencyCheck> {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return { name: 'database', ok: true };
-  } catch (error) {
-    return {
-      name: 'database',
-      ok: false,
-      error: error instanceof Error ? error.message : 'unknown error',
-    };
-  }
-}
-
-async function checkRedis(): Promise<DependencyCheck> {
-  const client = new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
-  try {
-    await client.connect();
-    await client.ping();
-    return { name: 'redis', ok: true };
-  } catch (error) {
-    return {
-      name: 'redis',
-      ok: false,
-      error: error instanceof Error ? error.message : 'unknown error',
-    };
-  } finally {
-    client.disconnect();
-  }
-}
-
-async function checkStorage(): Promise<DependencyCheck> {
-  try {
-    if (env.STORAGE_PROVIDER === 'local') {
-      await mkdir(env.STORAGE_LOCAL_PATH, { recursive: true });
-      return { name: 'storage', ok: true };
-    }
-    const client = BlobServiceClient.fromConnectionString(env.AZURE_STORAGE_CONNECTION_STRING);
-    await client.getContainerClient(env.AZURE_STORAGE_CONTAINER).getProperties();
-    return { name: 'storage', ok: true };
-  } catch (error) {
-    return {
-      name: 'storage',
-      ok: false,
-      error: error instanceof Error ? error.message : 'unknown error',
-    };
-  }
-}
 
 /**
  * Express app assembly only — no `.listen()` here so the app stays
@@ -147,12 +91,15 @@ export function createApp(): Express {
 
   mountSwagger(app);
 
+  const adminQueues = createAdminQueuesRouter();
+  app.use(adminQueues.path, adminQueues.auth, adminQueues.router);
+
   app.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
   });
 
   app.get('/health/ready', async (_req, res) => {
-    const checks = await Promise.all([checkDatabase(), checkRedis(), checkStorage()]);
+    const checks = await runAllHealthChecks();
     const failed = checks.filter((check) => !check.ok);
 
     if (failed.length > 0) {
@@ -167,7 +114,7 @@ export function createApp(): Express {
     next(new NotFoundError(`No route matches ${req.method} ${req.originalUrl}`));
   });
 
-  app.use(errorHandler(logger));
+  app.use(errorHandler(logger, container.resolveErrorTracker<ErrorTracker>()));
 
   return app;
 }

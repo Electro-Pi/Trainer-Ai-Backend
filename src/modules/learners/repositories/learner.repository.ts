@@ -30,4 +30,10 @@ export class LearnerRepository extends BaseRepository<Learner, LearnerDelegate> 
   async findByIdScoped(id: string): Promise<Learner | null> {
     return this.delegate.findFirst({ where: { id } });
   }
+
+  /** Batched form of `findByIdScoped` — `Learner` is directly tenant-scoped, so `findMany` is safe. */
+  async findManyByIds(ids: string[]): Promise<Learner[]> {
+    if (ids.length === 0) return [];
+    return this.delegate.findMany({ where: { id: { in: ids } } });
+  }
 }

@@ -3,10 +3,12 @@ import { Job, Worker } from 'bullmq';
 import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
 
+import { processCleanupJob } from './jobs/cleanup.job.js';
 import { processCreateMeetingJob } from './jobs/create-meeting.job.js';
 import { processEmbedContentJob } from './jobs/embed-content.job.js';
 import { processExtractTextJob } from './jobs/extract-text.job.js';
 import { processGenerateReportJob } from './jobs/generate-report.job.js';
+import { processHealthAlertJob } from './jobs/health-alert.job.js';
 import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
 import { processRecomputeEffectivenessJob } from './jobs/recompute-effectiveness.job.js';
 import { processScanMediaJob } from './jobs/scan-media.job.js';
@@ -35,6 +37,8 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'report.generate': processGenerateReportJob,
   'report.send': processSendReportJob,
   'effectiveness.recompute': processRecomputeEffectivenessJob,
+  cleanup: processCleanupJob,
+  'health.alert': processHealthAlertJob,
 };
 
 const workers = QUEUE_NAMES.map((name) => {
@@ -66,6 +70,18 @@ void queueService
   .scheduleCron('effectiveness-recompute-nightly', 'effectiveness.recompute', {}, '0 2 * * *')
   .catch((err: unknown) => {
     logger.error({ err }, 'Failed to register effectiveness.recompute cron scheduler');
+  });
+
+void queueService
+  .scheduleCron('cleanup-nightly', 'cleanup', {}, '0 3 * * *')
+  .catch((err: unknown) => {
+    logger.error({ err }, 'Failed to register cleanup cron scheduler');
+  });
+
+void queueService
+  .scheduleCron('health-alert-5min', 'health.alert', {}, '*/5 * * * *')
+  .catch((err: unknown) => {
+    logger.error({ err }, 'Failed to register health.alert cron scheduler');
   });
 
 logger.info({ queues: QUEUE_NAMES, env: env.NODE_ENV }, 'Worker process started');

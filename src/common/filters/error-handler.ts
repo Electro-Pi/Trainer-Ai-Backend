@@ -10,6 +10,7 @@ import {
 } from '@/common/exceptions/app-error.js';
 import { t } from '@/i18n/index.js';
 import type { Logger } from '@/logger/logger.service.js';
+import type { ErrorTracker } from '@/shared-types.js';
 
 interface ProblemDetails {
   type: string;
@@ -36,7 +37,7 @@ function zodIssuesToValidationIssues(error: ZodError): ValidationIssue[] {
  * errors are logged in full here and returned to the client as a generic,
  * localized detail only.
  */
-export function errorHandler(logger: Logger) {
+export function errorHandler(logger: Logger, errorTracker: ErrorTracker) {
   return (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
     const locale = req.locale ?? 'en';
     const instance = req.originalUrl;
@@ -46,6 +47,7 @@ export function errorHandler(logger: Logger) {
 
     if (appError.status >= 500) {
       logger.error({ err, requestId, instance }, 'Unhandled error');
+      errorTracker.captureException(err, { requestId, instance, method: req.method });
     } else {
       logger.warn({ err: appError.message, requestId, instance }, 'Request failed');
     }

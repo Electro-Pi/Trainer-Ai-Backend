@@ -36,7 +36,7 @@ export class PerformanceService {
     if (learnerIds.length === 0) return [];
 
     const [learners, sessions, assignments, outcomeCounts] = await Promise.all([
-      Promise.all(learnerIds.map((id) => learnerRepository.findByIdScoped(id))),
+      learnerRepository.findManyByIds(learnerIds),
       analyticsRepository.sessionsForLearners(learnerIds),
       analyticsRepository.activeAssignmentsForLearners(learnerIds),
       analyticsRepository.outcomeStatusCountsByLearner(learnerIds),
@@ -46,11 +46,11 @@ export class PerformanceService {
     const levelIds = [...new Set(assignments.map((a) => a.levelId))];
     const trackIds = [...new Set(assignments.map((a) => a.trackId))];
     const [levels, tracks] = await Promise.all([
-      Promise.all(levelIds.map((id) => levelRepository.findByIdScoped(id))),
-      Promise.all(trackIds.map((id) => trackRepository.findByIdScoped(id))),
+      levelRepository.findManyByIdsScoped(levelIds),
+      trackRepository.findManyByIds(trackIds),
     ]);
-    const levelById = new Map(levels.filter((l) => l !== null).map((l) => [l.id, l]));
-    const trackById = new Map(tracks.filter((t) => t !== null).map((t) => [t.id, t]));
+    const levelById = new Map(levels.map((l) => [l.id, l]));
+    const trackById = new Map(tracks.map((t) => [t.id, t]));
 
     const outcomesByLearner = new Map<string, { achieved: number; total: number }>();
     for (const row of outcomeCounts) {

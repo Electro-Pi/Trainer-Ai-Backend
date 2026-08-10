@@ -30,6 +30,12 @@ export class ContentEffectivenessRepository extends BaseRepository<
     return this.delegate.findFirst({ where: { contentItemId, outcomeId } });
   }
 
+  /** Batched form of `findByContentAndOutcome` for scoring a whole candidate pool at once. */
+  async findByContentItems(contentItemIds: string[]): Promise<ContentEffectiveness[]> {
+    if (contentItemIds.length === 0) return [];
+    return this.delegate.findMany({ where: { contentItemId: { in: contentItemIds } } });
+  }
+
   /**
    * `RC-13`, `recompute-effectiveness.job` (P10-5) — one row per
    * `(contentItemId, outcomeId)` pair delivered at least once in this org,

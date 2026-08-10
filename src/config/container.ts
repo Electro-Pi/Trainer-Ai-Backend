@@ -12,9 +12,12 @@ import { SmtpEmailService } from '@/email/smtp-email.service.js';
 import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js';
 import type { GraphService } from '@/integrations/microsoft/graph.interfaces.js';
 import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
+import { FakeErrorTracker } from '@/observability/fake-error-tracker.service.js';
+import { SentryErrorTracker } from '@/observability/sentry-error-tracker.service.js';
 import type {
   EmailService,
   EmbeddingService,
+  ErrorTracker,
   OcrService,
   Scanner,
   StorageService,
@@ -36,6 +39,7 @@ export interface Container {
   resolveEmbedding<T>(): T;
   resolveOcr<T>(): T;
   resolveEmail<T>(): T;
+  resolveErrorTracker<T>(): T;
 }
 
 export function createContainer(): Container {
@@ -46,6 +50,7 @@ export function createContainer(): Container {
   let embeddingService: EmbeddingService | undefined;
   let aiServiceClient: AiServiceClient | undefined;
   let emailService: EmailService | undefined;
+  let errorTracker: ErrorTracker | undefined;
 
   return {
     resolveGraph: () => {
@@ -86,6 +91,13 @@ export function createContainer(): Container {
             ? new SmtpEmailService()
             : new FakeEmailService();
       return emailService as T;
+    },
+    resolveErrorTracker: <T>() => {
+      errorTracker ??=
+        env.ERROR_TRACKING_PROVIDER === 'sentry'
+          ? new SentryErrorTracker()
+          : new FakeErrorTracker();
+      return errorTracker as T;
     },
   };
 }

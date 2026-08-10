@@ -19,4 +19,8 @@ export const demoRequestSchema = z.object({
   message: z.string().trim().max(2000).optional(),
   locale: z.enum(['EN', 'AR']).default('EN'),
   website: z.string().max(500).optional(),
+  /** GDPR — the public form's consent checkbox; a submission without it is rejected. */
+  consentGiven: z.literal(true, {
+    error: 'Consent to be contacted is required to submit a demo request',
+  }),
 });

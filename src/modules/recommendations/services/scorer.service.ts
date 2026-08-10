@@ -42,6 +42,7 @@ export class ScorerService {
 
   async score(input: ScorerInput): Promise<ScoredItem[]> {
     const semanticDistanceByOutcome = await this.resolveSemanticDistances(input);
+    const effectivenessByKey = await this.resolveEffectiveness(input.candidates);
     const results: ScoredItem[] = [];
 
     for (const contentItem of input.candidates) {
@@ -51,10 +52,7 @@ export class ScorerService {
         const priorityInfo = input.outcomePriorityByOutcomeId.get(outcomeId);
         if (!priorityInfo) continue;
 
-        const effectiveness = await this.effectiveness.findByContentAndOutcome(
-          contentItem.id,
-          outcomeId,
-        );
+        const effectiveness = effectivenessByKey.get(`${contentItem.id}:${outcomeId}`) ?? null;
 
         const context: SignalContext = {
           contentItem,
@@ -125,5 +123,17 @@ export class ScorerService {
     }
 
     return result;
+  }
+
+  /** One batched query for the whole candidate pool instead of one per (candidate, outcome) pair. */
+  private async resolveEffectiveness(
+    candidates: ContentItem[],
+  ): Promise<Map<string, SignalContext['effectiveness']>> {
+    const rows = await this.effectiveness.findByContentItems(candidates.map((c) => c.id));
+    const byKey = new Map<string, SignalContext['effectiveness']>();
+    for (const row of rows) {
+      byKey.set(`${row.contentItemId}:${row.outcomeId}`, row);
+    }
+    return byKey;
   }
 }

@@ -28,4 +28,22 @@ export class MediaAssetRepository extends BaseRepository<MediaAsset, MediaAssetD
   ): Promise<MediaAsset> {
     return this.update(id, { extractedText, pageCount: pageCount ?? null } as never);
   }
+
+  /** `cleanup.job` (§10.1) — quarantined blobs past their purge window. */
+  async findInfectedBefore(cutoff: Date, batchSize: number): Promise<MediaAsset[]> {
+    return this.delegate.findMany({
+      where: { scanStatus: 'INFECTED', processedAt: { lt: cutoff } },
+      take: batchSize,
+    });
+  }
+
+  async deleteById(id: string): Promise<void> {
+    await this.delegate.delete({ where: { id } as never });
+  }
+
+  /** Every blob key on record — `cleanup.job`'s orphaned-blob sweep excludes these from deletion. */
+  async findAllBlobKeys(): Promise<string[]> {
+    const rows = await this.delegate.findMany({ take: 1_000_000 });
+    return rows.map((row) => row.blobKey);
+  }
 }

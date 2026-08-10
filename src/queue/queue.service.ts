@@ -81,6 +81,11 @@ export class QueueService {
   async closeAll(): Promise<void> {
     await Promise.all(Array.from(this.queues.values()).map((queue) => queue.close()));
   }
+
+  /** Every queue in the catalogue, lazily created if not already touched — `admin/queues` (P12-4) needs the full set to build its dashboard. */
+  getAllQueues(): Queue[] {
+    return QUEUE_NAMES.map((name) => this.getQueue(name));
+  }
 }
 
 export function createQueueService(connection: Redis): QueueService {

@@ -14,10 +14,34 @@ extendZodWithOpenApi(z);
 /**
  * Single shared registry — every module's `<name>.module.ts` imports this
  * and calls `.registerPath(...)` under its own tag as it comes online.
- * Nothing registers endpoints in P0 beyond health, so the rendered spec is
- * mostly empty except the `Health` tag — that is expected at this phase.
  */
 export const openApiRegistry = new OpenAPIRegistry();
+
+// Health checks live outside `/api/v1` (unversioned liveness/readiness
+// probes) and have no dedicated module, so they register here instead of a
+// `<name>.module.ts`. The document's `servers` entry is `/api/v1`, which
+// these routes deliberately sit outside — the summary calls that out since
+// zod-to-openapi has no per-operation server override to fix "Try it out".
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/health',
+  tags: ['Health'],
+  summary:
+    'Liveness check — process is up. Actual path is unversioned: GET /health (not under /api/v1).',
+  responses: { 200: { description: 'OK' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/health/ready',
+  tags: ['Health'],
+  summary:
+    'Readiness check — database, Redis and storage all reachable. Actual path is unversioned: GET /health/ready (not under /api/v1).',
+  responses: {
+    200: { description: 'Ready' },
+    503: { description: 'Not ready — one or more dependency checks failed' },
+  },
+});
 
 export function buildOpenApiDocument() {
   const generator = new OpenApiGeneratorV31(openApiRegistry.definitions);

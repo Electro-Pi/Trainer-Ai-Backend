@@ -128,6 +128,12 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
     return this.delegate.findFirst({ where: { id } });
   }
 
+  /** Batched form of `findByIdScoped` — `Track` is directly tenant-scoped, so `findMany` is safe. */
+  async findManyByIds(ids: string[]): Promise<Track[]> {
+    if (ids.length === 0) return [];
+    return this.delegate.findMany({ where: { id: { in: ids } } });
+  }
+
   /**
    * `WS-02` — the public marketing site has no tenant/auth context, but
    * `Track` is tenant-scoped (the extension refuses any query outside

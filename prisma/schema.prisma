@@ -180,22 +180,22 @@ model Organization {
 // ─────────────────────────────────────────────────────────────────────────
 
 model PortalUser {
-  id                         String     @id @default(cuid(2))
-  organizationId             String
-  entraObjectId              String?    @unique
-  email                      String
-  passwordHash               String?
-  name                       String
-  role                       PortalRole
-  locale                     Language   @default(EN)
-  isActive                   Boolean    @default(true)
-  lastLoginAt                DateTime?
-  graphTokenCacheEncrypted   String?
-  graphHomeAccountId         String?
-  failedLoginCount           Int        @default(0)
-  lockedUntil                DateTime?
-  createdAt                  DateTime   @default(now())
-  updatedAt                  DateTime   @updatedAt
+  id                       String     @id @default(cuid(2))
+  organizationId           String
+  entraObjectId            String?    @unique
+  email                    String
+  passwordHash             String?
+  name                     String
+  role                     PortalRole
+  locale                   Language   @default(EN)
+  isActive                 Boolean    @default(true)
+  lastLoginAt              DateTime?
+  graphTokenCacheEncrypted String?
+  graphHomeAccountId       String?
+  failedLoginCount         Int        @default(0)
+  lockedUntil              DateTime?
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
 
   organization             Organization        @relation(fields: [organizationId], references: [id])
   refreshTokens            RefreshToken[]
@@ -775,6 +775,7 @@ model Session {
 
   @@index([organizationId, scheduledStart])
   @@index([planId, sequence])
+  @@index([learnerId, scheduledStart])
   @@map("sessions")
 }
 
@@ -908,14 +909,15 @@ model Report {
 // ─────────────────────────────────────────────────────────────────────────
 
 model DemoRequest {
-  id        String   @id @default(cuid(2))
-  name      String
-  email     String
-  company   String
-  phone     String?
-  message   String?
-  locale    Language @default(EN)
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid(2))
+  name           String
+  email          String
+  company        String
+  phone          String?
+  message        String?
+  locale         Language @default(EN)
+  consentGivenAt DateTime
+  createdAt      DateTime @default(now())
 
   @@map("demo_requests")
 }

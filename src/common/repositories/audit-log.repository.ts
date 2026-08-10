@@ -17,4 +17,16 @@ export class AuditLogRepository extends BaseRepository<AuditLog, AuditLogDelegat
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /** `cleanup.job` (§10.1) — audit rows past the org's `auditRetentionDays`. Bounded batch delete. */
+  async deleteOlderThan(organizationId: string, cutoff: Date, batchSize: number): Promise<number> {
+    const stale = await this.delegate.findMany({
+      where: { organizationId, createdAt: { lt: cutoff } },
+      take: batchSize,
+    });
+    if (stale.length === 0) return 0;
+
+    await prisma.auditLog.deleteMany({ where: { id: { in: stale.map((row) => row.id) } } });
+    return stale.length;
+  }
 }

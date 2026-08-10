@@ -63,6 +63,12 @@ const envSchema = z.object({
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+
+  ERROR_TRACKING_PROVIDER: z.enum(['fake', 'sentry']).default('fake'),
+  SENTRY_DSN: z.string().default(''),
+
+  ADMIN_DASHBOARD_USER: z.string().default('admin'),
+  ADMIN_DASHBOARD_PASSWORD: z.string().default(''),
 });
 
 function loadEnv() {

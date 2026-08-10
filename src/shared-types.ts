@@ -13,6 +13,11 @@ export interface JwtAccessClaims {
 // P5 — Storage, scanning, OCR, embeddings (ARCHITECTURE §4.5, §4, D-14)
 // ─────────────────────────────────────────────────────────────────────────
 
+export interface StorageBlobListing {
+  blobKey: string;
+  createdAt: Date;
+}
+
 /** Swappable file storage (`AzureStorageService` real, `LocalStorageService` dev default). */
 export interface StorageService {
   /** Uploads a buffer under `blobKey`, returns nothing — callers read the key back via `getDownloadUrl`. */
@@ -20,6 +25,8 @@ export interface StorageService {
   /** Time-limited signed/SAS URL for reading `blobKey` (§9.11 media access assumption). */
   getDownloadUrl(blobKey: string, expiresInSeconds?: number): Promise<string>;
   delete(blobKey: string): Promise<void>;
+  /** Every blob key currently in storage — `cleanup.job`'s orphaned-blob sweep (§10.1) cross-references this against `MediaAsset.blobKey`. */
+  list(): Promise<StorageBlobListing[]>;
 }
 
 export interface ScanResult {
@@ -68,4 +75,18 @@ export interface SendMailInput {
  */
 export interface EmailService {
   send(input: SendMailInput): Promise<void>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// P12 — Observability (ARCHITECTURE §4.5)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Error tracking (`SentryErrorTracker` real, `FakeErrorTracker` dev/test
+ * default — §4.5). `errorHandler` reports every 5xx here in addition to
+ * logging it; pino stays the source of truth for full request context, this
+ * is only for aggregation/alerting across occurrences.
+ */
+export interface ErrorTracker {
+  captureException(error: unknown, context?: Record<string, unknown>): void;
 }

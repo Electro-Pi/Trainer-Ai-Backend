@@ -68,4 +68,13 @@ export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
       data: { resendCount: { increment: 1 } } as never,
     });
   }
+
+  /** Every generated report's blob key — `cleanup.job`'s orphaned-blob sweep excludes these from deletion. */
+  async findAllBlobKeys(): Promise<string[]> {
+    const rows = await this.delegate.findMany({
+      where: { blobKey: { not: null } },
+      take: 1_000_000,
+    });
+    return rows.map((row) => row.blobKey).filter((key): key is string => key !== null);
+  }
 }

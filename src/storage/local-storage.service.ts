@@ -1,10 +1,10 @@
 import { createHmac } from 'node:crypto';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, relative } from 'node:path';
 
 import { ExternalServiceError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
-import type { StorageService } from '@/shared-types.js';
+import type { StorageBlobListing, StorageService } from '@/shared-types.js';
 
 /**
  * Dev/test default (ARCHITECTURE §4.5, D-14) — writes under `STORAGE_LOCAL_PATH`
@@ -56,5 +56,34 @@ export class LocalStorageService implements StorageService {
   async delete(blobKey: string): Promise<void> {
     const path = resolveLocalBlobPath(blobKey);
     await rm(path, { force: true });
+  }
+
+  async list(): Promise<StorageBlobListing[]> {
+    const root = env.STORAGE_LOCAL_PATH;
+    const blobs: StorageBlobListing[] = [];
+
+    async function walk(dir: string): Promise<void> {
+      let entries;
+      try {
+        entries = await readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await walk(fullPath);
+          continue;
+        }
+        const fileStat = await stat(fullPath);
+        blobs.push({
+          blobKey: relative(root, fullPath).split('\\').join('/'),
+          createdAt: fileStat.birthtime,
+        });
+      }
+    }
+
+    await walk(root);
+    return blobs;
   }
 }

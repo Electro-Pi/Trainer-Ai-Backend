@@ -34,6 +34,21 @@ export class LevelRepository extends BaseRepository<Level, LevelDelegate> {
     return this.delegate.findFirst({ where: { id, track: { organizationId } } });
   }
 
+  /**
+   * Batched form of `findByIdScoped`. `Level` has no `organizationId` column
+   * so it's outside `TENANT_SCOPED_MODELS` — a plain `id: { in }` findMany
+   * would return rows across every org that happens to share one of these
+   * ids, so the `track.organizationId` join must be applied here too.
+   */
+  async findManyByIdsScoped(ids: string[]): Promise<Level[]> {
+    if (ids.length === 0) return [];
+    const organizationId = getCurrentOrganizationId();
+    if (!organizationId) {
+      throw new Error('findManyByIdsScoped() called outside runWithTenant()');
+    }
+    return this.delegate.findMany({ where: { id: { in: ids }, track: { organizationId } } });
+  }
+
   async findByTrackAndKey(trackId: string, key: string): Promise<Level | null> {
     return this.delegate.findFirst({ where: { trackId, key } });
   }

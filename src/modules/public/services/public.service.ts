@@ -11,6 +11,8 @@ export interface SubmitDemoRequestInput {
   locale: 'EN' | 'AR';
   /** Honeypot field — real users never populate it. */
   website?: string | undefined;
+  /** GDPR — must be `true`, enforced by `demoRequestSchema`. */
+  consentGiven: true;
 }
 
 const demoRequestRepository = new DemoRequestRepository();
@@ -24,7 +26,7 @@ export class PublicService {
    */
   async submitDemoRequest(input: SubmitDemoRequestInput): Promise<void> {
     if (input.website) {
-      logger.info({ email: input.email }, 'demo-request: honeypot tripped, dropping silently');
+      logger.info('demo-request: honeypot tripped, dropping silently');
       return;
     }
 
@@ -35,6 +37,7 @@ export class PublicService {
       phone: input.phone ?? null,
       message: input.message ?? null,
       locale: input.locale,
+      consentGivenAt: new Date(),
     } as never);
   }
 }

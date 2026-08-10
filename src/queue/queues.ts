@@ -16,6 +16,7 @@ export const QUEUE_NAMES = [
   'effectiveness.recompute',
   'outcome.escalate',
   'cleanup',
+  'health.alert',
 ] as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[number];
@@ -32,6 +33,7 @@ export interface QueuePayloads {
   'effectiveness.recompute': { organizationId?: string };
   'outcome.escalate': { learnerId: string; organizationId: string; outcomeId: string };
   cleanup: { organizationId?: string };
+  'health.alert': Record<string, never>;
 }
 
 const EXPONENTIAL_BACKOFF = (delayMs: number): NonNullable<JobsOptions['backoff']> => ({
@@ -96,4 +98,5 @@ export const QUEUE_DEFAULT_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
   'effectiveness.recompute': { attempts: 1, removeOnComplete: true, removeOnFail: false },
   'outcome.escalate': { attempts: 1, removeOnComplete: true, removeOnFail: false },
   cleanup: { attempts: 1, removeOnComplete: true, removeOnFail: false },
+  'health.alert': { attempts: 1, removeOnComplete: true, removeOnFail: false },
 };
