@@ -1,22 +1,30 @@
-import rateLimit from 'express-rate-limit';
-import { Redis } from 'ioredis';
-import { RedisStore, type RedisReply } from 'rate-limit-redis';
+import rateLimit, { MemoryStore } from 'express-rate-limit';
 
 import { env } from '@/config/env.js';
 
-// P2-9 — Redis-backed so limits are shared across api replicas (P0's
-// in-memory store worked for a single process only). One connection reused
-// by every limiter instance rather than one per limiter.
-const redisClient = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+// P2-9 was Redis-backed so limits stayed shared across api replicas; that
+// dependency has been dropped, so this now uses express-rate-limit's
+// in-memory `MemoryStore` — per-process only. Fine at single-instance scale;
+// if the api ever runs multiple replicas, limits would need to move back to
+// a shared store (e.g. Postgres-backed) to stay accurate across them.
+//
+// Each store is constructed explicitly (rather than left as the middleware's
+// implicit default) and tracked here so `resetAllRateLimits()` — used by
+// integration tests, where a single `createApp()` call's limiters live for
+// the whole file and would otherwise trip across unrelated `it()` blocks —
+// has a handle to clear them.
+const stores: MemoryStore[] = [];
 
-function createStore(prefix: string): RedisStore {
-  return new RedisStore({
-    prefix,
-    sendCommand: async (...args: string[]) => {
-      const [command, ...rest] = args as [string, ...string[]];
-      return (await redisClient.call(command, rest)) as RedisReply;
-    },
-  });
+function trackedStore(): MemoryStore {
+  const store = new MemoryStore();
+  stores.push(store);
+  return store;
+}
+
+export function resetAllRateLimits(): void {
+  for (const store of stores) {
+    store.resetAll();
+  }
 }
 
 export function rateLimitMiddleware() {
@@ -25,7 +33,7 @@ export function rateLimitMiddleware() {
     limit: env.RATE_LIMIT_MAX,
     standardHeaders: true,
     legacyHeaders: false,
-    store: createStore('rl:default:'),
+    store: trackedStore(),
   });
 }
 
@@ -40,7 +48,7 @@ export function strictRateLimitMiddleware() {
     limit: 20,
     standardHeaders: true,
     legacyHeaders: false,
-    store: createStore('rl:strict:'),
+    store: trackedStore(),
   });
 }
 
@@ -58,6 +66,6 @@ export function agentRateLimitMiddleware() {
     limit: 60,
     standardHeaders: true,
     legacyHeaders: false,
-    store: createStore('rl:agent:'),
+    store: trackedStore(),
   });
 }

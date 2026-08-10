@@ -1,29 +1,23 @@
 import { randomUUID } from 'node:crypto';
 
 import type { PortalRole } from '@prisma/client';
-import { Redis } from 'ioredis';
 
+import { resetAllRateLimits } from '@/common/middleware/rate-limit.middleware.js';
 import { encrypt } from '@/common/utils/encryption.js';
 import { signAccessToken } from '@/common/utils/jwt.js';
-import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 
 /**
- * `rateLimitMiddleware()`/`strictRateLimitMiddleware()` (P2-9) key by IP in
- * Redis with a fixed window — every request from Supertest shares one
- * loopback IP, so a test file making more than 20 auth calls trips the real
- * limiter. That's correct production behavior, not a bug; tests that need
- * many auth calls in one file should flush these keys in `beforeEach`
- * instead of the app weakening the limit for "test mode".
+ * `rateLimitMiddleware()`/`strictRateLimitMiddleware()` (P2-9) key by IP with
+ * a fixed window in an in-memory store — every request from Supertest shares
+ * one loopback IP, so a test file making more than 20 auth calls trips the
+ * real limiter. That's correct production behavior, not a bug; tests that
+ * need many auth calls in one file should reset these counters in
+ * `beforeEach` instead of the app weakening the limit for "test mode".
  */
 export async function resetRateLimits(): Promise<void> {
-  const redis = new Redis(env.REDIS_URL);
-  const keys = await redis.keys('rl:*');
-  if (keys.length > 0) {
-    await redis.del(...keys);
-  }
-  await redis.quit();
+  resetAllRateLimits();
 }
 
 /**

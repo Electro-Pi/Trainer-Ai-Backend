@@ -15,8 +15,8 @@ async function recomputeOne(organizationId: string): Promise<void> {
 }
 
 /**
- * `RC-13`, `PF-07` (P10-5) — nightly cron via BullMQ's repeatable-job
- * scheduler (`scheduleRepeatableJobs`, worker.ts). `organizationId` is
+ * `RC-13`, `PF-07` (P10-5) — nightly cron via pg-boss's `schedule()`
+ * (worker.ts). `organizationId` is
  * omitted on the scheduled cron run, so every tenant is swept; a caller can
  * still enqueue with an `organizationId` for an on-demand single-org
  * recompute. Never runs inline — the recommender's effectiveness signal

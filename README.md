@@ -69,7 +69,7 @@ Full detail lives in [`context/ARCHITECTURE.md`](context/ARCHITECTURE.md); decis
 
 **The differentiator — a deterministic recommendation engine, not an LLM ranker.** Six pure-function signals (outcome relevance, priority, level fit, question-level gap, effectiveness, semantic similarity via pgvector) combine by fixed weights into a `signalBreakdown` that's inspectable, unit-testable, and fast enough for the < 2s in-session remediation path. Every recommendation writes `PROPOSED` only — nothing reaches a learner's plan without manager confirmation.
 
-**Everything slow or external goes through a BullMQ job**, never inline in a request — upload → scan → OCR → embed is a queue pipeline from day one; meetings, reports, emails, the nightly effectiveness recompute and the retention sweep (`cleanup.job`) are all jobs. `src/queue/worker.ts` is a separate process.
+**Everything slow or external goes through a queue job** (pg-boss, on the same Postgres database — no separate broker), never inline in a request — upload → scan → OCR → embed is a queue pipeline from day one; meetings, reports, emails, the nightly effectiveness recompute and the retention sweep (`cleanup.job`) are all jobs. `src/queue/worker.ts` is a separate process.
 
 **Every external dependency has a fake, and the fake is the dev/test default** — see below.
 
@@ -125,7 +125,7 @@ The AI service is **another team's system** — this backend never runs inferenc
 ## Operations
 
 - **Runbook** (services, deploy sequencing, env var reference, health/alerting, troubleshooting): [`docs/RUNBOOK.md`](docs/RUNBOOK.md)
-- **BullMQ dashboard**: `/admin/queues`, HTTP Basic Auth (`ADMIN_DASHBOARD_USER`/`_PASSWORD`)
+- **Queue status**: `/admin/queues`, HTTP Basic Auth (`ADMIN_DASHBOARD_USER`/`_PASSWORD`)
 - **Health**: `GET /health` (liveness), `GET /health/ready` (dependency checks — point a load balancer here)
 - **API docs**: `/api/docs`
 

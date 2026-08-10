@@ -17,8 +17,6 @@ const envSchema = z.object({
 
   DATABASE_URL: z.url(),
 
-  REDIS_URL: z.url(),
-
   JWT_PRIVATE_KEY: z.string().min(1, { error: 'JWT_PRIVATE_KEY is required' }),
   JWT_PUBLIC_KEY: z.string().min(1, { error: 'JWT_PUBLIC_KEY is required' }),
   JWT_ACCESS_TTL: z.string().default('15m'),

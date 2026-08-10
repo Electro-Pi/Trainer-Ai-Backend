@@ -1,4 +1,4 @@
-import { Job, Worker } from 'bullmq';
+import type { Job } from 'pg-boss';
 
 import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
@@ -18,6 +18,7 @@ import { createQueueConnection, createQueueService } from './queue.service.js';
 import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
 
 const connection = createQueueConnection();
+const queueService = createQueueService(connection);
 
 type Processor<K extends QueueName> = (payload: QueuePayloads[K]) => Promise<void>;
 
@@ -41,55 +42,54 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'health.alert': processHealthAlertJob,
 };
 
-const workers = QUEUE_NAMES.map((name) => {
-  const processor = PROCESSORS[name];
-  return new Worker(
-    name,
-    async (job: Job) => {
+async function main(): Promise<void> {
+  await queueService.ensureAllQueues();
+
+  for (const name of QUEUE_NAMES) {
+    const processor = PROCESSORS[name];
+    await connection.work(name, { localConcurrency: 5 }, async ([job]: Job[]) => {
+      if (!job) return;
       if (!processor) {
         logger.info({ queue: name, jobId: job.id }, 'No-op processor — no handler registered yet');
         return;
       }
-      await processor(job.data as never);
-    },
-    { connection, concurrency: 5 },
-  );
-});
+      try {
+        await processor(job.data as never);
+      } catch (err) {
+        logger.error({ queue: name, jobId: job.id, err }, 'Job failed');
+        throw err;
+      }
+    });
+  }
 
-for (const worker of workers) {
-  worker.on('failed', (job, err) => {
-    logger.error({ queue: worker.name, jobId: job?.id, err }, 'Job failed');
+  // Nightly cron registration (§10.1, `RC-13`) — `schedule` upserts by queue
+  // name, so re-running this on every worker boot updates the pattern in
+  // place rather than accumulating duplicate schedules.
+  await queueService
+    .scheduleCron('effectiveness.recompute', {}, '0 2 * * *')
+    .catch((err: unknown) => {
+      logger.error({ err }, 'Failed to register effectiveness.recompute cron schedule');
+    });
+
+  await queueService.scheduleCron('cleanup', {}, '0 3 * * *').catch((err: unknown) => {
+    logger.error({ err }, 'Failed to register cleanup cron schedule');
   });
+
+  await queueService.scheduleCron('health.alert', {}, '*/5 * * * *').catch((err: unknown) => {
+    logger.error({ err }, 'Failed to register health.alert cron schedule');
+  });
+
+  logger.info({ queues: QUEUE_NAMES, env: env.NODE_ENV }, 'Worker process started');
 }
 
-// Nightly cron registration (§10.1, `RC-13`) — `upsertJobScheduler` is
-// idempotent by `schedulerId`, so re-running this on every worker boot
-// updates the pattern in place rather than accumulating duplicate schedulers.
-const queueService = createQueueService(connection);
-void queueService
-  .scheduleCron('effectiveness-recompute-nightly', 'effectiveness.recompute', {}, '0 2 * * *')
-  .catch((err: unknown) => {
-    logger.error({ err }, 'Failed to register effectiveness.recompute cron scheduler');
-  });
-
-void queueService
-  .scheduleCron('cleanup-nightly', 'cleanup', {}, '0 3 * * *')
-  .catch((err: unknown) => {
-    logger.error({ err }, 'Failed to register cleanup cron scheduler');
-  });
-
-void queueService
-  .scheduleCron('health-alert-5min', 'health.alert', {}, '*/5 * * * *')
-  .catch((err: unknown) => {
-    logger.error({ err }, 'Failed to register health.alert cron scheduler');
-  });
-
-logger.info({ queues: QUEUE_NAMES, env: env.NODE_ENV }, 'Worker process started');
+void main().catch((err: unknown) => {
+  logger.error({ err }, 'Worker failed to start');
+  process.exit(1);
+});
 
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Worker shutting down');
-  await Promise.all(workers.map((worker) => worker.close()));
-  await connection.quit();
+  await connection.stop();
   process.exit(0);
 }
 

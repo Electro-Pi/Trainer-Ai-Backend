@@ -35,7 +35,7 @@ The requirements source of truth is `docs/Ai_trainer_BRD_v3.pdf`. Requirement ID
 11. **Missing outcome coverage is surfaced, never silently skipped.** (`RC-10`)
 12. **No secrets in code.** All config via Zod-validated `env.ts`; boot fails loudly on a missing var.
 13. **External I/O only through interfaces** — `integrations/`, `ai/`, `storage/`. No service imports the Azure, Graph or AI SDK directly.
-14. **Slow or external work goes to a BullMQ job**, never inline in a request.
+14. **Slow or external work goes to a queue job** (pg-boss, on Postgres), never inline in a request.
 15. **Every state change writes an `AuditLog` row in the same transaction.**
 16. **Errors are localized RFC 9457 `problem+json`.** Never leak Prisma/Graph internals to a client.
 17. **Never hard-delete.** Deactivate, archive, version. Historical reports must survive. (`TM-05`, `CM-17`)

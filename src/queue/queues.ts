@@ -1,5 +1,3 @@
-import type { JobsOptions } from 'bullmq';
-
 // Queue catalogue (ARCHITECTURE §10). Jobs are added by the phases that
 // need them — this only defines names and payload contracts so P0's queue
 // plumbing has something concrete to type against.
@@ -36,67 +34,28 @@ export interface QueuePayloads {
   'health.alert': Record<string, never>;
 }
 
-const EXPONENTIAL_BACKOFF = (delayMs: number): NonNullable<JobsOptions['backoff']> => ({
-  type: 'exponential',
-  delay: delayMs,
-});
+export interface QueueRetryOptions {
+  retryLimit: number;
+  retryDelay?: number;
+  retryBackoff?: boolean;
+}
 
 /**
- * Retry counts per ARCHITECTURE §10's job table. `jobId` for idempotency
- * (meeting.create keyed by session.id, etc.) is supplied by the caller when
- * enqueuing — it is entity-specific and not knowable here.
+ * Retry counts per ARCHITECTURE §10's job table, translated from BullMQ's
+ * `attempts`/`backoff.delay` (ms) to pg-boss's `retryLimit` (retries after
+ * the first try, so `attempts - 1`) and `retryDelay` (seconds).
  */
-export const QUEUE_DEFAULT_JOB_OPTIONS: Record<QueueName, JobsOptions> = {
-  'media.scan': {
-    attempts: 3,
-    backoff: EXPONENTIAL_BACKOFF(5_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'media.extract': {
-    attempts: 3,
-    backoff: EXPONENTIAL_BACKOFF(5_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'content.embed': {
-    attempts: 3,
-    backoff: EXPONENTIAL_BACKOFF(5_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'meeting.create': {
-    attempts: 5,
-    backoff: EXPONENTIAL_BACKOFF(10_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'meeting.update': {
-    attempts: 5,
-    backoff: EXPONENTIAL_BACKOFF(10_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'session.reminder': {
-    attempts: 2,
-    backoff: EXPONENTIAL_BACKOFF(30_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'report.generate': {
-    attempts: 3,
-    backoff: EXPONENTIAL_BACKOFF(10_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'report.send': {
-    attempts: 5,
-    backoff: EXPONENTIAL_BACKOFF(10_000),
-    removeOnComplete: true,
-    removeOnFail: false,
-  },
-  'effectiveness.recompute': { attempts: 1, removeOnComplete: true, removeOnFail: false },
-  'outcome.escalate': { attempts: 1, removeOnComplete: true, removeOnFail: false },
-  cleanup: { attempts: 1, removeOnComplete: true, removeOnFail: false },
-  'health.alert': { attempts: 1, removeOnComplete: true, removeOnFail: false },
+export const QUEUE_DEFAULT_JOB_OPTIONS: Record<QueueName, QueueRetryOptions> = {
+  'media.scan': { retryLimit: 2, retryDelay: 5, retryBackoff: true },
+  'media.extract': { retryLimit: 2, retryDelay: 5, retryBackoff: true },
+  'content.embed': { retryLimit: 2, retryDelay: 5, retryBackoff: true },
+  'meeting.create': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
+  'meeting.update': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
+  'session.reminder': { retryLimit: 1, retryDelay: 30, retryBackoff: true },
+  'report.generate': { retryLimit: 2, retryDelay: 10, retryBackoff: true },
+  'report.send': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
+  'effectiveness.recompute': { retryLimit: 0 },
+  'outcome.escalate': { retryLimit: 0 },
+  cleanup: { retryLimit: 0 },
+  'health.alert': { retryLimit: 0 },
 };

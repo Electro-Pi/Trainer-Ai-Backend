@@ -1,35 +1,47 @@
-import { createBullBoard } from '@bull-board/api';
-import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
-import { ExpressAdapter } from '@bull-board/express';
-import type { RequestHandler, Router } from 'express';
+import express, { type RequestHandler, type Router } from 'express';
 
 import { queueService } from '@/queue/queue-instance.js';
+import { QUEUE_NAMES } from '@/queue/queues.js';
 
 import { basicAuth } from './basic-auth.guard.js';
 
 const BASE_PATH = '/admin/queues';
 
 /**
- * `P12-4` — BullMQ dashboard for ops visibility into every queue's
- * pending/active/failed jobs. Gated by `basicAuth()`, not the portal-user
- * JWT flow, since this is a browser-navigated page (§4.5 — see the guard's
- * own doc comment for why).
+ * `P12-4` — queue depth snapshot for ops visibility into every queue's
+ * ready/active/failed jobs. pg-boss has no Express-mountable dashboard
+ * (bull-board's `BullMQAdapter` had no pg-boss equivalent) — its own
+ * `pg-boss-dashboard` package runs as a separate standalone process against
+ * `DATABASE_URL` instead, so operators wanting a full UI run that alongside
+ * this API rather than mounted inside it. This JSON endpoint covers the
+ * at-a-glance check bull-board's queue list gave us.
  *
- * `basicAuth` is returned separately from the router rather than
- * `router.use()`-d onto it: `ExpressAdapter.getRouter()` returns bull-board's
- * own internal router with its routes already registered, so any middleware
- * added to it afterward would run AFTER those handlers already responded —
- * a real auth bypass. `app.ts` must mount `basicAuth` on the path BEFORE
- * this router, in the same `app.use(path, basicAuth(), router)` call.
+ * Gated by `basicAuth()`, not the portal-user JWT flow, since this is a
+ * browser-navigated page (§4.5 — see the guard's own doc comment for why).
  */
 export function createAdminQueuesRouter(): { path: string; auth: RequestHandler; router: Router } {
-  const serverAdapter = new ExpressAdapter();
-  serverAdapter.setBasePath(BASE_PATH);
+  const router = express.Router();
 
-  createBullBoard({
-    queues: queueService.getAllQueues().map((queue) => new BullMQAdapter(queue)),
-    serverAdapter,
+  router.get('/', (_req, res, next) => {
+    queueService
+      .ensureAllQueues()
+      .then(() =>
+        Promise.all(
+          QUEUE_NAMES.map(async (name) => {
+            const [stats] = await queueService.getBoss().getQueueStats(name);
+            return {
+              name,
+              size: stats?.totalCount ?? 0,
+              ready: stats?.readyCount ?? 0,
+              active: stats?.activeCount ?? 0,
+              failed: stats?.failedCount ?? 0,
+            };
+          }),
+        ),
+      )
+      .then((queues) => res.status(200).json({ queues }))
+      .catch(next);
   });
 
-  return { path: BASE_PATH, auth: basicAuth(), router: serverAdapter.getRouter() };
+  return { path: BASE_PATH, auth: basicAuth(), router };
 }

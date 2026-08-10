@@ -16,6 +16,7 @@ import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { logger } from '@/logger/logger.service.js';
 import { AssessmentRepository } from '@/modules/assessments/repositories/assessment.repository.js';
+import { PkceEntryRepository } from '@/modules/auth/repositories/pkce-entry.repository.js';
 import { MediaAssetRepository } from '@/modules/content/repositories/media-asset.repository.js';
 import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { ReportRepository } from '@/modules/reports/repositories/report.repository.js';
@@ -28,6 +29,7 @@ const auditLogs = new AuditLogRepository();
 const assessments = new AssessmentRepository();
 const mediaAssets = new MediaAssetRepository();
 const reports = new ReportRepository();
+const pkceEntries = new PkceEntryRepository();
 
 const SYSTEM_ACTOR: AuditActorType = 'SYSTEM';
 
@@ -227,6 +229,13 @@ async function sweepPlaywrightTempFiles(systemOrgIdForAudit: string): Promise<nu
   return total;
 }
 
+/** Not org-scoped — `PkceEntry` is a short-lived (10min TTL) login handshake row, no `organizationId`. */
+async function sweepExpiredPkceEntries(systemOrgIdForAudit: string): Promise<number> {
+  const count = await pkceEntries.deleteExpiredBefore(new Date());
+  await auditSweep(systemOrgIdForAudit, 'cleanup.pkce_entries', count, {});
+  return count;
+}
+
 /** Org-scoped — `AuditLog` carries `organizationId` directly and each org sets its own `auditRetentionDays`. */
 async function sweepAuditLogsForOrganization(
   organizationId: string,
@@ -262,9 +271,10 @@ export async function processCleanupJob(payload: QueuePayloads['cleanup']): Prom
 
   const auditOrgId = organizationIds[0] as string;
 
-  const [refreshTokens, transcripts, infectedMedia, orphanedBlobs, playwrightTemp] =
+  const [refreshTokens, pkceEntries, transcripts, infectedMedia, orphanedBlobs, playwrightTemp] =
     await Promise.all([
       sweepExpiredRefreshTokens(auditOrgId),
+      sweepExpiredPkceEntries(auditOrgId),
       sweepExpiredTranscripts(storage, auditOrgId),
       sweepInfectedMedia(storage, auditOrgId),
       sweepOrphanedBlobs(storage, auditOrgId),
@@ -279,7 +289,15 @@ export async function processCleanupJob(payload: QueuePayloads['cleanup']): Prom
   }
 
   logger.info(
-    { refreshTokens, transcripts, infectedMedia, orphanedBlobs, playwrightTemp, auditLogRows },
+    {
+      refreshTokens,
+      pkceEntries,
+      transcripts,
+      infectedMedia,
+      orphanedBlobs,
+      playwrightTemp,
+      auditLogRows,
+    },
     'cleanup: nightly sweep complete',
   );
 }

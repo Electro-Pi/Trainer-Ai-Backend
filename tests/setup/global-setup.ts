@@ -5,19 +5,19 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { GenericContainer, type StartedTestContainer } from 'testcontainers';
 
 const ENV_FILE = path.resolve(import.meta.dirname, '../../.test-env.json');
 
 /**
- * Runs once for the whole Vitest run (not per file/worker). Starts real
- * Postgres (pgvector image, matching docker-compose) and Redis containers,
- * applies every Prisma migration against the fresh database, then writes the
- * resolved connection strings + a fresh JWT/encryption keyset to a JSON file.
- * Test files can't read `project.provide()`/`inject()` values before
- * `dotenv`-driven app modules load, so a plain file handoff — read
- * synchronously by `tests/setup/test-env.ts` — is what actually gets these
- * into `process.env` before any `@/config/env.js` import happens.
+ * Runs once for the whole Vitest run (not per file/worker). Starts a real
+ * Postgres container (pgvector image, matching docker-compose — also backs
+ * the pg-boss job queue), applies every Prisma migration against the fresh
+ * database, then writes the resolved connection string + a fresh
+ * JWT/encryption keyset to a JSON file. Test files can't read
+ * `project.provide()`/`inject()` values before `dotenv`-driven app modules
+ * load, so a plain file handoff — read synchronously by
+ * `tests/setup/test-env.ts` — is what actually gets these into `process.env`
+ * before any `@/config/env.js` import happens.
  */
 export async function setup(): Promise<void> {
   const postgres: StartedPostgreSqlContainer = await new PostgreSqlContainer(
@@ -28,12 +28,7 @@ export async function setup(): Promise<void> {
     .withPassword('test')
     .start();
 
-  const redis: StartedTestContainer = await new GenericContainer('redis:7-alpine')
-    .withExposedPorts(6379)
-    .start();
-
   const databaseUrl = postgres.getConnectionUri();
-  const redisUrl = `redis://${redis.getHost()}:${redis.getMappedPort(6379)}`;
 
   const { privateKey, publicKey } = generateKeyPairSync('rsa', {
     modulusLength: 2048,
@@ -65,28 +60,24 @@ export async function setup(): Promise<void> {
     ENV_FILE,
     JSON.stringify({
       DATABASE_URL: databaseUrl,
-      REDIS_URL: redisUrl,
       JWT_PRIVATE_KEY: Buffer.from(privateKey).toString('base64'),
       JWT_PUBLIC_KEY: Buffer.from(publicKey).toString('base64'),
       ENCRYPTION_KEY: randomBytes(32).toString('base64'),
       UPLOADTHING_TOKEN: uploadthingToken,
       postgresContainerId: postgres.getId(),
-      redisContainerId: redis.getId(),
     }),
     'utf8',
   );
 
-  globalThis.__testContainers = { postgres, redis };
+  globalThis.__testContainers = { postgres };
 }
 
 export async function teardown(): Promise<void> {
   const containers = globalThis.__testContainers;
   await containers?.postgres.stop();
-  await containers?.redis.stop();
   await rm(ENV_FILE, { force: true });
 }
 
 declare global {
-  var __testContainers:
-    { postgres: StartedPostgreSqlContainer; redis: StartedTestContainer } | undefined;
+  var __testContainers: { postgres: StartedPostgreSqlContainer } | undefined;
 }

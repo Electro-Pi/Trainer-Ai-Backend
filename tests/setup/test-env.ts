@@ -16,7 +16,6 @@ process.env['NODE_ENV'] = 'test';
 process.env['APP_URL'] = 'http://localhost:4100';
 process.env['CORS_ORIGINS'] = 'http://localhost:3001';
 process.env['DATABASE_URL'] = testEnv['DATABASE_URL'];
-process.env['REDIS_URL'] = testEnv['REDIS_URL'];
 process.env['JWT_PRIVATE_KEY'] = testEnv['JWT_PRIVATE_KEY'];
 process.env['JWT_PUBLIC_KEY'] = testEnv['JWT_PUBLIC_KEY'];
 process.env['ENCRYPTION_KEY'] = testEnv['ENCRYPTION_KEY'];

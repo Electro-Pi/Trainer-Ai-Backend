@@ -19,7 +19,7 @@ const REMINDER_LEAD_TIME_MS = 60 * 60_000;
  * restricted-lobby and agent-as-presenter (§7.5), then records the invite.
  * Idempotent by `jobId: meeting-create-<sessionId>` (enqueued in
  * `TrainingPlanService.confirm`) — retrying this job for the same session on
- * BullMQ retry never double-books, since it's keyed at the queue level, not
+ * a queue retry never double-books, since it's keyed at the queue level, not
  * here.
  */
 export async function processCreateMeetingJob(

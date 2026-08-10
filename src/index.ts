@@ -1,6 +1,6 @@
 /* eslint-disable import-x/order -- env must import first so boot fails
-   loudly on a bad/missing var before app assembly, Prisma or Redis run;
-   that ordering is deliberately not alphabetical. */
+   loudly on a bad/missing var before app assembly or Prisma run; that
+   ordering is deliberately not alphabetical. */
 import { env } from '@/config/env.js';
 
 import { createApp } from '@/app.js';

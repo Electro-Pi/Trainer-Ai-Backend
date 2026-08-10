@@ -231,6 +231,21 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+/// Server-side PKCE code_verifier storage between `/auth/microsoft/start` and
+/// `/auth/microsoft/callback` — the two legs of Entra's auth-code flow run as
+/// separate requests, so the verifier can't just live in a closure. Keyed by
+/// `state` (also CSRF-mitigating per MSAL's own `validateState`). Expired
+/// rows are swept by the nightly `cleanup` job.
+model PkceEntry {
+  state        String   @id
+  codeVerifier String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("pkce_entries")
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Teams & Learners
 // ─────────────────────────────────────────────────────────────────────────

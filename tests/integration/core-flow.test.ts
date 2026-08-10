@@ -50,8 +50,8 @@ afterAll(async () => {
  * full agent session (context -> answers -> complete), and verifies the
  * outcome updates, carry-over, and generated report.
  *
- * BullMQ job processors are invoked directly rather than through a live
- * worker process — the queue *transport* (enqueue/retry/backoff) is P0's
+ * Job processors are invoked directly rather than through a live worker
+ * process — the queue *transport* (enqueue/retry/backoff) is P0's
  * concern and isn't what this test is proving; this test proves the business
  * logic each processor runs is correct when it fires.
  */

@@ -1,4 +1,3 @@
-import { Redis } from 'ioredis';
 import { UTApi } from 'uploadthing/server';
 
 import { env } from '@/config/env.js';
@@ -29,23 +28,6 @@ export async function checkDatabase(): Promise<DependencyCheck> {
   }
 }
 
-export async function checkRedis(): Promise<DependencyCheck> {
-  const client = new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
-  try {
-    await client.connect();
-    await client.ping();
-    return { name: 'redis', ok: true };
-  } catch (error) {
-    return {
-      name: 'redis',
-      ok: false,
-      error: error instanceof Error ? error.message : 'unknown error',
-    };
-  } finally {
-    client.disconnect();
-  }
-}
-
 export async function checkStorage(): Promise<DependencyCheck> {
   try {
     const client = new UTApi({ token: env.UPLOADTHING_TOKEN });
@@ -61,5 +43,5 @@ export async function checkStorage(): Promise<DependencyCheck> {
 }
 
 export async function runAllHealthChecks(): Promise<DependencyCheck[]> {
-  return Promise.all([checkDatabase(), checkRedis(), checkStorage()]);
+  return Promise.all([checkDatabase(), checkStorage()]);
 }
