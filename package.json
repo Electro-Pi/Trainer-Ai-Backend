@@ -19,6 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
+    "postinstall": "prisma generate",
     "seed": "tsx prisma/seed/index.ts",
     "test": "vitest run"
   },
