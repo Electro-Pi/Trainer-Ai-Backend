@@ -32,6 +32,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       - name: Test (with coverage)
         env:
           UPLOADTHING_TOKEN: ${{ secrets.UPLOADTHING_TOKEN }}
