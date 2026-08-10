@@ -18,7 +18,7 @@ export interface StorageBlobListing {
   createdAt: Date;
 }
 
-/** Swappable file storage (`AzureStorageService` real, `LocalStorageService` dev default). */
+/** File storage, backed by UploadThing (`UploadThingStorageService`). */
 export interface StorageService {
   /** Uploads a buffer under `blobKey`, returns nothing — callers read the key back via `getDownloadUrl`. */
   upload(blobKey: string, data: Buffer, contentType: string): Promise<void>;
@@ -82,10 +82,10 @@ export interface EmailService {
 // ─────────────────────────────────────────────────────────────────────────
 
 /**
- * Error tracking (`SentryErrorTracker` real, `FakeErrorTracker` dev/test
- * default — §4.5). `errorHandler` reports every 5xx here in addition to
- * logging it; pino stays the source of truth for full request context, this
- * is only for aggregation/alerting across occurrences.
+ * Error tracking (`FakeErrorTracker` — §4.5). `errorHandler` reports every
+ * 5xx here in addition to logging it; pino stays the source of truth for
+ * full request context, this is only for aggregation/alerting across
+ * occurrences.
  */
 export interface ErrorTracker {
   captureException(error: unknown, context?: Record<string, unknown>): void;

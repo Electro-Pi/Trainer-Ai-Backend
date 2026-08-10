@@ -37,22 +37,15 @@ const envSchema = z.object({
   AI_SERVICE_BASE_URL: z.string().default(''),
   AI_SERVICE_TOKEN: z.string().default(''),
 
-  STORAGE_PROVIDER: z.enum(['local', 'azure']).default('local'),
-  STORAGE_LOCAL_PATH: z.string().default('./.storage'),
-  AZURE_STORAGE_CONNECTION_STRING: z.string().default(''),
-  AZURE_STORAGE_CONTAINER: z.string().default('media'),
+  UPLOADTHING_TOKEN: z.string().min(1, { error: 'UPLOADTHING_TOKEN is required' }),
 
   SCANNER_PROVIDER: z.enum(['fake', 'clamav']).default('fake'),
   CLAMAV_HOST: z.string().default('localhost'),
   CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
 
-  EMBEDDING_PROVIDER: z.enum(['fake', 'azure']).default('fake'),
-  OCR_PROVIDER: z.enum(['fake', 'azure']).default('fake'),
-  AZURE_OPENAI_ENDPOINT: z.string().default(''),
-  AZURE_OPENAI_API_KEY: z.string().default(''),
-  AZURE_OPENAI_EMBEDDING_DEPLOYMENT: z.string().default(''),
-  AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: z.string().default(''),
-  AZURE_DOCUMENT_INTELLIGENCE_API_KEY: z.string().default(''),
+  EMBEDDING_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
+  OPENAI_API_KEY: z.string().default(''),
+  OCR_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
 
   EMAIL_PROVIDER: z.enum(['fake', 'smtp', 'graph']).default('fake'),
   SMTP_HOST: z.string().default(''),
@@ -63,9 +56,6 @@ const envSchema = z.object({
 
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
-
-  ERROR_TRACKING_PROVIDER: z.enum(['fake', 'sentry']).default('fake'),
-  SENTRY_DSN: z.string().default(''),
 
   ADMIN_DASHBOARD_USER: z.string().default('admin'),
   ADMIN_DASHBOARD_PASSWORD: z.string().default(''),

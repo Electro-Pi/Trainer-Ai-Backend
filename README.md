@@ -85,16 +85,15 @@ Full detail lives in [`context/ARCHITECTURE.md`](context/ARCHITECTURE.md); decis
 
 Every external dependency is behind an interface with a `<X>_PROVIDER` env flag. All default to a fake/local implementation — the system is fully demoable and CI-testable with **no external accounts**.
 
-| Concern                    | Flag                      | Fake (default)                         | Real                                                                    |
-| -------------------------- | ------------------------- | -------------------------------------- | ----------------------------------------------------------------------- |
-| Microsoft Graph / Entra ID | `GRAPH_PROVIDER`          | `FakeGraphService` / `FakeMsalService` | `real` — needs `GRAPH_CLIENT_ID`/`_SECRET`/`_TENANT_ID`/`_REDIRECT_URI` |
-| AI service (see below)     | `AI_SERVICE_PROVIDER`     | `FakeLlmService`                       | `real` — needs `AI_SERVICE_BASE_URL`/`_TOKEN`                           |
-| File storage               | `STORAGE_PROVIDER`        | `local` (filesystem)                   | `azure` — needs `AZURE_STORAGE_CONNECTION_STRING`/`_CONTAINER`          |
-| Malware scanning           | `SCANNER_PROVIDER`        | `FakeScanner`                          | `clamav` — needs `CLAMAV_HOST`/`_PORT`                                  |
-| Embeddings                 | `EMBEDDING_PROVIDER`      | `FakeEmbeddingService` (deterministic) | `azure` — Azure OpenAI                                                  |
-| OCR                        | `OCR_PROVIDER`            | `FakeOcrService`                       | `azure` — Azure Document Intelligence                                   |
-| Email                      | `EMAIL_PROVIDER`          | `FakeEmailService` (logs, never sends) | `smtp` or `graph`                                                       |
-| Error tracking             | `ERROR_TRACKING_PROVIDER` | `FakeErrorTracker` (logs)              | `sentry` — needs `SENTRY_DSN`                                           |
+| Concern                    | Flag                  | Fake (default)                         | Real                                                                    |
+| -------------------------- | --------------------- | -------------------------------------- | ----------------------------------------------------------------------- |
+| Microsoft Graph / Entra ID | `GRAPH_PROVIDER`      | `FakeGraphService` / `FakeMsalService` | `real` — needs `GRAPH_CLIENT_ID`/`_SECRET`/`_TENANT_ID`/`_REDIRECT_URI` |
+| AI service (see below)     | `AI_SERVICE_PROVIDER` | `FakeLlmService`                       | `real` — needs `AI_SERVICE_BASE_URL`/`_TOKEN`                           |
+| File storage               | —                     | —                                      | UploadThing (always) — needs `UPLOADTHING_TOKEN`                        |
+| Malware scanning           | `SCANNER_PROVIDER`    | `FakeScanner`                          | `clamav` — needs `CLAMAV_HOST`/`_PORT`                                  |
+| Embeddings                 | `EMBEDDING_PROVIDER`  | `FakeEmbeddingService` (deterministic) | `openai` — OpenAI `text-embedding-3-small`                              |
+| OCR                        | `OCR_PROVIDER`        | `FakeOcrService`                       | `openai` — GPT-4o vision (PDF/image only, no Word/PowerPoint)           |
+| Email                      | `EMAIL_PROVIDER`      | `FakeEmailService` (logs, never sends) | `smtp` or `graph`                                                       |
 
 Full variable list, defaults and required-vs-optional status: [`.env.example`](.env.example) and [`docs/RUNBOOK.md`](docs/RUNBOOK.md#3-environment-variables).
 

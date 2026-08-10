@@ -9,7 +9,7 @@ import type { ScanResult, Scanner } from '@/shared-types.js';
  * Real implementation (ARCHITECTURE §4.5, CM-07) — talks to the `clamav`
  * docker-compose service over TCP (clamd protocol), never a local binary.
  * The client is only ever constructed when `SCANNER_PROVIDER=clamav`, same
- * lazy-behind-the-provider-check discipline as `MsalService`/`AzureStorageService`
+ * lazy-behind-the-provider-check discipline as `MsalService`
  * (MEMORY Technical Discoveries — never eagerly construct a real SDK client).
  */
 export class ClamAvScanner implements Scanner {

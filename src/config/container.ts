@@ -1,10 +1,10 @@
-import { AzureEmbeddingService } from '@/ai/embedding.service.js';
+import { OpenAiEmbeddingService } from '@/ai/embedding.service.js';
 import { FakeEmbeddingService } from '@/ai/fakes/fake-embedding.service.js';
 import { FakeLlmService } from '@/ai/fakes/fake-llm.service.js';
 import { FakeOcrService } from '@/ai/fakes/fake-ocr.service.js';
 import { HttpAiServiceClient } from '@/ai/http-ai-service-client.js';
 import type { AiServiceClient } from '@/ai/interfaces/ai-service-client.interface.js';
-import { AzureOcrService } from '@/ai/ocr.service.js';
+import { OpenAiOcrService } from '@/ai/ocr.service.js';
 import { env } from '@/config/env.js';
 import { FakeEmailService } from '@/email/fakes/fake-email.service.js';
 import { GraphEmailService } from '@/email/graph-email.service.js';
@@ -13,7 +13,6 @@ import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js
 import type { GraphService } from '@/integrations/microsoft/graph.interfaces.js';
 import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
 import { FakeErrorTracker } from '@/observability/fake-error-tracker.service.js';
-import { SentryErrorTracker } from '@/observability/sentry-error-tracker.service.js';
 import type {
   EmailService,
   EmbeddingService,
@@ -22,10 +21,9 @@ import type {
   Scanner,
   StorageService,
 } from '@/shared-types.js';
-import { AzureStorageService } from '@/storage/azure-storage.service.js';
-import { LocalStorageService } from '@/storage/local-storage.service.js';
 import { ClamAvScanner } from '@/storage/scanner/clamav.scanner.js';
 import { FakeScanner } from '@/storage/scanner/fake-scanner.service.js';
+import { UploadThingStorageService } from '@/storage/uploadthing-storage.service.js';
 
 // DI wiring shape (ARCHITECTURE §4.5). Every external dependency resolves
 // to a fake by default via its `<X>_PROVIDER` env flag, lazily constructed
@@ -64,8 +62,7 @@ export function createContainer(): Container {
       return aiServiceClient as T;
     },
     resolveStorage: <T>() => {
-      storageService ??=
-        env.STORAGE_PROVIDER === 'azure' ? new AzureStorageService() : new LocalStorageService();
+      storageService ??= new UploadThingStorageService();
       return storageService as T;
     },
     resolveScanner: <T>() => {
@@ -74,13 +71,13 @@ export function createContainer(): Container {
     },
     resolveEmbedding: <T>() => {
       embeddingService ??=
-        env.EMBEDDING_PROVIDER === 'azure'
-          ? new AzureEmbeddingService()
+        env.EMBEDDING_PROVIDER === 'openai'
+          ? new OpenAiEmbeddingService()
           : new FakeEmbeddingService();
       return embeddingService as T;
     },
     resolveOcr: <T>() => {
-      ocrService ??= env.OCR_PROVIDER === 'azure' ? new AzureOcrService() : new FakeOcrService();
+      ocrService ??= env.OCR_PROVIDER === 'openai' ? new OpenAiOcrService() : new FakeOcrService();
       return ocrService as T;
     },
     resolveEmail: <T>() => {
@@ -93,10 +90,7 @@ export function createContainer(): Container {
       return emailService as T;
     },
     resolveErrorTracker: <T>() => {
-      errorTracker ??=
-        env.ERROR_TRACKING_PROVIDER === 'sentry'
-          ? new SentryErrorTracker()
-          : new FakeErrorTracker();
+      errorTracker ??= new FakeErrorTracker();
       return errorTracker as T;
     },
   };

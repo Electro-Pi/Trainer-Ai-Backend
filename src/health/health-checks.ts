@@ -1,7 +1,5 @@
-import { mkdir } from 'node:fs/promises';
-
-import { BlobServiceClient } from '@azure/storage-blob';
 import { Redis } from 'ioredis';
+import { UTApi } from 'uploadthing/server';
 
 import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
@@ -50,12 +48,8 @@ export async function checkRedis(): Promise<DependencyCheck> {
 
 export async function checkStorage(): Promise<DependencyCheck> {
   try {
-    if (env.STORAGE_PROVIDER === 'local') {
-      await mkdir(env.STORAGE_LOCAL_PATH, { recursive: true });
-      return { name: 'storage', ok: true };
-    }
-    const client = BlobServiceClient.fromConnectionString(env.AZURE_STORAGE_CONNECTION_STRING);
-    await client.getContainerClient(env.AZURE_STORAGE_CONTAINER).getProperties();
+    const client = new UTApi({ token: env.UPLOADTHING_TOKEN });
+    await client.getUsageInfo();
     return { name: 'storage', ok: true };
   } catch (error) {
     return {

@@ -19,10 +19,9 @@ import {
 const app = createApp();
 
 // `send-report.job.ts` fetches the generated PDF back over a real HTTP
-// request to `${APP_URL}/api/v1/local-blobs/...` (LocalStorageService's
-// signed-URL download path) rather than reading local disk directly — so
-// this one test needs a real listening server on `APP_URL`'s port, not just
-// an in-memory Express app handed to supertest.
+// request to its UploadThing signed download URL rather than reading local
+// disk directly — so this one test needs a real listening server on
+// `APP_URL`'s port, not just an in-memory Express app handed to supertest.
 // `env.APP_URL` is always set (by tests/setup/test-env.ts) to an explicit
 // port, so no fallback default is needed here — a missing port would be a
 // test-harness misconfiguration worth failing loudly on, not silently

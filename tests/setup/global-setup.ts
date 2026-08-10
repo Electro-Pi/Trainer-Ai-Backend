@@ -53,6 +53,14 @@ export async function setup(): Promise<void> {
     stdio: 'inherit',
   });
 
+  // UploadThing has no local/sandbox container equivalent — tests hit the
+  // real API, so the token must come from the invoking shell/CI secret, not
+  // be generated like the other test-only credentials above.
+  const uploadthingToken = process.env['UPLOADTHING_TOKEN'];
+  if (!uploadthingToken) {
+    throw new Error('UPLOADTHING_TOKEN must be set in the environment to run tests');
+  }
+
   await writeFile(
     ENV_FILE,
     JSON.stringify({
@@ -61,6 +69,7 @@ export async function setup(): Promise<void> {
       JWT_PRIVATE_KEY: Buffer.from(privateKey).toString('base64'),
       JWT_PUBLIC_KEY: Buffer.from(publicKey).toString('base64'),
       ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+      UPLOADTHING_TOKEN: uploadthingToken,
       postgresContainerId: postgres.getId(),
       redisContainerId: redis.getId(),
     }),
