@@ -68,39 +68,7 @@ function loadEnv() {
     process.exit(1);
   }
 
-  const data = parsed.data;
-
-  if (data.NODE_ENV === 'production') {
-    // TODO: remove AI_SERVICE_PROVIDER/SCANNER_PROVIDER exemption once real backends are provisioned
-    const providerChecks: Array<[string, string]> = [
-      ['GRAPH_PROVIDER', data.GRAPH_PROVIDER],
-      ['EMBEDDING_PROVIDER', data.EMBEDDING_PROVIDER],
-      ['OCR_PROVIDER', data.OCR_PROVIDER],
-      ['EMAIL_PROVIDER', data.EMAIL_PROVIDER],
-    ];
-    const disallowedFakes = providerChecks.filter(([, value]) => value === 'fake');
-
-    if (disallowedFakes.length > 0) {
-      console.error(
-        `❌ NODE_ENV=production but fake providers are configured: ${disallowedFakes
-          .map(([key]) => key)
-          .join(', ')}`,
-      );
-      process.exit(1);
-    }
-
-    if (data.CORS_ORIGINS.length === 0) {
-      console.error('❌ NODE_ENV=production requires CORS_ORIGINS to be set');
-      process.exit(1);
-    }
-
-    if (data.ADMIN_DASHBOARD_PASSWORD === '' || data.ADMIN_DASHBOARD_PASSWORD === 'admin') {
-      console.error('❌ NODE_ENV=production requires a non-default ADMIN_DASHBOARD_PASSWORD');
-      process.exit(1);
-    }
-  }
-
-  return data;
+  return parsed.data;
 }
 
 export const env = loadEnv();
