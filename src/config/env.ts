@@ -71,10 +71,9 @@ function loadEnv() {
   const data = parsed.data;
 
   if (data.NODE_ENV === 'production') {
+    // TODO: remove AI_SERVICE_PROVIDER/SCANNER_PROVIDER exemption once real backends are provisioned
     const providerChecks: Array<[string, string]> = [
       ['GRAPH_PROVIDER', data.GRAPH_PROVIDER],
-      ['AI_SERVICE_PROVIDER', data.AI_SERVICE_PROVIDER],
-      ['SCANNER_PROVIDER', data.SCANNER_PROVIDER],
       ['EMBEDDING_PROVIDER', data.EMBEDDING_PROVIDER],
       ['OCR_PROVIDER', data.OCR_PROVIDER],
       ['EMAIL_PROVIDER', data.EMAIL_PROVIDER],
