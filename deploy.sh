@@ -25,4 +25,3 @@ echo "⏳ Restarting service..."
 sudo /usr/bin/systemctl restart trainer-ai-backend.service
 
 echo "✅ Deployment complete"
-#test
