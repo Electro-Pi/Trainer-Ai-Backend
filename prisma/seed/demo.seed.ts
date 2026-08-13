@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
+import { hashPassword } from '@/common/utils/password-hash.js';
 import { prisma } from '@/database/prisma.service.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 
@@ -54,6 +55,7 @@ export async function seedDemo(organizationId: string): Promise<void> {
       email: 'manager@demo.electropi.ai',
       name: 'Khaled Manager',
       role: 'MANAGER',
+      passwordHash: await hashPassword('Demo12345!'),
     });
     const contentManager = await upsertPortalUser({
       organizationId,
@@ -321,11 +323,16 @@ async function upsertPortalUser(input: {
   email: string;
   name: string;
   role: 'ADMIN' | 'HR' | 'MANAGER' | 'CONTENT_MANAGER';
+  passwordHash?: string;
 }) {
   return prisma.portalUser.upsert({
     where: { organizationId_email: { organizationId: input.organizationId, email: input.email } },
     create: input,
-    update: { name: input.name, role: input.role },
+    update: {
+      name: input.name,
+      role: input.role,
+      ...(input.passwordHash && { passwordHash: input.passwordHash }),
+    },
   });
 }
 
