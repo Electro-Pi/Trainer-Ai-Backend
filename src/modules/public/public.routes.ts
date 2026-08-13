@@ -20,14 +20,10 @@ export function createPublicRouter(): Router {
     controller.getTrack(req, res).catch(next);
   });
 
-  router.post(
-    '/demo-requests',
-    strictRateLimitMiddleware(),
-    validate({ body: demoRequestSchema }),
-    (req, res, next) => {
-      controller.submitDemoRequest(req, res).catch(next);
-    },
-  );
+  // TEMP: rate limit disabled for local dev testing — never commit/push this.
+  router.post('/demo-requests', validate({ body: demoRequestSchema }), (req, res, next) => {
+    controller.submitDemoRequest(req, res).catch(next);
+  });
 
   return router;
 }

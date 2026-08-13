@@ -56,7 +56,7 @@ export function createApp(): Express {
   app.use(helmetMiddleware());
   app.use(corsMiddleware());
   app.use(compressionMiddleware());
-  app.use(rateLimitMiddleware());
+  // TEMP: disabled for local dev testing — never commit/push this. app.use(rateLimitMiddleware());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 

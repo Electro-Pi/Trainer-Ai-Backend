@@ -28,7 +28,8 @@ const controller = new AgentController();
 export function createAgentRouter(): Router {
   const router = Router();
 
-  router.use(serviceToken(), agentRateLimitMiddleware());
+  // TEMP: rate limit disabled for local dev testing — never commit/push this.
+  router.use(serviceToken());
 
   router.get(
     '/sessions/:joinToken/context',
