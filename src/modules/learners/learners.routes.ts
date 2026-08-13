@@ -4,6 +4,7 @@ import { authenticate } from '@/common/guards/authenticate.guard.js';
 import { authorize, requireTeamAccess } from '@/common/guards/authorize.guard.js';
 import { tenantScope } from '@/common/guards/tenant.guard.js';
 import { validate } from '@/common/pipes/validate.js';
+import { paginationSchema } from '@/common/validators/primitives.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 
 import { LearnerAssignmentController } from './controllers/learner-assignment.controller.js';
@@ -147,7 +148,7 @@ export function createTeamMembersRouter(): Router {
 
   router.get(
     '/:id/members',
-    validate({ params: teamIdParamsSchema }),
+    validate({ params: teamIdParamsSchema, query: paginationSchema }),
     requireTeamAccess(resolveManagerIdByTeam),
     (req, res, next) => {
       memberController.listMembers(req, res).catch(next);
