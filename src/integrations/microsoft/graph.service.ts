@@ -34,6 +34,7 @@ export class RealGraphService implements GraphService {
     resourcePath: string,
     accessToken: string,
     body?: unknown,
+    extraHeaders?: Record<string, string>,
   ): Promise<T> {
     const url = `${GRAPH_BASE_URL}${resourcePath}`;
 
@@ -43,6 +44,7 @@ export class RealGraphService implements GraphService {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           ...(body ? { 'Content-Type': 'application/json' } : {}),
+          ...extraHeaders,
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
@@ -55,6 +57,8 @@ export class RealGraphService implements GraphService {
       }
 
       if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        logger.error({ url, status: response.status, errorBody }, 'Microsoft Graph request failed');
         throw new ExternalServiceError(
           `Microsoft Graph request failed: ${response.status} ${response.statusText}`,
         );
@@ -70,13 +74,18 @@ export class RealGraphService implements GraphService {
     throw new ExternalServiceError('Microsoft Graph request exhausted retries');
   }
 
-  /** `TM-01` — `$search` on displayName/mail/userPrincipalName, tenant-wide. */
+  /** `TM-01` — `$search` on displayName/mail/userPrincipalName, tenant-wide.
+   * `$search` is an advanced query capability: Graph requires `ConsistencyLevel: eventual`
+   * on the request and `$count=true` in the query, or it rejects the request outright. */
   async searchUsers(query: string, accessToken: string): Promise<GraphUser[]> {
     const search = encodeURIComponent(`"displayName:${query}" OR "mail:${query}"`);
     const select = 'id,displayName,mail,userPrincipalName';
-    const result = await this.get<GraphUserCollection>(
-      `/users?$search=${search}&$select=${select}`,
+    const result = await this.request<GraphUserCollection>(
+      'GET',
+      `/users?$search=${search}&$select=${select}&$count=true`,
       accessToken,
+      undefined,
+      { ConsistencyLevel: 'eventual' },
     );
     return result.value;
   }
