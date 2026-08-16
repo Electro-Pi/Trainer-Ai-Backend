@@ -19,3 +19,12 @@ openApiRegistry.registerPath({
   summary: 'Lists the members of a Microsoft 365 group or Teams channel roster (`TM-06`)',
   responses: { 200: { description: 'Group members' } },
 });
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/directory/users',
+  tags: ['Teams'],
+  summary:
+    'Lists the full Microsoft 365 directory with no search term, for browsing before filtering (`TM-01`)',
+  responses: { 200: { description: 'Full directory user list' } },
+});

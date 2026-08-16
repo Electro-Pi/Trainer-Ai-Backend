@@ -1,7 +1,27 @@
+import { openApiRegistry } from '@/swagger/swagger.js';
+
+import { createOrganizationsRouter } from './organizations.routes.js';
 import { OrganizationRepository } from './repositories/organization.repository.js';
 
-// P2 only needs the repository exposed for auth's tenant upsert (`AU-01`).
-// A real CRUD router (branding, retention settings) is a later phase's job;
-// this file still owns the sanctioned cross-module surface per ARCHITECTURE
-// §4/AGENTS §5 (no deep imports into another module's internals).
+// Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — auth's tenant
+// upsert (`AU-01`) resolves organizations through this instead of deep-importing
+// `modules/organizations/repositories/*`.
 export const organizationRepository = new OrganizationRepository();
+
+export const organizationsRouter = createOrganizationsRouter();
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/organizations/me',
+  tags: ['Organizations'],
+  summary: "Gets the caller's own organization profile (name, default language)",
+  responses: { 200: { description: 'Organization profile' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/organizations/me',
+  tags: ['Organizations'],
+  summary: "Updates the organization's name and/or default language (MANAGER, ADMIN)",
+  responses: { 200: { description: 'Updated organization profile' } },
+});

@@ -23,6 +23,7 @@ import { contentRouter, mediaRouter } from '@/modules/content/content.module.js'
 import { directoryRouter } from '@/modules/directory/directory.module.js';
 import { learnersRouter, teamMembersRouter } from '@/modules/learners/learners.module.js';
 import { levelsRouter, trackLevelsRouter } from '@/modules/levels/levels.module.js';
+import { organizationsRouter } from '@/modules/organizations/organizations.module.js';
 import { levelOutcomesRouter, outcomesRouter } from '@/modules/outcomes/outcomes.module.js';
 import { publicRouter } from '@/modules/public/public.module.js';
 import {
@@ -65,6 +66,7 @@ export function createApp(): Express {
 
   v1.use('/auth', authRouter);
   v1.use('/users', usersRouter);
+  v1.use('/organizations', organizationsRouter);
   v1.use('/directory', directoryRouter);
   v1.use('/teams', teamsRouter);
   v1.use('/teams', teamMembersRouter);
