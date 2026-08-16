@@ -55,6 +55,10 @@ export class FakeGraphService implements GraphService {
     );
   }
 
+  async listAllUsers(_accessToken: string): Promise<GraphUser[]> {
+    return Promise.resolve(FAKE_USERS);
+  }
+
   async getGroupMembers(_groupId: string, _accessToken: string): Promise<GraphUser[]> {
     return Promise.resolve(FAKE_USERS);
   }

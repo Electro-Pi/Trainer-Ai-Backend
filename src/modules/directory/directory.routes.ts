@@ -23,6 +23,10 @@ export function createDirectoryRouter(): Router {
     controller.search(req, res).catch(next);
   });
 
+  router.get('/users', (req, res, next) => {
+    controller.list(req, res).catch(next);
+  });
+
   router.get(
     '/groups/:id/members',
     validate({ params: directoryGroupIdParamsSchema }),

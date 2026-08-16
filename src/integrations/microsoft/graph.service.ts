@@ -13,6 +13,8 @@ import type {
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 const MAX_RETRIES = 3;
+const LIST_PAGE_SIZE = 999;
+const MAX_LIST_PAGES = 10;
 
 async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -88,6 +90,37 @@ export class RealGraphService implements GraphService {
       { ConsistencyLevel: 'eventual' },
     );
     return result.value;
+  }
+
+  /** `TM-01` — plain (non-`$search`) directory listing so the UI can show the whole
+   * org before the manager types anything. Pages via `@odata.nextLink`, capped at
+   * `MAX_LIST_PAGES` so one huge tenant can't turn this into a runaway request chain. */
+  async listAllUsers(accessToken: string): Promise<GraphUser[]> {
+    const select = 'id,displayName,mail,userPrincipalName';
+    const users: GraphUser[] = [];
+    let path: string | null = `/users?$select=${select}&$top=${LIST_PAGE_SIZE}`;
+
+    for (let page = 0; path && page < MAX_LIST_PAGES; page++) {
+      const result: GraphUserCollection = path.startsWith('http')
+        ? await this.requestAbsolute<GraphUserCollection>(path, accessToken)
+        : await this.get<GraphUserCollection>(path, accessToken);
+      users.push(...result.value);
+      path = result['@odata.nextLink'] ?? null;
+    }
+
+    return users;
+  }
+
+  private async requestAbsolute<T>(url: string, accessToken: string): Promise<T> {
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      logger.error({ url, status: response.status, errorBody }, 'Microsoft Graph request failed');
+      throw new ExternalServiceError(
+        `Microsoft Graph request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+    return (await response.json()) as T;
   }
 
   /** `TM-06` — members of a Microsoft 365 group / Teams channel roster. */

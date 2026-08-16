@@ -42,6 +42,12 @@ export class DirectoryService {
     return users.map(toDto);
   }
 
+  async listUsers(callerId: string): Promise<DirectoryUserDto[]> {
+    const accessToken = await resolveAccessToken(callerId);
+    const users = await container.resolveGraph().listAllUsers(accessToken);
+    return users.map(toDto);
+  }
+
   async getGroupMembers(callerId: string, groupId: string): Promise<DirectoryUserDto[]> {
     const accessToken = await resolveAccessToken(callerId);
     const members = await container.resolveGraph().getGroupMembers(groupId, accessToken);

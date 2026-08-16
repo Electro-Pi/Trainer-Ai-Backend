@@ -10,6 +10,7 @@ export interface GraphUser {
 
 export interface GraphUserCollection {
   value: GraphUser[];
+  '@odata.nextLink'?: string;
 }
 
 /** `IV-01`, `IV-05` — a Teams online meeting, lobby-restricted to invited participants. */
@@ -39,6 +40,9 @@ export interface GraphService {
 
   /** `TM-01` — searches the tenant directory by name/email/UPN prefix. */
   searchUsers(query: string, accessToken: string): Promise<GraphUser[]>;
+
+  /** `TM-01` — lists the full tenant directory (no search term), for browsing before filtering. */
+  listAllUsers(accessToken: string): Promise<GraphUser[]>;
 
   /** `TM-06` — lists the members of a Microsoft 365 group or Teams channel roster. */
   getGroupMembers(groupId: string, accessToken: string): Promise<GraphUser[]>;

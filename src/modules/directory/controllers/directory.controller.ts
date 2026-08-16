@@ -11,6 +11,11 @@ export class DirectoryController {
     res.status(200).json({ data: users });
   }
 
+  async list(req: Request, res: Response): Promise<void> {
+    const users = await service.listUsers(req.auth!.sub);
+    res.status(200).json({ data: users });
+  }
+
   async groupMembers(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const members = await service.getGroupMembers(req.auth!.sub, id);
