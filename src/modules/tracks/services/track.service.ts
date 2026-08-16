@@ -49,6 +49,7 @@ export class TrackService {
       targetSkills: dto.targetSkills,
       trainingForm: dto.trainingForm,
       impactIndicators: dto.impactIndicators,
+      ...(dto.icon !== undefined ? { icon: dto.icon } : {}),
     } as never);
 
     await writeAuditLog({
@@ -76,6 +77,7 @@ export class TrackService {
       ...(dto.targetSkills !== undefined ? { targetSkills: dto.targetSkills } : {}),
       ...(dto.trainingForm !== undefined ? { trainingForm: dto.trainingForm } : {}),
       ...(dto.impactIndicators !== undefined ? { impactIndicators: dto.impactIndicators } : {}),
+      ...(dto.icon !== undefined ? { icon: dto.icon } : {}),
     } as never);
 
     await writeAuditLog({
@@ -136,6 +138,38 @@ export class TrackService {
     });
 
     return copy;
+  }
+
+  /**
+   * Hard delete — only permitted while the track is still empty (no levels,
+   * no content, no plan templates). Anything with real training data
+   * attached must be archived (`setEnabled(false)`) instead, never deleted.
+   */
+  async delete(actor: ActingUser, id: string): Promise<void> {
+    const track = await this.getById(id);
+
+    if (await this.tracks.hasChildren(id)) {
+      throw new ValidationError([
+        {
+          path: 'id',
+          code: 'has_children',
+          message:
+            'This track has levels, content, or plan templates attached and can’t be deleted. Archive it instead.',
+        },
+      ]);
+    }
+
+    await this.tracks.delete(id);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'track.deleted',
+      entityType: 'Track',
+      entityId: id,
+      before: { key: track.key, nameEn: track.nameEn },
+    });
   }
 
   /** `P4-6` — transactional full reorder; every id in `order` must belong to the caller's org. */

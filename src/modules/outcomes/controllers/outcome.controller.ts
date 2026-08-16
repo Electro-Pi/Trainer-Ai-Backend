@@ -69,4 +69,10 @@ export class OutcomeController {
     await service.reorder(toActingUser(req.auth!), levelId, order);
     res.status(200).json({ order });
   }
+
+  async delete(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    await service.delete(toActingUser(req.auth!), id);
+    res.status(204).send();
+  }
 }

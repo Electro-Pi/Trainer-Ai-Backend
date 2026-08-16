@@ -44,4 +44,29 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
       ),
     ]);
   }
+
+  /**
+   * An outcome can only be hard-deleted while nothing real has attached to
+   * it yet — no content link, no learner assignment/progress, no session,
+   * no recommendation, no rubric/question bank, and it isn't another
+   * content item's prerequisite. Once any of those exist, deleting would
+   * either orphan real training/assessment history or hit the FK
+   * constraint (none of these relations cascade) — archive
+   * (`setEnabled(false)`) instead, per the deactivate/archive-not-delete
+   * convention.
+   */
+  async hasChildren(id: string): Promise<boolean> {
+    const counts = await Promise.all([
+      prisma.contentOutcome.count({ where: { outcomeId: id } }),
+      prisma.contentPrerequisite.count({ where: { prerequisiteOutcomeId: id } }),
+      prisma.learnerOutcome.count({ where: { outcomeId: id } }),
+      prisma.questionBank.count({ where: { outcomeId: id } }),
+      prisma.rubric.count({ where: { outcomeId: id } }),
+      prisma.recommendationItem.count({ where: { outcomeId: id } }),
+      prisma.sessionOutcome.count({ where: { outcomeId: id } }),
+      prisma.contentEffectiveness.count({ where: { outcomeId: id } }),
+      prisma.session.count({ where: { primaryOutcomeId: id } }),
+    ]);
+    return counts.some((count) => count > 0);
+  }
 }

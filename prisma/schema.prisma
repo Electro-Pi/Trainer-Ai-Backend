@@ -332,6 +332,7 @@ model Track {
   targetSkills     String[]
   trainingForm     TrainingForm
   impactIndicators String[]
+  icon             String       @default("Sales")
   isEnabled        Boolean      @default(true)
   sortOrder        Int          @default(0)
   createdAt        DateTime     @default(now())

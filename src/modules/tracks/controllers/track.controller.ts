@@ -31,6 +31,7 @@ function toResponseDto(track: Track): TrackResponseDto {
     targetSkills: track.targetSkills,
     trainingForm: track.trainingForm,
     impactIndicators: track.impactIndicators,
+    icon: track.icon,
     isEnabled: track.isEnabled,
     sortOrder: track.sortOrder,
     createdAt: track.createdAt.toISOString(),
@@ -87,5 +88,11 @@ export class TrackController {
     const { order } = req.body as { order: string[] };
     await service.reorder(toActingUser(req.auth!), order);
     res.status(200).json({ order });
+  }
+
+  async delete(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    await service.delete(toActingUser(req.auth!), id);
+    res.status(204).send();
   }
 }

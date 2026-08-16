@@ -1,3 +1,5 @@
+export type TrackIcon = 'Sales' | 'Presentation Skills' | 'Marketing' | 'HR';
+
 export interface TrackResponseDto {
   id: string;
   organizationId: string;
@@ -10,6 +12,7 @@ export interface TrackResponseDto {
   targetSkills: string[];
   trainingForm: string;
   impactIndicators: string[];
+  icon: string;
   isEnabled: boolean;
   sortOrder: number;
   createdAt: string;
@@ -26,6 +29,7 @@ export interface CreateTrackDto {
   targetSkills: string[];
   trainingForm: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   impactIndicators: string[];
+  icon?: TrackIcon;
 }
 
 export interface UpdateTrackDto {
@@ -37,6 +41,7 @@ export interface UpdateTrackDto {
   targetSkills?: string[];
   trainingForm?: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   impactIndicators?: string[];
+  icon?: TrackIcon;
 }
 
 export interface TrackFilterDto {

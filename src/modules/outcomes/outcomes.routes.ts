@@ -76,5 +76,14 @@ export function createOutcomesRouter(): Router {
     },
   );
 
+  router.delete(
+    '/:id',
+    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    validate({ params: outcomeIdParamsSchema }),
+    (req, res, next) => {
+      controller.delete(req, res).catch(next);
+    },
+  );
+
   return router;
 }

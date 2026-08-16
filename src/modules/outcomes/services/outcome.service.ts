@@ -109,6 +109,38 @@ export class OutcomeService {
     return updated;
   }
 
+  /**
+   * Hard delete — only permitted while nothing real has attached to this
+   * outcome yet (see `OutcomeRepository.hasChildren`). Anything in use must
+   * be archived (`setEnabled(false)`) instead.
+   */
+  async delete(actor: ActingUser, id: string): Promise<void> {
+    const outcome = await this.getById(id);
+
+    if (await this.outcomes.hasChildren(id)) {
+      throw new ValidationError([
+        {
+          path: 'id',
+          code: 'has_children',
+          message:
+            'This outcome has content, learner progress, sessions, or assessments attached and can’t be deleted. Archive it instead.',
+        },
+      ]);
+    }
+
+    await this.outcomes.delete(id);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'outcome.deleted',
+      entityType: 'Outcome',
+      entityId: id,
+      before: { titleEn: outcome.titleEn },
+    });
+  }
+
   /** `P4-6` — reorders outcomes within one level; rejects an `order` that doesn't exactly match the level's current outcome set. */
   async reorder(actor: ActingUser, levelId: string, order: string[]): Promise<void> {
     const level = await levelRepository.findByIdScoped(levelId);

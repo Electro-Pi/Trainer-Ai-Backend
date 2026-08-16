@@ -72,6 +72,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           targetSkills: source.targetSkills,
           trainingForm: source.trainingForm,
           impactIndicators: source.impactIndicators,
+          icon: source.icon,
           isEnabled: false,
           sortOrder: source.sortOrder,
         },
@@ -132,6 +133,23 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
   async findManyByIds(ids: string[]): Promise<Track[]> {
     if (ids.length === 0) return [];
     return this.delegate.findMany({ where: { id: { in: ids } } });
+  }
+
+  /**
+   * A track can only be hard-deleted while it's still empty — no `Level` has
+   * ever been added, and no `ContentItem`/`PlanTemplate` references it
+   * directly. Once any of those exist, deleting the track would either
+   * orphan real training data or hit the FK constraint (neither relation
+   * cascades — deletion is deliberately not modeled beyond this empty case,
+   * per the deactivate/archive-not-delete convention for populated records).
+   */
+  async hasChildren(id: string): Promise<boolean> {
+    const [levelCount, contentCount, templateCount] = await Promise.all([
+      prisma.level.count({ where: { trackId: id } }),
+      prisma.contentItem.count({ where: { trackId: id } }),
+      prisma.planTemplate.count({ where: { trackId: id } }),
+    ]);
+    return levelCount > 0 || contentCount > 0 || templateCount > 0;
   }
 
   /**
