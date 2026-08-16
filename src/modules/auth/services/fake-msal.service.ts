@@ -36,6 +36,7 @@ export class FakeMsalService implements IMsalService {
         entraObjectId: `fake-oid-${seed}`,
         email,
         name: seed,
+        organizationName: 'Demo Organization',
         mfaSatisfied: true,
       },
       homeAccountId: `fake-oid-${seed}.fake-tenant`,

@@ -3,6 +3,8 @@ import type { AuthenticationResult } from '@azure/msal-node';
 
 import { ExternalServiceError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
+import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
+import { logger } from '@/logger/logger.service.js';
 
 import { FakeMsalService } from './fake-msal.service.js';
 import type { EntraSignInResult, IMsalService } from './msal.interfaces.js';
@@ -32,6 +34,7 @@ interface IdTokenClaims {
 }
 
 const cryptoProvider = new CryptoProvider();
+const graphService = new RealGraphService();
 
 function createMsalClient(): ConfidentialClientApplication {
   return new ConfidentialClientApplication({
@@ -46,6 +49,27 @@ function createMsalClient(): ConfidentialClientApplication {
 /** Detects the Conditional Access MFA claim in the ID token's `amr` (authentication methods reference). */
 function extractMfaSatisfied(claims: IdTokenClaims): boolean {
   return claims.amr?.includes('mfa') ?? false;
+}
+
+/**
+ * `GET /organization` — the signed-in user's own tenant is always the sole
+ * entry in `value` (Graph has no single-object `/organization/{id}` GET for
+ * delegated callers). Covered by the `User.Read.All` delegated scope already
+ * requested in `SCOPES`, so this needs no extra consent. Best-effort: the
+ * tenant ID is a valid (if ugly) org name, so a Graph hiccup here must never
+ * fail sign-in.
+ */
+async function resolveOrganizationName(tenantId: string, accessToken: string): Promise<string> {
+  try {
+    const result = await graphService.get<{ value: { displayName?: string }[] }>(
+      '/organization?$select=displayName',
+      accessToken,
+    );
+    return result.value[0]?.displayName || tenantId;
+  } catch (error) {
+    logger.warn({ tenantId, error }, 'Could not resolve Entra organization display name');
+    return tenantId;
+  }
 }
 
 /**
@@ -105,12 +129,15 @@ export class RealMsalService implements IMsalService {
       throw new ExternalServiceError('Microsoft sign-in returned no account');
     }
 
+    const organizationName = await resolveOrganizationName(claims.tid, result.accessToken);
+
     return {
       claims: {
         entraTenantId: claims.tid,
         entraObjectId: claims.oid,
         email,
         name: claims.name ?? email,
+        organizationName,
         mfaSatisfied: extractMfaSatisfied(claims),
       },
       homeAccountId: result.account.homeAccountId,

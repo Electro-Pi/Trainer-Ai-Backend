@@ -3,6 +3,8 @@ export interface MicrosoftIdentityClaims {
   entraObjectId: string;
   email: string;
   name: string;
+  /** Entra tenant's display name (`GET /organization`), falls back to `entraTenantId` when the Graph call fails. */
+  organizationName: string;
   /** Present when Entra Conditional Access enforced MFA for this sign-in (AU-08). */
   mfaSatisfied: boolean;
 }

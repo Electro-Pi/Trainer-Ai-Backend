@@ -42,10 +42,18 @@ export class AuthService {
     let organization = await organizationRepository.findByEntraTenantId(
       result.claims.entraTenantId,
     );
-    organization ??= await organizationRepository.create({
-      entraTenantId: result.claims.entraTenantId,
-      name: result.claims.entraTenantId,
-    } as never);
+    if (!organization) {
+      organization = await organizationRepository.create({
+        entraTenantId: result.claims.entraTenantId,
+        name: result.claims.organizationName,
+      } as never);
+    } else if (organization.name === organization.entraTenantId) {
+      // Backfills orgs provisioned before the Graph `/organization` lookup existed —
+      // `name` was seeded from `entraTenantId` as a placeholder (never a real display name).
+      organization = await organizationRepository.update(organization.id, {
+        name: result.claims.organizationName,
+      } as never);
+    }
 
     const existingUser = await portalUserRepository.findByEntraObjectId(
       result.claims.entraObjectId,
