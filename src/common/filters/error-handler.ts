@@ -54,12 +54,21 @@ export function errorHandler(logger: Logger, errorTracker: ErrorTracker) {
 
     const title = t(appError.titleKey, locale);
     const genericDetail = t(`${appError.titleKey.replace('.title', '.detail')}`, locale);
+    // A single validation issue is specific enough to surface directly (e.g.
+    // "A skill with this key already exists") instead of the generic
+    // "One or more fields failed validation" — multiple issues stay generic
+    // since there's no single message that covers all of them.
+    const singleIssueDetail =
+      appError.errors && appError.errors.length === 1 ? appError.errors[0]?.message : undefined;
 
     const body: ProblemDetails = {
       type: appError.type,
       title,
       status: appError.status,
-      detail: appError.status >= 500 ? genericDetail : (appError.detail ?? genericDetail),
+      detail:
+        appError.status >= 500
+          ? genericDetail
+          : (appError.detail ?? singleIssueDetail ?? genericDetail),
       instance,
       requestId,
     };
