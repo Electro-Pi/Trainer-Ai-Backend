@@ -52,11 +52,16 @@ export class PlanBuilderService {
       trigger: 'PLAN_BUILD',
     });
 
-    if (items.length === 0) {
-      return { sessions: [], deferredItemCount: 0 };
-    }
-
     const requiredOutcomes = await learnerOutcomeRepository.findByLearner(params.learnerId);
+
+    // No content items exist to recommend yet (the org hasn't authored any) —
+    // rather than refusing to build a plan at all, fall back to one session
+    // per outstanding required outcome so the manager can still schedule and
+    // run real coaching sessions; content can be attached to sessions later
+    // once it exists. Only content-driven building is skipped, not the plan.
+    if (items.length === 0) {
+      return this.suggestFromOutcomesOnly(requiredOutcomes, params.trainingDays, durationMinutes);
+    }
 
     // Fetched once for the whole breakdown — every session slot below scores
     // against the same content set, so this must not re-query per slot.
@@ -97,6 +102,31 @@ export class PlanBuilderService {
     }
 
     return { sessions, deferredItemCount: remainingItems.length };
+  }
+
+  /**
+   * Content-free fallback: one session per outstanding required outcome, in
+   * priority order, capped at `trainingDays`. `contentItemIds` stays empty —
+   * the manager runs the session as live coaching and content can be
+   * attached later once the org has authored some for this track/level.
+   */
+  private suggestFromOutcomesOnly(
+    requiredOutcomes: LearnerOutcome[],
+    trainingDays: number,
+    durationMinutes: number,
+  ): SuggestedBreakdown {
+    const outstanding = requiredOutcomes
+      .filter((lo) => lo.status !== 'ACHIEVED')
+      .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
+
+    const sessions: SuggestedSession[] = outstanding.slice(0, trainingDays).map((lo, i) => ({
+      sequence: i + 1,
+      primaryOutcomeId: lo.outcomeId,
+      durationMinutes,
+      contentItemIds: [],
+    }));
+
+    return { sessions, deferredItemCount: Math.max(0, outstanding.length - trainingDays) };
   }
 
   /** Earliest not-yet-scheduled outcome, in the ranked list's own order — keeps session sequencing stable with the pipeline's own priority ordering. */

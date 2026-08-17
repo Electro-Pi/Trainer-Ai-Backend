@@ -117,6 +117,39 @@ export class LevelService {
     return updated;
   }
 
+  /**
+   * Hard delete — only permitted while the level is still empty (no
+   * outcomes, content, plan templates, or a learner ever assigned to it).
+   * Anything with real training data attached must be archived
+   * (`setEnabled(false)`) instead, never deleted — mirrors `TrackService.delete`.
+   */
+  async delete(actor: ActingUser, id: string): Promise<void> {
+    const level = await this.getById(id);
+
+    if (await this.levels.hasChildren(id)) {
+      throw new ValidationError([
+        {
+          path: 'id',
+          code: 'has_children',
+          message:
+            'This level has outcomes, content, plan templates, or an assigned learner and can’t be deleted. Archive it instead.',
+        },
+      ]);
+    }
+
+    await this.levels.delete(id);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'level.deleted',
+      entityType: 'Level',
+      entityId: id,
+      before: { key: level.key, nameEn: level.nameEn },
+    });
+  }
+
   /** `P4-6` — reorders levels within one track; rejects an `order` that doesn't exactly match the track's current level set. */
   async reorder(actor: ActingUser, trackId: string, order: string[]): Promise<void> {
     const track = await trackRepository.findByIdScoped(trackId);

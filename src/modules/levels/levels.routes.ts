@@ -76,5 +76,14 @@ export function createLevelsRouter(): Router {
     },
   );
 
+  router.delete(
+    '/:id',
+    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    validate({ params: levelIdParamsSchema }),
+    (req, res, next) => {
+      controller.delete(req, res).catch(next);
+    },
+  );
+
   return router;
 }
