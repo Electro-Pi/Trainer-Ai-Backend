@@ -10,7 +10,7 @@ import { resolveManagerIdByReport } from './services/report.service.js';
 import { reportIdParamsSchema, reportListQuerySchema } from './validators/report.validators.js';
 
 const controller = new ReportController();
-const WRITE_ROLES = ['MANAGER', 'ADMIN', 'HR'] as const;
+const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
 
 async function resolveManagerIdForReportParam(req: {
   params: { id?: string };

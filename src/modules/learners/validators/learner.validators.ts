@@ -30,7 +30,7 @@ export const importLearnersCsvSchema = z.object({
 
 export const updateLearnerSchema = z.object({
   jobTitle: jobFieldSchema.optional(),
-  department: jobFieldSchema.optional(),
+  departmentId: cuidSchema.optional(),
   preferredLanguage: localeSchema.optional(),
 });
 

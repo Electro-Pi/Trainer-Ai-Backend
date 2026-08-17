@@ -20,7 +20,9 @@ import {
 } from '@/modules/assessments/assessments.module.js';
 import { authRouter } from '@/modules/auth/auth.module.js';
 import { contentRouter, mediaRouter } from '@/modules/content/content.module.js';
+import { departmentsRouter } from '@/modules/departments/departments.module.js';
 import { directoryRouter } from '@/modules/directory/directory.module.js';
+import { invitesRouter } from '@/modules/invites/invites.module.js';
 import { learnersRouter, teamMembersRouter } from '@/modules/learners/learners.module.js';
 import { levelsRouter, trackLevelsRouter } from '@/modules/levels/levels.module.js';
 import { organizationsRouter } from '@/modules/organizations/organizations.module.js';
@@ -32,7 +34,7 @@ import {
 } from '@/modules/recommendations/recommendations.module.js';
 import { reportsRouter } from '@/modules/reports/reports.module.js';
 import { rsvpWebhookRouter, sessionsRouter } from '@/modules/sessions/sessions.module.js';
-import { skillsRouter } from '@/modules/skills/skills.module.js';
+import { levelSkillsRouter, skillsRouter } from '@/modules/skills/skills.module.js';
 import { teamsRouter } from '@/modules/teams/teams.module.js';
 import { tracksRouter } from '@/modules/tracks/tracks.module.js';
 import { trainingPlansRouter } from '@/modules/training-plans/training-plans.module.js';
@@ -67,7 +69,9 @@ export function createApp(): Express {
 
   v1.use('/auth', authRouter);
   v1.use('/users', usersRouter);
+  v1.use('/invites', invitesRouter);
   v1.use('/organizations', organizationsRouter);
+  v1.use('/departments', departmentsRouter);
   v1.use('/directory', directoryRouter);
   v1.use('/teams', teamsRouter);
   v1.use('/teams', teamMembersRouter);
@@ -79,6 +83,7 @@ export function createApp(): Express {
   v1.use('/tracks/:trackId/levels', trackLevelsRouter);
   v1.use('/levels', levelsRouter);
   v1.use('/levels/:levelId/outcomes', levelOutcomesRouter);
+  v1.use('/levels/:levelId/skills', levelSkillsRouter);
   v1.use('/outcomes/:id', outcomeAssessmentsRouter);
   v1.use('/outcomes', outcomesRouter);
   v1.use('/questions', questionsRouter);

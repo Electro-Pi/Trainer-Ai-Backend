@@ -6,7 +6,8 @@ export interface LearnerResponseDto {
   email: string;
   displayName: string;
   jobTitle: string | null;
-  department: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
   preferredLanguage: string;
   status: string;
   deactivatedAt: string | null;
@@ -28,7 +29,7 @@ export interface ImportLearnersDto {
 
 export interface UpdateLearnerDto {
   jobTitle?: string;
-  department?: string;
+  departmentId?: string;
   preferredLanguage?: 'EN' | 'AR';
 }
 

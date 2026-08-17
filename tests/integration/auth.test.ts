@@ -53,7 +53,7 @@ describe('auth: Microsoft Entra sign-in (on FakeMsalService)', () => {
       .set('Authorization', `Bearer ${callbackRes.body.accessToken}`);
 
     expect(meRes.status).toBe(200);
-    expect(meRes.body.role).toBe('MANAGER'); // new Entra sign-ins provision as MANAGER, never elevated
+    expect(meRes.body.role).toBe('DEPARTMENT_MANAGER'); // new Entra sign-ins provision as DEPARTMENT_MANAGER, never elevated
   });
 
   it('no auth path can ever issue a token for a Learner (AU-04) — /auth/me never returns learner shape', async () => {
@@ -70,7 +70,7 @@ describe('auth: Microsoft Entra sign-in (on FakeMsalService)', () => {
           organizationId: org.id,
           email: 'learner-like@test.local',
           name: 'Not A Learner',
-          role: 'MANAGER',
+          role: 'DEPARTMENT_MANAGER',
           passwordHash,
         },
       }),
@@ -108,7 +108,7 @@ describe('auth: password fallback (argon2id, AU-07)', () => {
           organizationId: org.id,
           email,
           name: 'Password User',
-          role: 'HR',
+          role: 'DEPARTMENT_MANAGER',
           passwordHash,
         },
       }),

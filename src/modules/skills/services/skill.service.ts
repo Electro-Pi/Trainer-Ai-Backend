@@ -1,6 +1,7 @@
 import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
+import { levelRepository } from '@/modules/levels/levels.module.js';
 
 import type { CreateSkillDto, SkillFilterDto, UpdateSkillDto } from '../dto/skill.dto.js';
 import { SkillRepository, type Skill } from '../repositories/skill.repository.js';
@@ -14,12 +15,35 @@ export interface ActingUser {
 export class SkillService {
   private readonly skills = new SkillRepository();
 
+  /**
+   * `levelId` is optional (nullable through the migration window — same
+   * nullable-then-manual-resolution pattern `Outcome.skillId` uses), but when
+   * provided it must resolve inside the caller's own org — never trust a
+   * request-supplied id without `findByIdScoped` (same defensive-FK-check
+   * pattern `OutcomeService.validateSkill` uses for `skillId`).
+   */
+  private async validateLevel(levelId: string): Promise<void> {
+    const level = await levelRepository.findByIdScoped(levelId);
+    if (!level) {
+      throw new ValidationError([{ path: 'levelId', code: 'invalid', message: 'Level not found' }]);
+    }
+  }
+
   async list(filter: SkillFilterDto): Promise<PageResult<Skill>> {
     return this.skills.findMany({
       ...(filter.limit !== undefined ? { limit: filter.limit } : {}),
       ...(filter.cursor ? { cursor: filter.cursor } : {}),
       ...(filter.isEnabled !== undefined ? { where: { isEnabled: filter.isEnabled } } : {}),
     });
+  }
+
+  /** A level's skills — populates the level-scoped `GET /levels/:levelId/skills`. */
+  async listByLevel(levelId: string): Promise<Skill[]> {
+    const level = await levelRepository.findByIdScoped(levelId);
+    if (!level) {
+      throw new NotFoundError('Level not found');
+    }
+    return this.skills.findByLevel(levelId);
   }
 
   async getById(id: string): Promise<Skill> {
@@ -38,6 +62,10 @@ export class SkillService {
       ]);
     }
 
+    if (dto.levelId !== undefined) {
+      await this.validateLevel(dto.levelId);
+    }
+
     const created = await this.skills.create({
       key: dto.key,
       nameEn: dto.nameEn,
@@ -45,9 +73,9 @@ export class SkillService {
       category: dto.category,
       descriptionEn: dto.descriptionEn,
       descriptionAr: dto.descriptionAr,
-      targetTracks: dto.targetTracks,
       levels: dto.levels,
       ...(dto.assessmentEnabled !== undefined ? { assessmentEnabled: dto.assessmentEnabled } : {}),
+      ...(dto.levelId !== undefined ? { levelId: dto.levelId } : {}),
     } as never);
 
     await writeAuditLog({
@@ -63,8 +91,22 @@ export class SkillService {
     return created;
   }
 
+  /** Creates a skill directly on a level (`POST /levels/:levelId/skills`) — mirrors `OutcomeService.create`. */
+  async createOnLevel(
+    actor: ActingUser,
+    levelId: string,
+    dto: Omit<CreateSkillDto, 'levelId'>,
+  ): Promise<Skill> {
+    await this.validateLevel(levelId);
+    return this.create(actor, { ...dto, levelId });
+  }
+
   async update(actor: ActingUser, id: string, dto: UpdateSkillDto): Promise<Skill> {
     const before = await this.getById(id);
+
+    if (dto.levelId !== undefined && dto.levelId !== null) {
+      await this.validateLevel(dto.levelId);
+    }
 
     const updated = await this.skills.update(id, {
       ...(dto.nameEn !== undefined ? { nameEn: dto.nameEn } : {}),
@@ -72,9 +114,9 @@ export class SkillService {
       ...(dto.category !== undefined ? { category: dto.category } : {}),
       ...(dto.descriptionEn !== undefined ? { descriptionEn: dto.descriptionEn } : {}),
       ...(dto.descriptionAr !== undefined ? { descriptionAr: dto.descriptionAr } : {}),
-      ...(dto.targetTracks !== undefined ? { targetTracks: dto.targetTracks } : {}),
       ...(dto.levels !== undefined ? { levels: dto.levels } : {}),
       ...(dto.assessmentEnabled !== undefined ? { assessmentEnabled: dto.assessmentEnabled } : {}),
+      ...(dto.levelId !== undefined ? { levelId: dto.levelId } : {}),
     } as never);
 
     await writeAuditLog({
@@ -137,11 +179,11 @@ export class SkillService {
   }
 
   /**
-   * `targetTracks`/`Track.targetSkills`/`Outcome.targetSkills` reference
-   * skills by name string, not by FK — there is no relation for a hard
-   * delete to violate. Unlike Track/Outcome, no "in use" guard is needed
-   * here; a stale name left behind on another record is a display-only
-   * concern, not a referential-integrity one.
+   * `Outcome.skillId` FK's onto this skill — unlike Track/Outcome, no
+   * "in use" guard blocks the delete outright; the FK reasoning is documented
+   * on `Outcome.skillId` itself (nullable through the migration window).
+   * A hard delete here is still safe: nothing cascades, and it matches this
+   * service's pre-existing delete-not-archive convention for `Skill`.
    */
   async delete(actor: ActingUser, id: string): Promise<void> {
     const skill = await this.getById(id);

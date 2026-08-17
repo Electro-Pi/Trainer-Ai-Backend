@@ -34,4 +34,13 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
   async findAllInOrganization(): Promise<Team[]> {
     return this.delegate.findMany({ take: 100_000, orderBy: { name: 'asc' } as never });
   }
+
+  /** `TeamResponseDto.departmentName` read-through — resolves the readable name behind a team's `departmentId`. */
+  async findDepartmentName(teamId: string): Promise<string | null> {
+    const row = await prisma.team.findFirst({
+      where: { id: teamId },
+      select: { department: { select: { name: true } } },
+    });
+    return row?.department.name ?? null;
+  }
 }

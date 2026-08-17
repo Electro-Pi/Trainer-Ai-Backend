@@ -1,13 +1,13 @@
 export interface SkillResponseDto {
   id: string;
   organizationId: string;
+  levelId: string | null;
   key: string;
   nameEn: string;
   nameAr: string;
   category: string;
   descriptionEn: string;
   descriptionAr: string;
-  targetTracks: string[];
   levels: string[];
   assessmentEnabled: boolean;
   isEnabled: boolean;
@@ -22,9 +22,9 @@ export interface CreateSkillDto {
   category: string;
   descriptionEn: string;
   descriptionAr: string;
-  targetTracks: string[];
   levels: string[];
   assessmentEnabled?: boolean;
+  levelId?: string;
 }
 
 export interface UpdateSkillDto {
@@ -33,9 +33,9 @@ export interface UpdateSkillDto {
   category?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  targetTracks?: string[];
   levels?: string[];
   assessmentEnabled?: boolean;
+  levelId?: string | null;
 }
 
 export interface SkillFilterDto {

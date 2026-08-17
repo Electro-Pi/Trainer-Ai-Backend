@@ -27,7 +27,7 @@ const app = createApp();
 describe('Event invariant: a rolled-back transaction publishes no event', () => {
   it('assigning a learner to a non-existent level fails before the transaction, and publishes nothing', async () => {
     const org = await createTestOrganization();
-    const { user: manager, authHeader } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: manager, authHeader } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const team = await createTeam(org.id, manager.id);
     const learner = await createLearner(org.id, team.id);
     const { track } = await createCatalogueTree(org.id);
@@ -56,7 +56,7 @@ describe('Event invariant: a rolled-back transaction publishes no event', () => 
 
   it('a successful assignment DOES publish and produce a recommendation (control case, proving the test can detect a real publish)', async () => {
     const org = await createTestOrganization();
-    const { user: manager, authHeader } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: manager, authHeader } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const team = await createTeam(org.id, manager.id);
     const learner = await createLearner(org.id, team.id);
     const { track, level } = await createCatalogueTree(org.id);
@@ -81,7 +81,7 @@ describe('Event invariant: a rolled-back transaction publishes no event', () => 
 describe('cleanup.job invariant: the hard boundary is never crossed', () => {
   it('leaves Report, Learner, ContentItem, Session and Assessment completely untouched, even when every sweep has real work to do', async () => {
     const org = await createTestOrganization();
-    const { user: manager } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: manager } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const team = await createTeam(org.id, manager.id);
     const learner = await createLearner(org.id, team.id);
     const { track, level, outcome } = await createCatalogueTree(org.id);
@@ -241,7 +241,7 @@ describe('cleanup.job invariant: the hard boundary is never crossed', () => {
 
   it('DOES sweep by-products in the same run (control case, proving the job ran and did real work)', async () => {
     const org = await createTestOrganization();
-    const { user } = await createAuthedUser(org.id, 'MANAGER');
+    const { user } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
 
     const longExpiredDate = new Date('2000-01-01T00:00:00.000Z');
     const staleToken = await prisma.refreshToken.create({

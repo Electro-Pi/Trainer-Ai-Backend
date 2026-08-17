@@ -125,7 +125,7 @@ export class PerformanceService {
     };
   }
 
-  /** `PF-02` — HR, read-only, every team in the org. Route enforces `authorize('HR', 'ADMIN')`. */
+  /** `PF-02` — Admin-only, every team in the org. Route enforces `authorize('ADMIN')`. */
   async organizationPerformance(): Promise<OrganizationPerformanceResponseDto> {
     const teams = await teamRepository.findAllInOrganization();
 

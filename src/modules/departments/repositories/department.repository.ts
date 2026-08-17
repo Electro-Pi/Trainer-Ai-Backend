@@ -1,0 +1,40 @@
+import type { Department } from '@prisma/client';
+
+import { BaseRepository } from '@/common/repositories/base.repository.js';
+import { prisma } from '@/database/prisma.service.js';
+
+// Re-exported so services/controllers (banned from importing `@prisma/client`
+// directly — D-12b) can still type against the model shape this repository
+// returns.
+export type { Department };
+
+type DepartmentDelegate = typeof prisma.department;
+
+/**
+ * `Department` is deliberately not in the tenant extension's
+ * `TENANT_SCOPED_MODELS` set (see `tenant.extension.ts`'s own doc comment on
+ * why — same reasoning `OrganizationRepository` gives for its own unscoped
+ * reads), so every method here filters `organizationId` explicitly rather
+ * than relying on `this.delegate` to inject it.
+ */
+export class DepartmentRepository extends BaseRepository<Department, DepartmentDelegate> {
+  constructor() {
+    super(prisma.department, 'name');
+  }
+
+  async findManyInOrganization(organizationId: string, limit: number, cursor?: string) {
+    return this.findMany({
+      limit,
+      ...(cursor ? { cursor } : {}),
+      where: { organizationId },
+    });
+  }
+
+  async findByIdScoped(id: string, organizationId: string): Promise<Department | null> {
+    return this.delegate.findFirst({ where: { id, organizationId } as never });
+  }
+
+  async findByName(organizationId: string, name: string): Promise<Department | null> {
+    return this.delegate.findFirst({ where: { organizationId, name } as never });
+  }
+}

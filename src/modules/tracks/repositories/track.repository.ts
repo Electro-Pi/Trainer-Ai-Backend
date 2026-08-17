@@ -17,6 +17,21 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
     return this.delegate.findFirst({ where: { key } });
   }
 
+  /**
+   * `Track.departmentId` read-through for `TrackResponseDto.departmentName`.
+   * `Department` isn't a tenant-scoped model on the Prisma extension (it
+   * carries no direct `organizationId`-filtered query need elsewhere yet),
+   * so this reads it via the already-org-scoped `Track` row rather than
+   * querying `Department` directly.
+   */
+  async findDepartmentName(trackId: string): Promise<string | null> {
+    const row = await prisma.track.findFirst({
+      where: { id: trackId },
+      select: { department: { select: { name: true } } },
+    });
+    return row?.department.name ?? null;
+  }
+
   async findManyByTrack(where: Prisma.TrackWhereInput): Promise<Track[]> {
     return this.delegate.findMany({ where, orderBy: { sortOrder: 'asc' } });
   }
@@ -41,7 +56,9 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
    * to the raw tx client, so this reaches Prisma directly — the same
    * exception `LearnerAssignmentRepository.assignWithOutcomes` takes for a
    * multi-model atomic write (D-12b keeps it on the repository, not the
-   * service).
+   * service). Levels' `Skill`s are NOT copied — a level-scoped skill is part
+   * of the master catalogue, not a per-track-duplicate concern (mirrors how
+   * `Outcome`'s `skillId` FK is also left unset on the copy, below).
    */
   async duplicate(sourceId: string, newKey: string): Promise<Track> {
     const organizationId = getCurrentOrganizationId();
@@ -68,7 +85,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           nameAr: source.nameAr,
           descriptionEn: source.descriptionEn,
           descriptionAr: source.descriptionAr,
-          department: source.department,
+          departmentId: source.departmentId,
           targetSkills: source.targetSkills,
           trainingForm: source.trainingForm,
           impactIndicators: source.impactIndicators,
@@ -163,14 +180,20 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
    * shared BRD content, not any one tenant's customized copy). Narrow on
    * purpose (`isEnabled` only, `SELECT *` on one row per key), never exposed
    * as a general cross-tenant finder.
+   *
+   * Joins `departments` for a readable `departmentName` — `Track.departmentId`
+   * alone is an opaque id the public marketing site has no other way to
+   * resolve (no tenant/auth context to call an authenticated department
+   * lookup with).
    */
-  async findPublicByKey(): Promise<Track[]> {
-    return prisma.$queryRaw<Track[]>`
+  async findPublicByKey(): Promise<(Track & { departmentName: string })[]> {
+    return prisma.$queryRaw<(Track & { departmentName: string })[]>`
       SELECT * FROM (
-        SELECT DISTINCT ON ("key") *
-        FROM "tracks"
-        WHERE "isEnabled" = true
-        ORDER BY "key", "sortOrder" ASC
+        SELECT DISTINCT ON (t."key") t.*, d."name" AS "departmentName"
+        FROM "tracks" t
+        JOIN "departments" d ON d."id" = t."departmentId"
+        WHERE t."isEnabled" = true
+        ORDER BY t."key", t."sortOrder" ASC
       ) AS deduped
       ORDER BY "sortOrder" ASC
     `;

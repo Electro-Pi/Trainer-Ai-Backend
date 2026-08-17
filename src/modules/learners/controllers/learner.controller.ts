@@ -19,7 +19,8 @@ function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
-function toResponseDto(learner: Learner): LearnerResponseDto {
+async function toResponseDto(learner: Learner): Promise<LearnerResponseDto> {
+  const departmentName = await service.getDepartmentName(learner.id);
   return {
     id: learner.id,
     organizationId: learner.organizationId,
@@ -28,7 +29,8 @@ function toResponseDto(learner: Learner): LearnerResponseDto {
     email: learner.email,
     displayName: learner.displayName,
     jobTitle: learner.jobTitle,
-    department: learner.department,
+    departmentId: learner.departmentId,
+    departmentName,
     preferredLanguage: learner.preferredLanguage,
     status: learner.status,
     deactivatedAt: learner.deactivatedAt?.toISOString() ?? null,
@@ -57,8 +59,9 @@ export class LearnerController {
       teamId?: string;
     };
     const page = await service.list(limit, cursor, teamId);
+    const data = await Promise.all(page.data.map(toResponseDto));
     res.status(200).json(
-      toCollectionResponse(page.data.map(toResponseDto), {
+      toCollectionResponse(data, {
         nextCursor: page.nextCursor,
         hasNextPage: page.hasNextPage,
       }),
@@ -68,20 +71,20 @@ export class LearnerController {
   async getById(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const learner = await service.getById(id);
-    res.status(200).json(toResponseDto(learner));
+    res.status(200).json(await toResponseDto(learner));
   }
 
   async update(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const dto = req.body as UpdateLearnerDto;
     const learner = await service.update(toActingUser(req.auth!), id, dto);
-    res.status(200).json(toResponseDto(learner));
+    res.status(200).json(await toResponseDto(learner));
   }
 
   async deactivate(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const learner = await service.deactivate(toActingUser(req.auth!), id);
-    res.status(200).json(toResponseDto(learner));
+    res.status(200).json(await toResponseDto(learner));
   }
 
   async getExperience(req: Request, res: Response): Promise<void> {

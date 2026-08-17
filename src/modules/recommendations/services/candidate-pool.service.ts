@@ -68,4 +68,64 @@ export class CandidatePoolService {
 
     return { candidates, boundOutcomesByContent, mandatoryContentIds };
   }
+
+  /**
+   * Snapshot-scoped equivalent of `buildPool` for a plan whose track has
+   * been copied via `PlanSnapshotService` (wizard step2). `outcomeId`s in
+   * the returned pool are `PlanOutcomeSnapshot.id`s, not real `Outcome.id`s
+   * — every downstream consumer (scorer, ordering, coverage-gap, explain)
+   * only ever treats `outcomeId` as an opaque key, so this substitution is
+   * safe without touching any of that code.
+   *
+   * Candidates are the REAL master `ContentItem`s behind each snapshot
+   * content row's `sourceContentId` (confirmed direction: score using the
+   * original library content when one was copied, so difficulty/duration/
+   * effectiveness/mandatory all reflect real data). A manager-authored
+   * snapshot content row with no `sourceContentId` has nothing to resolve
+   * to a real `ContentItem` and is therefore not scorable by this pipeline
+   * — it's surfaced separately by `PlanSnapshotService.getTree()` for the
+   * wizard to show directly, not through recommendation ranking.
+   */
+  async buildPoolFromSnapshot(params: {
+    outcomeSnapshots: { id: string; sourceContentIds: string[] }[];
+    language: Language;
+    outstandingOutcomeSnapshotIds: ReadonlySet<string>;
+    excludeContentItemIds?: ReadonlySet<string>;
+  }): Promise<CandidatePoolResult> {
+    if (params.outstandingOutcomeSnapshotIds.size === 0) {
+      return { candidates: [], boundOutcomesByContent: new Map(), mandatoryContentIds: new Set() };
+    }
+
+    const contentIdToOutcomeSnapshotIds = new Map<string, string[]>();
+    for (const outcome of params.outcomeSnapshots) {
+      if (!params.outstandingOutcomeSnapshotIds.has(outcome.id)) continue;
+      for (const contentId of outcome.sourceContentIds) {
+        const existing = contentIdToOutcomeSnapshotIds.get(contentId) ?? [];
+        existing.push(outcome.id);
+        contentIdToOutcomeSnapshotIds.set(contentId, existing);
+      }
+    }
+
+    const allContentIds = [...contentIdToOutcomeSnapshotIds.keys()];
+    const items = await contentItemRepository.findManyByIdsScoped(allContentIds);
+    const itemsById = new Map(items.map((item) => [item.id, item]));
+
+    const boundOutcomesByContent = new Map<string, string[]>();
+    const candidates: ContentItem[] = [];
+    for (const [contentId, outcomeSnapshotIds] of contentIdToOutcomeSnapshotIds) {
+      const item = itemsById.get(contentId);
+      if (!item) continue;
+      if (item.language !== params.language) continue;
+      if (params.excludeContentItemIds?.has(contentId)) continue;
+
+      candidates.push(item);
+      boundOutcomesByContent.set(contentId, outcomeSnapshotIds);
+    }
+
+    const mandatoryContentIds = new Set(
+      candidates.filter((item) => item.isMandatory).map((item) => item.id),
+    );
+
+    return { candidates, boundOutcomesByContent, mandatoryContentIds };
+  }
 }

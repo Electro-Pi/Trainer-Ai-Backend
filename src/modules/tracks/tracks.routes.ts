@@ -30,7 +30,7 @@ export function createTracksRouter(): Router {
 
   router.post(
     '/',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ body: createTrackSchema }),
     (req, res, next) => {
       controller.create(req, res).catch(next);
@@ -41,7 +41,7 @@ export function createTracksRouter(): Router {
   // `/:id` greedily against any single path segment, including `reorder`.
   router.patch(
     '/reorder',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ body: reorderTracksSchema }),
     (req, res, next) => {
       controller.reorder(req, res).catch(next);
@@ -54,7 +54,7 @@ export function createTracksRouter(): Router {
 
   router.patch(
     '/:id',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: trackIdParamsSchema, body: updateTrackSchema }),
     (req, res, next) => {
       controller.update(req, res).catch(next);
@@ -63,7 +63,7 @@ export function createTracksRouter(): Router {
 
   router.patch(
     '/:id/enabled',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: trackIdParamsSchema, body: setTrackEnabledSchema }),
     (req, res, next) => {
       controller.setEnabled(req, res).catch(next);
@@ -72,7 +72,7 @@ export function createTracksRouter(): Router {
 
   router.post(
     '/:id/duplicate',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: trackIdParamsSchema, body: duplicateTrackSchema }),
     (req, res, next) => {
       controller.duplicate(req, res).catch(next);
@@ -81,7 +81,7 @@ export function createTracksRouter(): Router {
 
   router.delete(
     '/:id',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: trackIdParamsSchema }),
     (req, res, next) => {
       controller.delete(req, res).catch(next);

@@ -1,6 +1,7 @@
 export interface OutcomeResponseDto {
   id: string;
   levelId: string;
+  skillId: string | null;
   titleEn: string;
   titleAr: string;
   descriptionEn: string;
@@ -20,6 +21,7 @@ export interface CreateOutcomeDto {
   descriptionAr: string;
   targetSkills: string[];
   trainingForm: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
+  skillId?: string;
 }
 
 export interface UpdateOutcomeDto {
@@ -29,4 +31,5 @@ export interface UpdateOutcomeDto {
   descriptionAr?: string;
   targetSkills?: string[];
   trainingForm?: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
+  skillId?: string;
 }

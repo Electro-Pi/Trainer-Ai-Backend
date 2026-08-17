@@ -3,6 +3,8 @@ import { levelRepository } from '@/modules/levels/levels.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { trackRepository, type Track } from '@/modules/tracks/tracks.module.js';
 
+type PublicTrackRow = Track & { departmentName: string };
+
 export interface PublicOutcome {
   id: string;
   titleEn: string;
@@ -26,7 +28,8 @@ export interface PublicTrack {
   nameAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  department: string;
+  departmentId: string;
+  departmentName: string;
   targetSkills: string[];
   impactIndicators: string[];
   levels: PublicLevel[];
@@ -53,7 +56,7 @@ export class PublicCatalogueService {
     return this.attachLevels(track);
   }
 
-  private async attachLevels(track: Track): Promise<PublicTrack> {
+  private async attachLevels(track: PublicTrackRow): Promise<PublicTrack> {
     const levels = await levelRepository.findByTrack(track.id);
     const levelsWithOutcomes = await Promise.all(
       levels
@@ -85,7 +88,8 @@ export class PublicCatalogueService {
       nameAr: track.nameAr,
       descriptionEn: track.descriptionEn,
       descriptionAr: track.descriptionAr,
-      department: track.department,
+      departmentId: track.departmentId,
+      departmentName: track.departmentName,
       targetSkills: track.targetSkills,
       impactIndicators: track.impactIndicators,
       levels: levelsWithOutcomes,

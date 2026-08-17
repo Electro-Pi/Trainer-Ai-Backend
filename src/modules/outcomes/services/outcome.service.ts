@@ -1,6 +1,7 @@
 import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { levelRepository } from '@/modules/levels/levels.module.js';
+import { skillRepository } from '@/modules/skills/skills.module.js';
 
 import type { CreateOutcomeDto, UpdateOutcomeDto } from '../dto/outcome.dto.js';
 import { OutcomeRepository, type Outcome } from '../repositories/outcome.repository.js';
@@ -14,6 +15,20 @@ export interface ActingUser {
 /** `outcomes` module — P4-3. Every level owns a defined outcome set — this linkage drives the whole assignment flow (`TC-03`, `LV-03`). */
 export class OutcomeService {
   private readonly outcomes = new OutcomeRepository();
+
+  /**
+   * `skillId` is optional through the migration window (new 1:1-from-outcome
+   * side rule), but when provided it must resolve inside the caller's own
+   * org — never trust a request-supplied id without `findByIdScoped` (same
+   * defensive-FK-check pattern as `LearnerAssignmentService.assign`'s
+   * `trackId`/`levelId` checks).
+   */
+  private async validateSkill(skillId: string): Promise<void> {
+    const skill = await skillRepository.findByIdScoped(skillId);
+    if (!skill) {
+      throw new ValidationError([{ path: 'skillId', code: 'invalid', message: 'Skill not found' }]);
+    }
+  }
 
   async listByLevel(levelId: string): Promise<Outcome[]> {
     const level = await levelRepository.findByIdScoped(levelId);
@@ -37,6 +52,10 @@ export class OutcomeService {
       throw new NotFoundError('Level not found');
     }
 
+    if (dto.skillId !== undefined) {
+      await this.validateSkill(dto.skillId);
+    }
+
     const siblings = await this.outcomes.findByLevel(levelId);
 
     const created = await this.outcomes.create({
@@ -48,6 +67,7 @@ export class OutcomeService {
       targetSkills: dto.targetSkills,
       trainingForm: dto.trainingForm,
       order: siblings.length,
+      ...(dto.skillId !== undefined ? { skillId: dto.skillId } : {}),
     } as never);
 
     await writeAuditLog({
@@ -66,6 +86,10 @@ export class OutcomeService {
   async update(actor: ActingUser, id: string, dto: UpdateOutcomeDto): Promise<Outcome> {
     const before = await this.getById(id);
 
+    if (dto.skillId !== undefined) {
+      await this.validateSkill(dto.skillId);
+    }
+
     const updated = await this.outcomes.update(id, {
       ...(dto.titleEn !== undefined ? { titleEn: dto.titleEn } : {}),
       ...(dto.titleAr !== undefined ? { titleAr: dto.titleAr } : {}),
@@ -73,6 +97,7 @@ export class OutcomeService {
       ...(dto.descriptionAr !== undefined ? { descriptionAr: dto.descriptionAr } : {}),
       ...(dto.targetSkills !== undefined ? { targetSkills: dto.targetSkills } : {}),
       ...(dto.trainingForm !== undefined ? { trainingForm: dto.trainingForm } : {}),
+      ...(dto.skillId !== undefined ? { skillId: dto.skillId } : {}),
     } as never);
 
     await writeAuditLog({

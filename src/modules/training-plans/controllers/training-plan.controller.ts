@@ -146,7 +146,7 @@ export class TrainingPlanController {
     });
     if (manager) {
       addRecipient(manager.locale, {
-        role: 'MANAGER',
+        role: 'DEPARTMENT_MANAGER',
         portalUserId: manager.id,
         email: manager.email,
         name: manager.name,

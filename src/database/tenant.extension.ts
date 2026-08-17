@@ -19,6 +19,7 @@ const TENANT_SCOPED_MODELS = new Set<string>([
   'Report',
   'AuditLog',
   'Skill',
+  'PortalInvite',
 ]);
 
 const READ_OR_DELETE_OPERATIONS = new Set([

@@ -1,19 +1,31 @@
 import { openApiRegistry } from '@/swagger/swagger.js';
 
 import { PlanTemplateRepository } from './repositories/plan-template.repository.js';
+import { PlanTrackSnapshotRepository } from './repositories/plan-track-snapshot.repository.js';
 import { TrainingPlanRepository } from './repositories/training-plan.repository.js';
 import { createTrainingPlansRouter } from './training-plans.routes.js';
 
 export type { TrainingPlan } from './repositories/training-plan.repository.js';
 export type { PlanTemplate } from './repositories/plan-template.repository.js';
+export type {
+  PlanContentSnapshot,
+  PlanLearnerOutcomeSnapshot,
+  PlanOutcomeSnapshot,
+  PlanSkillSnapshot,
+  PlanTrackSnapshot,
+  PlanTrackSnapshotTree,
+} from './repositories/plan-track-snapshot.repository.js';
 
 export const trainingPlansRouter = createTrainingPlansRouter();
 
 // Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `sessions`
 // (reschedule/cancel/attendance) resolves a session's plan through this
 // instead of deep-importing `modules/training-plans/repositories/*`.
+// `recommendations` resolves a plan's track snapshot the same way, for the
+// snapshot-aware recommendation branch.
 export const trainingPlanRepository = new TrainingPlanRepository();
 export const planTemplateRepository = new PlanTemplateRepository();
+export const planTrackSnapshotRepository = new PlanTrackSnapshotRepository();
 
 openApiRegistry.registerPath({
   method: 'post',
@@ -61,6 +73,95 @@ openApiRegistry.registerPath({
   tags: ['Training Plans'],
   summary: 'Validates every required outcome is covered by a session, flags gaps (`TP-04`)',
   responses: { 200: { description: 'Coverage report' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/plans/{id}/snapshot',
+  tags: ['Training Plans'],
+  summary:
+    'Deep-copies the plan’s assigned track (skills/outcomes/content) into plan-scoped rows for editing',
+  responses: { 201: { description: 'Created snapshot tree' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/plans/{id}/snapshot',
+  tags: ['Training Plans'],
+  summary: 'Gets the plan’s track snapshot tree',
+  responses: { 200: { description: 'Snapshot tree' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/plans/{id}/snapshot/skills',
+  tags: ['Training Plans'],
+  summary: 'Adds a plan-scoped skill to the snapshot (no effect on the master catalogue)',
+  responses: { 201: { description: 'Created skill snapshot' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/plans/{id}/snapshot/skills/{skillSnapshotId}',
+  tags: ['Training Plans'],
+  summary: 'Updates a plan-scoped skill snapshot',
+  responses: { 200: { description: 'Updated skill snapshot' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/plans/{id}/snapshot/skills/{skillSnapshotId}',
+  tags: ['Training Plans'],
+  summary: 'Soft-removes a plan-scoped skill snapshot',
+  responses: { 204: { description: 'Removed' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/plans/{id}/snapshot/skills/{skillSnapshotId}/outcomes',
+  tags: ['Training Plans'],
+  summary: 'Adds a plan-scoped outcome under a skill snapshot',
+  responses: { 201: { description: 'Created outcome snapshot' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/plans/{id}/snapshot/outcomes/{outcomeSnapshotId}',
+  tags: ['Training Plans'],
+  summary: 'Updates a plan-scoped outcome snapshot',
+  responses: { 200: { description: 'Updated outcome snapshot' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/plans/{id}/snapshot/outcomes/{outcomeSnapshotId}',
+  tags: ['Training Plans'],
+  summary: 'Soft-removes a plan-scoped outcome snapshot',
+  responses: { 204: { description: 'Removed' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/plans/{id}/snapshot/content',
+  tags: ['Training Plans'],
+  summary: 'Adds plan-scoped content to the snapshot',
+  responses: { 201: { description: 'Created content snapshot' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'patch',
+  path: '/plans/{id}/snapshot/content/{contentSnapshotId}',
+  tags: ['Training Plans'],
+  summary: 'Updates a plan-scoped content snapshot',
+  responses: { 200: { description: 'Updated content snapshot' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'delete',
+  path: '/plans/{id}/snapshot/content/{contentSnapshotId}',
+  tags: ['Training Plans'],
+  summary: 'Soft-removes a plan-scoped content snapshot',
+  responses: { 204: { description: 'Removed' } },
 });
 
 openApiRegistry.registerPath({

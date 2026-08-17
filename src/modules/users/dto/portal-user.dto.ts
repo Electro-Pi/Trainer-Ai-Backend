@@ -13,14 +13,14 @@ export interface PortalUserResponseDto {
 export interface CreatePortalUserDto {
   email: string;
   name: string;
-  role: 'MANAGER' | 'HR' | 'CONTENT_MANAGER' | 'ADMIN';
+  role: 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR' | 'ADMIN';
   password?: string;
   locale?: 'EN' | 'AR';
 }
 
 export interface UpdatePortalUserDto {
   name?: string;
-  role?: 'MANAGER' | 'HR' | 'CONTENT_MANAGER' | 'ADMIN';
+  role?: 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR' | 'ADMIN';
   locale?: 'EN' | 'AR';
   isActive?: boolean;
 }

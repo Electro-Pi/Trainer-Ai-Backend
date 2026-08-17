@@ -3,6 +3,7 @@ import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { encrypt } from '@/common/utils/encryption.js';
 import { verifyPassword } from '@/common/utils/password-hash.js';
 import { runWithTenant } from '@/database/tenant-context.js';
+import { portalInviteRepository } from '@/modules/invites/invites.module.js';
 import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
 
@@ -31,36 +32,51 @@ export class AuthService {
   private readonly tokens = new TokenService();
 
   /**
-   * Upserts `Organization` by `tid` and `PortalUser` by `oid` (ARCHITECTURE
-   * §7.1). A brand-new user is provisioned as `MANAGER` — the lowest-
-   * privilege portal role — and an ADMIN promotes them afterward via the
-   * `users` module; nothing here silently grants elevated access.
+   * Two very different provisioning paths, disambiguated by whether an
+   * `inviteToken` round-tripped through the OAuth `state` (see
+   * `PkceStoreService`/`AuthController.microsoftStart`):
+   *
+   * - **Invited** (MANAGER/CONTENT_MANAGER): the invite already pins the
+   *   target `Organization` — org resolution does NOT go through
+   *   `entraTenantId` matching here, because an invited user is explicitly
+   *   allowed to accept from a *different* Microsoft tenant than the org's
+   *   own (only the invite's `email` has to match the signing-in account's
+   *   email, checked below). Matching by tenant in this branch would either
+   *   fail to find the org or — worse — silently create a duplicate one.
+   * - **Uninvited** (brand-new signup, no token): today's `entraTenantId`
+   *   upsert-or-create logic, provisioning as `ADMIN` — the new default,
+   *   replacing the old `MANAGER` default. An existing user (matched by
+   *   `entraObjectId`, either path) never has their role re-derived on
+   *   repeat sign-in; role is set once, at first provisioning, full stop.
    */
   async signInWithMicrosoft(
     result: EntraSignInResult,
+    inviteToken?: string | null,
   ): Promise<{ user: AuthenticatedUser; tokens: TokenPair }> {
-    let organization = await organizationRepository.findByEntraTenantId(
-      result.claims.entraTenantId,
-    );
-    if (!organization) {
-      organization = await organizationRepository.create({
-        entraTenantId: result.claims.entraTenantId,
-        name: result.claims.organizationName,
-      } as never);
-    } else if (organization.name === organization.entraTenantId) {
-      // Backfills orgs provisioned before the Graph `/organization` lookup existed —
-      // `name` was seeded from `entraTenantId` as a placeholder (never a real display name).
-      organization = await organizationRepository.update(organization.id, {
-        name: result.claims.organizationName,
-      } as never);
+    const invite = inviteToken
+      ? await portalInviteRepository.findByTokenUnscoped(inviteToken)
+      : null;
+
+    if (invite) {
+      if (invite.status !== 'PENDING' || invite.expiresAt < new Date()) {
+        throw new UnauthorizedError('This invitation is no longer valid');
+      }
+      if (invite.email.toLowerCase() !== result.claims.email.toLowerCase()) {
+        throw new UnauthorizedError(
+          'This invitation was sent to a different email address than the Microsoft account you signed in with',
+        );
+      }
     }
+
+    const organizationId = invite
+      ? invite.organizationId
+      : await this.resolveOrCreateOrganizationByTenant(result.claims);
 
     const existingUser = await portalUserRepository.findByEntraObjectId(
       result.claims.entraObjectId,
     );
 
     const graphTokenCacheEncrypted = encrypt(result.serializedTokenCache);
-    const organizationId = organization.id;
 
     const user = await runWithTenant(organizationId, () =>
       existingUser
@@ -74,7 +90,7 @@ export class AuthService {
             entraObjectId: result.claims.entraObjectId,
             email: result.claims.email,
             name: result.claims.name,
-            role: 'MANAGER',
+            role: invite ? invite.role : 'ADMIN',
             graphTokenCacheEncrypted,
             graphHomeAccountId: result.homeAccountId,
             lastLoginAt: new Date(),
@@ -83,6 +99,16 @@ export class AuthService {
 
     if (!user.isActive) {
       throw new UnauthorizedError('This account has been deactivated');
+    }
+
+    if (invite && !existingUser) {
+      await runWithTenant(organizationId, () =>
+        portalInviteRepository.update(invite.id, {
+          status: 'ACCEPTED',
+          acceptedAt: new Date(),
+          acceptedUserId: user.id,
+        } as never),
+      );
     }
 
     await runWithTenant(organizationId, () =>
@@ -98,12 +124,31 @@ export class AuthService {
 
     const tokens = await this.tokens.issueTokenPair(user.id, {
       sub: user.id,
-      orgId: organization.id,
+      orgId: organizationId,
       role: user.role,
       locale: user.locale,
     });
 
-    return { user: toAuthenticatedUser(user, organization.id), tokens };
+    return { user: toAuthenticatedUser(user, organizationId), tokens };
+  }
+
+  private async resolveOrCreateOrganizationByTenant(
+    claims: EntraSignInResult['claims'],
+  ): Promise<string> {
+    let organization = await organizationRepository.findByEntraTenantId(claims.entraTenantId);
+    if (!organization) {
+      organization = await organizationRepository.create({
+        entraTenantId: claims.entraTenantId,
+        name: claims.organizationName,
+      } as never);
+    } else if (organization.name === organization.entraTenantId) {
+      // Backfills orgs provisioned before the Graph `/organization` lookup existed —
+      // `name` was seeded from `entraTenantId` as a placeholder (never a real display name).
+      organization = await organizationRepository.update(organization.id, {
+        name: claims.organizationName,
+      } as never);
+    }
+    return organization.id;
   }
 
   /**

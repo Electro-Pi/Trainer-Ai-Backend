@@ -70,7 +70,7 @@ export class ReportService {
 }
 
 export interface PlanSummaryRecipient {
-  role: 'MANAGER' | 'LEARNER';
+  role: 'DEPARTMENT_MANAGER' | 'LEARNER';
   portalUserId?: string;
   email: string;
   name: string;

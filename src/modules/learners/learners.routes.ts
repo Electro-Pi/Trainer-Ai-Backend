@@ -45,7 +45,7 @@ async function resolveManagerIdByLearner(req: { params: { id?: string } }): Prom
   return team?.managerId ?? null;
 }
 
-/** §7.2: a MANAGER reaches only learners on a team they manage; HR/ADMIN reach all. */
+/** §7.2: a DEPARTMENT_MANAGER reaches only learners on a team they manage; ADMIN reaches all. */
 export function createLearnersRouter(): Router {
   const router = Router();
 
@@ -53,7 +53,7 @@ export function createLearnersRouter(): Router {
 
   router.get(
     '/',
-    authorize('MANAGER', 'HR', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ query: learnerFilterSchema }),
     (req, res, next) => {
       learnerController.list(req, res).catch(next);
@@ -71,7 +71,7 @@ export function createLearnersRouter(): Router {
 
   router.patch(
     '/:id',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: learnerIdParamsSchema, body: updateLearnerSchema }),
     requireTeamAccess(resolveManagerIdByLearner),
     (req, res, next) => {
@@ -81,7 +81,7 @@ export function createLearnersRouter(): Router {
 
   router.post(
     '/:id/deactivate',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: learnerIdParamsSchema }),
     requireTeamAccess(resolveManagerIdByLearner),
     (req, res, next) => {
@@ -100,7 +100,7 @@ export function createLearnersRouter(): Router {
 
   router.put(
     '/:id/experience',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: learnerIdParamsSchema, body: putLearnerExperienceSchema }),
     requireTeamAccess(resolveManagerIdByLearner),
     (req, res, next) => {
@@ -110,7 +110,7 @@ export function createLearnersRouter(): Router {
 
   router.post(
     '/:id/assignment',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: learnerIdParamsSchema, body: assignLearnerSchema }),
     requireTeamAccess(resolveManagerIdByLearner),
     (req, res, next) => {
@@ -129,7 +129,7 @@ export function createLearnersRouter(): Router {
 
   router.patch(
     '/:id/outcomes',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: learnerIdParamsSchema, body: patchLearnerOutcomesSchema }),
     requireTeamAccess(resolveManagerIdByLearner),
     (req, res, next) => {
@@ -157,7 +157,7 @@ export function createTeamMembersRouter(): Router {
 
   router.post(
     '/:id/members',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: teamIdParamsSchema, body: importLearnersSchema }),
     requireTeamAccess(resolveManagerIdByTeam),
     (req, res, next) => {
@@ -167,7 +167,7 @@ export function createTeamMembersRouter(): Router {
 
   router.post(
     '/:id/members/csv',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: teamIdParamsSchema, body: importLearnersCsvSchema }),
     requireTeamAccess(resolveManagerIdByTeam),
     (req, res, next) => {

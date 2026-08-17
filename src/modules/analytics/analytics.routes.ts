@@ -17,7 +17,7 @@ import {
 } from './validators/analytics.validators.js';
 
 const controller = new AnalyticsController();
-const READ_ROLES = ['MANAGER', 'HR', 'ADMIN', 'CONTENT_MANAGER'] as const;
+const READ_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN', 'CONTENT_CREATOR'] as const;
 
 async function resolveManagerIdByTeamParam(req: {
   params: { teamId?: string };
@@ -39,7 +39,7 @@ async function resolveManagerIdByLearnerParam(req: {
   return team?.managerId ?? null;
 }
 
-/** §7.2: a MANAGER reaches only their own team's analytics; HR reads org-wide, read-only (`AU-05`, `PF-02`); ADMIN reaches everything. */
+/** §7.2: a DEPARTMENT_MANAGER reaches only their own team's analytics; ADMIN reaches everything, including org-wide reads (`AU-05`, `PF-02`). */
 export function createAnalyticsRouter(): Router {
   const router = Router();
 
@@ -55,7 +55,7 @@ export function createAnalyticsRouter(): Router {
     },
   );
 
-  router.get('/organization/performance', authorize('HR', 'ADMIN'), (req, res, next) => {
+  router.get('/organization/performance', authorize('ADMIN'), (req, res, next) => {
     controller.organizationPerformance(req, res).catch(next);
   });
 
@@ -89,7 +89,7 @@ export function createAnalyticsRouter(): Router {
 
   router.get(
     '/export',
-    authorize('HR', 'ADMIN'),
+    authorize('ADMIN'),
     validate({ query: exportQuerySchema }),
     (req, res, next) => {
       controller.export(req, res).catch(next);

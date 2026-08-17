@@ -84,7 +84,7 @@ export interface SessionContextResponse {
     id: string;
     displayName: string;
     jobTitle: string | null;
-    department: string | null;
+    departmentId: string | null;
   };
   level: {
     id: string;

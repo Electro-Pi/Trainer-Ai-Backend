@@ -31,6 +31,16 @@ export class LearnerAssignmentRepository extends BaseRepository<
     return this.delegate.findFirst({ where: { learnerId, isActive: true } });
   }
 
+  /**
+   * `LearnerAssignment` is not itself in the tenant extension's scoped-model
+   * set (reached transitively via `Learner`, per `tenant.extension.ts`'s own
+   * doc comment) — filter through `learner.organizationId` explicitly, same
+   * pattern `OutcomeRepository.findByIdScoped` uses via `level.track`.
+   */
+  async findByIdScoped(id: string, organizationId: string): Promise<LearnerAssignment | null> {
+    return this.delegate.findFirst({ where: { id, learner: { organizationId } } });
+  }
+
   async findByLearner(learnerId: string): Promise<LearnerAssignment[]> {
     return this.delegate.findMany({ where: { learnerId }, orderBy: { assignedAt: 'desc' } });
   }

@@ -36,4 +36,17 @@ export class LearnerRepository extends BaseRepository<Learner, LearnerDelegate> 
     if (ids.length === 0) return [];
     return this.delegate.findMany({ where: { id: { in: ids } } });
   }
+
+  /**
+   * `Learner.departmentId` read-through for `LearnerResponseDto.departmentName`
+   * — same join-for-a-name pattern as `TrackRepository.findDepartmentName`.
+   * `null` when the learner has no department set (the FK is optional).
+   */
+  async findDepartmentName(learnerId: string): Promise<string | null> {
+    const row = await prisma.learner.findFirst({
+      where: { id: learnerId },
+      select: { department: { select: { name: true } } },
+    });
+    return row?.department?.name ?? null;
+  }
 }

@@ -18,7 +18,8 @@ function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
-function toResponseDto(track: Track): TrackResponseDto {
+async function toResponseDto(track: Track): Promise<TrackResponseDto> {
+  const departmentName = await service.getDepartmentName(track.id);
   return {
     id: track.id,
     organizationId: track.organizationId,
@@ -27,7 +28,8 @@ function toResponseDto(track: Track): TrackResponseDto {
     nameAr: track.nameAr,
     descriptionEn: track.descriptionEn,
     descriptionAr: track.descriptionAr,
-    department: track.department,
+    departmentId: track.departmentId,
+    departmentName: departmentName ?? '',
     targetSkills: track.targetSkills,
     trainingForm: track.trainingForm,
     impactIndicators: track.impactIndicators,
@@ -43,8 +45,9 @@ export class TrackController {
   async list(req: Request, res: Response): Promise<void> {
     const filter = req.query as unknown as TrackFilterDto;
     const page = await service.list(filter);
+    const data = await Promise.all(page.data.map(toResponseDto));
     res.status(200).json(
-      toCollectionResponse(page.data.map(toResponseDto), {
+      toCollectionResponse(data, {
         nextCursor: page.nextCursor,
         hasNextPage: page.hasNextPage,
       }),
@@ -54,34 +57,34 @@ export class TrackController {
   async getById(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const track = await service.getById(id);
-    res.status(200).json(toResponseDto(track));
+    res.status(200).json(await toResponseDto(track));
   }
 
   async create(req: Request, res: Response): Promise<void> {
     const dto = req.body as CreateTrackDto;
     const track = await service.create(toActingUser(req.auth!), dto);
-    res.status(201).json(toResponseDto(track));
+    res.status(201).json(await toResponseDto(track));
   }
 
   async update(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const dto = req.body as UpdateTrackDto;
     const track = await service.update(toActingUser(req.auth!), id, dto);
-    res.status(200).json(toResponseDto(track));
+    res.status(200).json(await toResponseDto(track));
   }
 
   async setEnabled(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const { isEnabled } = req.body as { isEnabled: boolean };
     const track = await service.setEnabled(toActingUser(req.auth!), id, isEnabled);
-    res.status(200).json(toResponseDto(track));
+    res.status(200).json(await toResponseDto(track));
   }
 
   async duplicate(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const { key } = req.body as { key: string };
     const track = await service.duplicate(toActingUser(req.auth!), id, key);
-    res.status(201).json(toResponseDto(track));
+    res.status(201).json(await toResponseDto(track));
   }
 
   async reorder(req: Request, res: Response): Promise<void> {

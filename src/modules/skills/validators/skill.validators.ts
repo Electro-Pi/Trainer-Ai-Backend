@@ -12,9 +12,9 @@ export const createSkillSchema = z.object({
   category: z.string().trim().min(1).max(120),
   descriptionEn: z.string().trim().min(1).max(4000),
   descriptionAr: z.string().trim().min(1).max(4000),
-  targetTracks: z.array(z.string().trim().min(1).max(200)).max(50),
   levels: z.array(levelNameSchema).max(4),
   assessmentEnabled: z.boolean().optional(),
+  levelId: cuidSchema.optional(),
 });
 
 export const updateSkillSchema = z.object({
@@ -23,9 +23,9 @@ export const updateSkillSchema = z.object({
   category: z.string().trim().min(1).max(120).optional(),
   descriptionEn: z.string().trim().min(1).max(4000).optional(),
   descriptionAr: z.string().trim().min(1).max(4000).optional(),
-  targetTracks: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   levels: z.array(levelNameSchema).max(4).optional(),
   assessmentEnabled: z.boolean().optional(),
+  levelId: cuidSchema.nullable().optional(),
 });
 
 export const skillFilterSchema = paginationSchema.extend({
@@ -42,4 +42,8 @@ export const setSkillEnabledSchema = z.object({
 
 export const duplicateSkillSchema = z.object({
   key: slugSchema,
+});
+
+export const levelIdParamsSchema = z.object({
+  levelId: cuidSchema,
 });

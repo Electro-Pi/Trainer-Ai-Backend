@@ -42,7 +42,7 @@ openApiRegistry.registerPath({
   method: 'patch',
   path: '/learners/{id}',
   tags: ['Learners'],
-  summary: 'Updates a learner’s job title/department/preferred language',
+  summary: 'Updates a learner’s job title/departmentId/preferred language',
   responses: { 200: { description: 'Updated learner' } },
 });
 

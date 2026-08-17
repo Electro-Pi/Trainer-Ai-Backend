@@ -18,7 +18,7 @@ import {
 const controller = new SessionController();
 const rsvpWebhookController = new RsvpWebhookController();
 const sessionService = new SessionService();
-const WRITE_ROLES = ['MANAGER', 'ADMIN'] as const;
+const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
 
 async function resolveManagerIdBySession(req: { params: { id?: string } }): Promise<string | null> {
   const sessionId = req.params.id;

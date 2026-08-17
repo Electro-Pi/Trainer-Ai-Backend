@@ -6,15 +6,22 @@ import { prisma } from '@/database/prisma.service.js';
  * cursor-pagination/CRUD surface. Plain, focused repository instead.
  */
 export class PkceEntryRepository {
-  async upsert(state: string, codeVerifier: string, expiresAt: Date): Promise<void> {
+  async upsert(
+    state: string,
+    codeVerifier: string,
+    expiresAt: Date,
+    inviteToken?: string,
+  ): Promise<void> {
     await prisma.pkceEntry.upsert({
       where: { state },
-      create: { state, codeVerifier, expiresAt },
-      update: { codeVerifier, expiresAt },
+      create: { state, codeVerifier, expiresAt, inviteToken: inviteToken ?? null },
+      update: { codeVerifier, expiresAt, inviteToken: inviteToken ?? null },
     });
   }
 
-  async consume(state: string): Promise<{ codeVerifier: string; expiresAt: Date } | null> {
+  async consume(
+    state: string,
+  ): Promise<{ codeVerifier: string; expiresAt: Date; inviteToken: string | null } | null> {
     return prisma.pkceEntry.delete({ where: { state } }).catch(() => null);
   }
 

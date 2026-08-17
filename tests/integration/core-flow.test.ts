@@ -11,6 +11,7 @@ import { processSendReportJob } from '@/queue/jobs/send-report.job.js';
 
 import {
   createAuthedUser,
+  createDepartment,
   createTestOrganization,
   grantFakeGraphSession,
   resetRateLimits,
@@ -60,9 +61,13 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     await resetRateLimits();
 
     const org = await createTestOrganization('Core Flow Org');
-    const { user: manager, authHeader: managerAuth } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: manager, authHeader: managerAuth } = await createAuthedUser(
+      org.id,
+      'DEPARTMENT_MANAGER',
+    );
     await grantFakeGraphSession(org.id, manager.id);
-    const { authHeader: contentAuth } = await createAuthedUser(org.id, 'CONTENT_MANAGER');
+    const { authHeader: contentAuth } = await createAuthedUser(org.id, 'CONTENT_CREATOR');
+    const department = await createDepartment(org.id);
 
     // ── Catalogue: track -> level -> two outcomes ──────────────────────
     const trackRes = await request(app)
@@ -74,7 +79,7 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
         nameAr: 'المبيعات',
         descriptionEn: 'Sales track',
         descriptionAr: 'مسار المبيعات',
-        department: 'Sales',
+        departmentId: department.id,
         targetSkills: ['discovery'],
         trainingForm: 'CONVERSATION',
         impactIndicators: ['closed deals'],

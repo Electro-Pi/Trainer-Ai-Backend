@@ -43,7 +43,7 @@ export async function createPortalUser(
         organizationId,
         email: overrides.email ?? `${randomUUID()}@test.local`,
         name: overrides.name ?? 'Test User',
-        role: overrides.role ?? 'MANAGER',
+        role: overrides.role ?? 'DEPARTMENT_MANAGER',
       },
     }),
   );
@@ -90,10 +90,24 @@ export async function grantFakeGraphSession(organizationId: string, userId: stri
   );
 }
 
+/**
+ * `Department` isn't a tenant-scoped model on the Prisma extension
+ * (ARCHITECTURE §7.3 — it carries no `organizationId`-filtered auto-scoping),
+ * so it's created directly rather than through `runWithTenant`, same as
+ * `createTestOrganization`.
+ */
+export async function createDepartment(organizationId: string, name = 'Sales') {
+  return prisma.department.create({
+    data: { organizationId, name: `${name} ${randomUUID()}` },
+  });
+}
+
 export async function createTrack(
   organizationId: string,
-  overrides: Partial<{ key: string; sortOrder: number }> = {},
+  overrides: Partial<{ key: string; sortOrder: number; departmentId: string }> = {},
 ) {
+  const departmentId = overrides.departmentId ?? (await createDepartment(organizationId)).id;
+
   return runWithTenant(organizationId, () =>
     prisma.track.create({
       data: {
@@ -103,7 +117,7 @@ export async function createTrack(
         nameAr: 'المبيعات',
         descriptionEn: 'Sales track',
         descriptionAr: 'مسار المبيعات',
-        department: 'Sales',
+        departmentId,
         targetSkills: ['discovery'],
         trainingForm: 'CONVERSATION',
         impactIndicators: ['closed deals'],
@@ -154,9 +168,17 @@ export async function createOutcome(
   );
 }
 
-export async function createTeam(organizationId: string, managerId: string, name = 'Test Team') {
+export async function createTeam(
+  organizationId: string,
+  managerId: string,
+  name = 'Test Team',
+  departmentId?: string,
+) {
+  const resolvedDepartmentId = departmentId ?? (await createDepartment(organizationId)).id;
   return runWithTenant(organizationId, () =>
-    prisma.team.create({ data: { organizationId, managerId, name } }),
+    prisma.team.create({
+      data: { organizationId, managerId, name, departmentId: resolvedDepartmentId },
+    }),
   );
 }
 

@@ -21,7 +21,7 @@ import {
 
 const controller = new ContentController();
 const mediaController = new MediaController();
-const WRITE_ROLES = ['MANAGER', 'CONTENT_MANAGER', 'ADMIN'] as const;
+const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'] as const;
 
 /** §7.2: any signed-in portal role reads the catalogue; MANAGER/CONTENT_MANAGER/ADMIN write it. */
 export function createContentRouter(): Router {

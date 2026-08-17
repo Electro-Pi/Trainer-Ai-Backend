@@ -25,9 +25,17 @@ function toTokenResponse(tokens: { accessToken: string; refreshToken: string }):
 }
 
 export class AuthController {
-  async microsoftStart(_req: Request, res: Response): Promise<void> {
+  /**
+   * `inviteToken` (query, optional) round-trips through the two-request
+   * Entra auth-code flow the same way `state`/`codeVerifier` already do —
+   * present when the invited manager/content-manager arrived via their
+   * invite link (`/invite/accept?token=...` on the frontend), absent for a
+   * cold/uninvited signup.
+   */
+  async microsoftStart(req: Request, res: Response): Promise<void> {
+    const { inviteToken } = req.query as { inviteToken?: string };
     const { url, state, codeVerifier } = await msal.createAuthCodeUrl();
-    await pkceStore.save(state, codeVerifier);
+    await pkceStore.save(state, codeVerifier, inviteToken);
     const body: AuthorizeUrlResponseDto = { url };
     res.status(200).json(body);
   }
@@ -35,14 +43,14 @@ export class AuthController {
   async microsoftCallback(req: Request, res: Response): Promise<void> {
     const { code, state } = req.query as unknown as { code: string; state: string };
 
-    const codeVerifier = await pkceStore.consume(state);
-    if (!codeVerifier) {
+    const consumed = await pkceStore.consume(state);
+    if (!consumed) {
       res.status(400).json({ detail: 'Sign-in session expired or invalid state' });
       return;
     }
 
-    const result = await msal.acquireTokenByCode(code, codeVerifier);
-    const { tokens } = await authService.signInWithMicrosoft(result);
+    const result = await msal.acquireTokenByCode(code, consumed.codeVerifier);
+    const { tokens } = await authService.signInWithMicrosoft(result, consumed.inviteToken);
 
     res.status(200).json(toTokenResponse(tokens));
   }

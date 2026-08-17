@@ -7,12 +7,14 @@ const descriptionSchema = z.string().trim().max(2000);
 export const createTeamSchema = z.object({
   name: nameSchema,
   description: descriptionSchema.optional(),
+  departmentId: cuidSchema,
   managerId: cuidSchema.optional(),
 });
 
 export const updateTeamSchema = z.object({
   name: nameSchema.optional(),
   description: descriptionSchema.optional(),
+  departmentId: cuidSchema.optional(),
   managerId: cuidSchema.optional(),
 });
 

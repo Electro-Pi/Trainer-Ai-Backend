@@ -1,11 +1,12 @@
 import { openApiRegistry } from '@/swagger/swagger.js';
 
 import { SkillRepository } from './repositories/skill.repository.js';
-import { createSkillsRouter } from './skills.routes.js';
+import { createLevelSkillsRouter, createSkillsRouter } from './skills.routes.js';
 
 export type { Skill } from './repositories/skill.repository.js';
 
 export const skillsRouter = createSkillsRouter();
+export const levelSkillsRouter = createLevelSkillsRouter();
 
 export const skillRepository = new SkillRepository();
 
@@ -63,4 +64,20 @@ openApiRegistry.registerPath({
   tags: ['Skills'],
   summary: 'Hard-deletes a skill',
   responses: { 204: { description: 'Deleted' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/levels/{levelId}/skills',
+  tags: ['Skills'],
+  summary: 'Lists a level’s skills (`Skill.levelId`)',
+  responses: { 200: { description: 'Skill list' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/levels/{levelId}/skills',
+  tags: ['Skills'],
+  summary: 'Creates a skill on a level (MANAGER, CONTENT_MANAGER, ADMIN)',
+  responses: { 201: { description: 'Created skill' } },
 });

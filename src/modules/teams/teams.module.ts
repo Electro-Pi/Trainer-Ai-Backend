@@ -14,7 +14,7 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/teams',
   tags: ['Teams'],
-  summary: 'Lists teams — a Manager sees only their own, HR/ADMIN see all',
+  summary: 'Lists teams — a Department Manager sees only their own, ADMIN sees all',
   responses: { 200: { description: 'Team list' } },
 });
 
@@ -22,7 +22,7 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/teams',
   tags: ['Teams'],
-  summary: 'Creates a team (MANAGER, ADMIN)',
+  summary: 'Creates a team (DEPARTMENT_MANAGER, ADMIN)',
   responses: { 201: { description: 'Created team' } },
 });
 

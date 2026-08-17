@@ -12,6 +12,7 @@ import { processHealthAlertJob } from './jobs/health-alert.job.js';
 import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
 import { processRecomputeEffectivenessJob } from './jobs/recompute-effectiveness.job.js';
 import { processScanMediaJob } from './jobs/scan-media.job.js';
+import { processSendInviteJob } from './jobs/send-invite.job.js';
 import { processSendReminderJob } from './jobs/send-reminder.job.js';
 import { processSendReportJob } from './jobs/send-report.job.js';
 import { createQueueConnection, createQueueService } from './queue.service.js';
@@ -40,6 +41,7 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'effectiveness.recompute': processRecomputeEffectivenessJob,
   cleanup: processCleanupJob,
   'health.alert': processHealthAlertJob,
+  'invite.send': processSendInviteJob,
 };
 
 async function main(): Promise<void> {

@@ -126,7 +126,7 @@ export class SessionContextService {
         id: learner.id,
         displayName: learner.displayName,
         jobTitle: learner.jobTitle,
-        department: learner.department,
+        departmentId: learner.departmentId,
       },
       level: { id: resolvedLevel.id, nameEn: resolvedLevel.nameEn, nameAr: resolvedLevel.nameAr },
       outcomes: outcomesPayload,

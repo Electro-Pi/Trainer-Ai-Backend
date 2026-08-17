@@ -1,6 +1,7 @@
-import { NotFoundError } from '@/common/exceptions/app-error.js';
+import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
+import { departmentRepository } from '@/modules/departments/departments.module.js';
 
 import type { PutLearnerExperienceDto, UpdateLearnerDto } from '../dto/learner.dto.js';
 import {
@@ -40,12 +41,46 @@ export class LearnerService {
     return learner;
   }
 
+  /** `LearnerResponseDto.departmentName` read-through — resolves the readable name behind a learner's `departmentId`. */
+  async getDepartmentName(learnerId: string): Promise<string | null> {
+    return this.learners.findDepartmentName(learnerId);
+  }
+
+  /**
+   * Validates that `departmentId` names an active `Department` in the
+   * caller's org before it's written to `Learner.departmentId`. `Department`
+   * isn't a tenant-scoped model on the Prisma extension (ARCHITECTURE §7.3),
+   * so `organizationId` is filtered explicitly, mirroring
+   * `TrackService.resolveDepartmentId`.
+   */
+  private async resolveDepartmentId(actor: ActingUser, departmentId: string): Promise<string> {
+    const department = await departmentRepository.findByIdScoped(
+      departmentId,
+      actor.organizationId,
+    );
+    if (!department) {
+      throw new ValidationError([
+        {
+          path: 'departmentId',
+          code: 'invalid',
+          message: 'departmentId must reference a department in this organization',
+        },
+      ]);
+    }
+    return department.id;
+  }
+
   async update(actor: ActingUser, id: string, dto: UpdateLearnerDto): Promise<Learner> {
     const before = await this.getById(id);
 
+    const departmentId =
+      dto.departmentId !== undefined
+        ? await this.resolveDepartmentId(actor, dto.departmentId)
+        : undefined;
+
     const updated = await this.learners.update(id, {
       ...(dto.jobTitle !== undefined ? { jobTitle: dto.jobTitle } : {}),
-      ...(dto.department !== undefined ? { department: dto.department } : {}),
+      ...(departmentId !== undefined ? { departmentId } : {}),
       ...(dto.preferredLanguage !== undefined ? { preferredLanguage: dto.preferredLanguage } : {}),
     } as never);
 
@@ -56,8 +91,8 @@ export class LearnerService {
       action: 'learner.updated',
       entityType: 'Learner',
       entityId: id,
-      before: { jobTitle: before.jobTitle, department: before.department },
-      after: { jobTitle: updated.jobTitle, department: updated.department },
+      before: { jobTitle: before.jobTitle, departmentId: before.departmentId },
+      after: { jobTitle: updated.jobTitle, departmentId: updated.departmentId },
     });
 
     return updated;

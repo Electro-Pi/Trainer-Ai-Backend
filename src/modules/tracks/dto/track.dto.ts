@@ -8,7 +8,8 @@ export interface TrackResponseDto {
   nameAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  department: string;
+  departmentId: string;
+  departmentName: string;
   targetSkills: string[];
   trainingForm: string;
   impactIndicators: string[];
@@ -25,7 +26,7 @@ export interface CreateTrackDto {
   nameAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  department: string;
+  departmentId: string;
   targetSkills: string[];
   trainingForm: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   impactIndicators: string[];
@@ -37,7 +38,7 @@ export interface UpdateTrackDto {
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  department?: string;
+  departmentId?: string;
   targetSkills?: string[];
   trainingForm?: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   impactIndicators?: string[];

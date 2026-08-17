@@ -44,34 +44,32 @@ export async function seedDemo(organizationId: string): Promise<void> {
       name: 'Admin User',
       role: 'ADMIN',
     });
-    const hr = await upsertPortalUser({
-      organizationId,
-      email: 'hr@demo.electropi.ai',
-      name: 'HR User',
-      role: 'HR',
-    });
     const manager = await upsertPortalUser({
       organizationId,
       email: 'manager@demo.electropi.ai',
       name: 'Khaled Manager',
-      role: 'MANAGER',
+      role: 'DEPARTMENT_MANAGER',
       passwordHash: await hashPassword('Demo12345!'),
     });
     const contentManager = await upsertPortalUser({
       organizationId,
       email: 'content@demo.electropi.ai',
       name: 'Omar Content',
-      role: 'CONTENT_MANAGER',
+      role: 'CONTENT_CREATOR',
     });
     void admin;
-    void hr;
 
     // ── Team ─────────────────────────────────────────────────────────────
     const team = await upsertByUniqueName(
       () => prisma.team.findFirst({ where: { organizationId, name: 'Cairo Sales Team' } }),
       () =>
         prisma.team.create({
-          data: { organizationId, managerId: manager.id, name: 'Cairo Sales Team' },
+          data: {
+            organizationId,
+            managerId: manager.id,
+            departmentId: salesTrack.departmentId,
+            name: 'Cairo Sales Team',
+          },
         }),
     );
 
@@ -322,7 +320,7 @@ async function upsertPortalUser(input: {
   organizationId: string;
   email: string;
   name: string;
-  role: 'ADMIN' | 'HR' | 'MANAGER' | 'CONTENT_MANAGER';
+  role: 'ADMIN' | 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR';
   passwordHash?: string;
 }) {
   return prisma.portalUser.upsert({

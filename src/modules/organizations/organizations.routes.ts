@@ -22,7 +22,7 @@ export function createOrganizationsRouter(): Router {
 
   router.patch(
     '/me',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ body: updateOrganizationSchema }),
     (req, res, next) => {
       controller.updateOwn(req, res).catch(next);

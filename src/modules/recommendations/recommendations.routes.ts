@@ -16,7 +16,7 @@ import {
 } from './validators/recommendation.validators.js';
 
 const controller = new RecommendationController();
-const WRITE_ROLES = ['MANAGER', 'ADMIN'] as const;
+const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
 
 async function resolveManagerIdByLearner(req: { params: { id?: string } }): Promise<string | null> {
   const learnerId = req.params.id;

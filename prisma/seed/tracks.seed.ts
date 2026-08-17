@@ -446,10 +446,22 @@ export const TRACKS: TrackSeed[] = [
   },
 ];
 
+/** Idempotent — upserts by `(organizationId, name)`, safe to re-run (P1-8). */
+async function upsertDepartment(organizationId: string, name: string): Promise<string> {
+  const department = await prisma.department.upsert({
+    where: { organizationId_name: { organizationId, name } },
+    create: { organizationId, name },
+    update: {},
+  });
+  return department.id;
+}
+
 /** Idempotent — upserts by `(organizationId, key)`, safe to re-run (P1-8). */
 export async function seedTracks(organizationId: string): Promise<void> {
   await runWithTenant(organizationId, async () => {
     for (const [trackOrder, track] of TRACKS.entries()) {
+      const departmentId = await upsertDepartment(organizationId, track.department);
+
       const trackRow = await prisma.track.upsert({
         where: { organizationId_key: { organizationId, key: track.key } },
         create: {
@@ -459,7 +471,7 @@ export async function seedTracks(organizationId: string): Promise<void> {
           nameAr: track.nameAr,
           descriptionEn: track.descriptionEn,
           descriptionAr: track.descriptionAr,
-          department: track.department,
+          departmentId,
           targetSkills: track.targetSkills,
           trainingForm: track.trainingForm,
           impactIndicators: track.impactIndicators,
@@ -470,7 +482,7 @@ export async function seedTracks(organizationId: string): Promise<void> {
           nameAr: track.nameAr,
           descriptionEn: track.descriptionEn,
           descriptionAr: track.descriptionAr,
-          department: track.department,
+          departmentId,
           targetSkills: track.targetSkills,
           trainingForm: track.trainingForm,
           impactIndicators: track.impactIndicators,

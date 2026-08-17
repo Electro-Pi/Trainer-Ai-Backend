@@ -13,11 +13,11 @@ import {
 
 const controller = new DirectoryController();
 
-/** `TM-01`, `TM-06` — team-building lookups, so MANAGER (own team) + ADMIN only. */
+/** `TM-01`, `TM-06` — team-building lookups, so DEPARTMENT_MANAGER (own team) + ADMIN only. */
 export function createDirectoryRouter(): Router {
   const router = Router();
 
-  router.use(authenticate(), tenantScope(), authorize('MANAGER', 'ADMIN'));
+  router.use(authenticate(), tenantScope(), authorize('DEPARTMENT_MANAGER', 'ADMIN'));
 
   router.get('/search', validate({ query: directorySearchFilterSchema }), (req, res, next) => {
     controller.search(req, res).catch(next);

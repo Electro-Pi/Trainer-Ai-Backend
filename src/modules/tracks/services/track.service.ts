@@ -1,6 +1,7 @@
 import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
+import { departmentRepository } from '@/modules/departments/departments.module.js';
 
 import type { CreateTrackDto, TrackFilterDto, UpdateTrackDto } from '../dto/track.dto.js';
 import { TrackRepository, type Track } from '../repositories/track.repository.js';
@@ -31,6 +32,35 @@ export class TrackService {
     return track;
   }
 
+  /** `TrackResponseDto.departmentName` read-through — resolves the readable name behind a track's `departmentId`. */
+  async getDepartmentName(trackId: string): Promise<string | null> {
+    return this.tracks.findDepartmentName(trackId);
+  }
+
+  /**
+   * Validates that `departmentId` names an active `Department` in the
+   * caller's org before it's written to `Track.departmentId`. `Department`
+   * isn't a tenant-scoped model on the Prisma extension (ARCHITECTURE §7.3),
+   * so `organizationId` is filtered explicitly here — same reasoning
+   * `OrganizationRepository`'s doc comment gives for its own unscoped reads.
+   */
+  private async resolveDepartmentId(actor: ActingUser, departmentId: string): Promise<string> {
+    const department = await departmentRepository.findByIdScoped(
+      departmentId,
+      actor.organizationId,
+    );
+    if (!department) {
+      throw new ValidationError([
+        {
+          path: 'departmentId',
+          code: 'invalid',
+          message: 'departmentId must reference a department in this organization',
+        },
+      ]);
+    }
+    return department.id;
+  }
+
   async create(actor: ActingUser, dto: CreateTrackDto): Promise<Track> {
     const existing = await this.tracks.findByKey(dto.key);
     if (existing) {
@@ -39,13 +69,15 @@ export class TrackService {
       ]);
     }
 
+    const departmentId = await this.resolveDepartmentId(actor, dto.departmentId);
+
     const created = await this.tracks.create({
       key: dto.key,
       nameEn: dto.nameEn,
       nameAr: dto.nameAr,
       descriptionEn: dto.descriptionEn,
       descriptionAr: dto.descriptionAr,
-      department: dto.department,
+      departmentId,
       targetSkills: dto.targetSkills,
       trainingForm: dto.trainingForm,
       impactIndicators: dto.impactIndicators,
@@ -68,12 +100,17 @@ export class TrackService {
   async update(actor: ActingUser, id: string, dto: UpdateTrackDto): Promise<Track> {
     const before = await this.getById(id);
 
+    const departmentId =
+      dto.departmentId !== undefined
+        ? await this.resolveDepartmentId(actor, dto.departmentId)
+        : undefined;
+
     const updated = await this.tracks.update(id, {
       ...(dto.nameEn !== undefined ? { nameEn: dto.nameEn } : {}),
       ...(dto.nameAr !== undefined ? { nameAr: dto.nameAr } : {}),
       ...(dto.descriptionEn !== undefined ? { descriptionEn: dto.descriptionEn } : {}),
       ...(dto.descriptionAr !== undefined ? { descriptionAr: dto.descriptionAr } : {}),
-      ...(dto.department !== undefined ? { department: dto.department } : {}),
+      ...(departmentId !== undefined ? { departmentId } : {}),
       ...(dto.targetSkills !== undefined ? { targetSkills: dto.targetSkills } : {}),
       ...(dto.trainingForm !== undefined ? { trainingForm: dto.trainingForm } : {}),
       ...(dto.impactIndicators !== undefined ? { impactIndicators: dto.impactIndicators } : {}),

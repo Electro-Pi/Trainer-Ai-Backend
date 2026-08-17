@@ -7,7 +7,7 @@ import {
   passwordSchema,
 } from '@/common/validators/primitives.js';
 
-const roleSchema = z.enum(['MANAGER', 'HR', 'CONTENT_MANAGER', 'ADMIN']);
+const roleSchema = z.enum(['DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN']);
 const localeSchema = z.enum(['EN', 'AR']);
 
 export const createPortalUserSchema = z.object({

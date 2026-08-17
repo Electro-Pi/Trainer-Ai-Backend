@@ -13,9 +13,9 @@ import {
 const app = createApp();
 
 describe('RBAC: teams module (§7.2 ownership matrix)', () => {
-  it('a MANAGER can create a team for themself and read it back', async () => {
+  it('a DEPARTMENT_MANAGER can create a team for themself and read it back', async () => {
     const org = await createTestOrganization();
-    const { user, authHeader } = await createAuthedUser(org.id, 'MANAGER');
+    const { user, authHeader } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
 
     const createRes = await request(app)
       .post('/api/v1/teams')
@@ -30,22 +30,22 @@ describe('RBAC: teams module (§7.2 ownership matrix)', () => {
     expect(getRes.status).toBe(200);
   });
 
-  it('a MANAGER cannot read a team they do not manage', async () => {
+  it('a DEPARTMENT_MANAGER cannot read a team they do not manage', async () => {
     const org = await createTestOrganization();
-    const { user: otherManager } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: otherManager } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const team = await createTeam(org.id, otherManager.id);
 
-    const { authHeader } = await createAuthedUser(org.id, 'MANAGER');
+    const { authHeader } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const res = await request(app).get(`/api/v1/teams/${team.id}`).set('Authorization', authHeader);
     expect(res.status).toBe(403);
   });
 
-  it('a MANAGER cannot update a team they do not manage', async () => {
+  it('a DEPARTMENT_MANAGER cannot update a team they do not manage', async () => {
     const org = await createTestOrganization();
-    const { user: otherManager } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: otherManager } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const team = await createTeam(org.id, otherManager.id);
 
-    const { authHeader } = await createAuthedUser(org.id, 'MANAGER');
+    const { authHeader } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const res = await request(app)
       .patch(`/api/v1/teams/${team.id}`)
       .set('Authorization', authHeader)
@@ -53,25 +53,9 @@ describe('RBAC: teams module (§7.2 ownership matrix)', () => {
     expect(res.status).toBe(403);
   });
 
-  it('HR reads org-wide (any team) but per AU-05 has no write route available to it', async () => {
-    const org = await createTestOrganization();
-    const { user: manager } = await createAuthedUser(org.id, 'MANAGER');
-    const team = await createTeam(org.id, manager.id);
-
-    const { authHeader: hrAuth } = await createAuthedUser(org.id, 'HR');
-    const getRes = await request(app).get(`/api/v1/teams/${team.id}`).set('Authorization', hrAuth);
-    expect(getRes.status).toBe(200);
-
-    const createRes = await request(app)
-      .post('/api/v1/teams')
-      .set('Authorization', hrAuth)
-      .send({ name: 'HR-created team', managerId: manager.id });
-    expect(createRes.status).toBe(403);
-  });
-
   it('ADMIN reaches any team, including write', async () => {
     const org = await createTestOrganization();
-    const { user: manager } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: manager } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const team = await createTeam(org.id, manager.id);
 
     const { authHeader: adminAuth } = await createAuthedUser(org.id, 'ADMIN');
@@ -87,9 +71,9 @@ describe('RBAC: teams module (§7.2 ownership matrix)', () => {
     expect(updateRes.status).toBe(200);
   });
 
-  it('CONTENT_MANAGER has no row in the teams access matrix', async () => {
+  it('CONTENT_CREATOR has no row in the teams access matrix', async () => {
     const org = await createTestOrganization();
-    const { authHeader } = await createAuthedUser(org.id, 'CONTENT_MANAGER');
+    const { authHeader } = await createAuthedUser(org.id, 'CONTENT_CREATOR');
     const res = await request(app).get('/api/v1/teams').set('Authorization', authHeader);
     expect(res.status).toBe(403);
   });
@@ -103,9 +87,9 @@ describe('RBAC: users module is ADMIN-only', () => {
     expect(res.status).toBe(200);
   });
 
-  it('MANAGER, HR and CONTENT_MANAGER are all refused', async () => {
+  it('DEPARTMENT_MANAGER and CONTENT_CREATOR are both refused', async () => {
     const org = await createTestOrganization();
-    for (const role of ['MANAGER', 'HR', 'CONTENT_MANAGER'] as const) {
+    for (const role of ['DEPARTMENT_MANAGER', 'CONTENT_CREATOR'] as const) {
       const { authHeader } = await createAuthedUser(org.id, role);
       const res = await request(app).get('/api/v1/users').set('Authorization', authHeader);
       expect(res.status).toBe(403);
@@ -114,10 +98,10 @@ describe('RBAC: users module is ADMIN-only', () => {
 });
 
 describe('Tenancy: cross-org isolation proven per model', () => {
-  it('a MANAGER token from org A cannot read a team in org B (404, not leaked)', async () => {
+  it('a DEPARTMENT_MANAGER token from org A cannot read a team in org B (404, not leaked)', async () => {
     const orgA = await createTestOrganization();
     const orgB = await createTestOrganization();
-    const { user: managerB } = await createAuthedUser(orgB.id, 'MANAGER');
+    const { user: managerB } = await createAuthedUser(orgB.id, 'DEPARTMENT_MANAGER');
     const teamInOrgB = await createTeam(orgB.id, managerB.id);
 
     const { authHeader: adminAAuth } = await createAuthedUser(orgA.id, 'ADMIN');

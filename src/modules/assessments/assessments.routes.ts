@@ -16,7 +16,7 @@ import {
 } from './validators/assessment.validators.js';
 
 const controller = new AssessmentController();
-const WRITE_ROLES = ['MANAGER', 'CONTENT_MANAGER', 'ADMIN'] as const;
+const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'] as const;
 
 /** Nested under `/outcomes/:id/...` — any signed-in portal role reads, MANAGER/CONTENT_MANAGER/ADMIN write (§7.2). */
 export function createOutcomeAssessmentsRouter(): Router {

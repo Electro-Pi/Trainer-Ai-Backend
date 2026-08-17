@@ -1,5 +1,6 @@
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
+import { departmentRepository } from '@/modules/departments/departments.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 
 import type { ImportLearnerDto } from '../dto/learner.dto.js';
@@ -23,6 +24,30 @@ export interface ImportOutcome {
  */
 export class LearnerImportService {
   private readonly learners = new LearnerRepository();
+
+  /**
+   * The directory/CSV import only ever supplies a free-text department name
+   * (`ImportLearnerDto.department`, unlike `Track`/`UpdateLearnerDto` which
+   * already take a resolved `departmentId` from an authenticated caller) —
+   * this resolves it to the org's existing `Department` row by name, or
+   * creates one on first sight, same "resolve or create" shape as
+   * `TeamService.resolveManagerId` but for a value that has no guaranteed
+   * prior row. `Department` isn't a tenant-scoped model on the Prisma
+   * extension (ARCHITECTURE §7.3), so `organizationId` is filtered/stamped
+   * explicitly.
+   */
+  private async resolveDepartmentIdByName(
+    organizationId: string,
+    name: string | undefined,
+  ): Promise<string | null> {
+    if (!name) return null;
+
+    const existing = await departmentRepository.findByName(organizationId, name);
+    if (existing) return existing.id;
+
+    const created = await departmentRepository.create({ organizationId, name } as never);
+    return created.id;
+  }
 
   private parseCsv(csv: string): ImportLearnerDto[] {
     const lines = csv
@@ -83,13 +108,18 @@ export class LearnerImportService {
         continue;
       }
 
+      const departmentId = await this.resolveDepartmentIdByName(
+        actor.organizationId,
+        entry.department,
+      );
+
       const created = await this.learners.create({
         teamId,
         entraObjectId: entry.entraObjectId,
         email: entry.email,
         displayName: entry.displayName,
         jobTitle: entry.jobTitle ?? null,
-        department: entry.department ?? null,
+        departmentId,
         preferredLanguage: entry.preferredLanguage ?? 'EN',
       } as never);
 

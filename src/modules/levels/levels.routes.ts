@@ -29,7 +29,7 @@ export function createTrackLevelsRouter(): Router {
 
   router.post(
     '/',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: trackIdParamsSchema, body: createLevelSchema }),
     (req, res, next) => {
       controller.create(req, res).catch(next);
@@ -38,7 +38,7 @@ export function createTrackLevelsRouter(): Router {
 
   router.patch(
     '/reorder',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: trackIdParamsSchema, body: reorderLevelsSchema }),
     (req, res, next) => {
       controller.reorder(req, res).catch(next);
@@ -60,7 +60,7 @@ export function createLevelsRouter(): Router {
 
   router.patch(
     '/:id',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: levelIdParamsSchema, body: updateLevelSchema }),
     (req, res, next) => {
       controller.update(req, res).catch(next);
@@ -69,7 +69,7 @@ export function createLevelsRouter(): Router {
 
   router.patch(
     '/:id/enabled',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: levelIdParamsSchema, body: setLevelEnabledSchema }),
     (req, res, next) => {
       controller.setEnabled(req, res).catch(next);
@@ -78,7 +78,7 @@ export function createLevelsRouter(): Router {
 
   router.delete(
     '/:id',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: levelIdParamsSchema }),
     (req, res, next) => {
       controller.delete(req, res).catch(next);

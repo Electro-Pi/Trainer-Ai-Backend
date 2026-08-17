@@ -18,6 +18,15 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
     return this.delegate.findMany({ where: { levelId }, orderBy: { order: 'asc' } });
   }
 
+  /** Every enabled outcome carrying one of these skills, across levels — the plan-snapshot deep-copy's per-skill outcome lookup. */
+  async findBySkillIds(skillIds: string[]): Promise<Outcome[]> {
+    if (skillIds.length === 0) return [];
+    return this.delegate.findMany({
+      where: { skillId: { in: skillIds }, isEnabled: true },
+      orderBy: { order: 'asc' },
+    });
+  }
+
   /** Same tenant-verification need as `LevelRepository.findByIdScoped` — see its doc comment. */
   async findByIdScoped(id: string): Promise<Outcome | null> {
     const organizationId = getCurrentOrganizationId();
@@ -62,6 +71,7 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
     return this.delegate.create({
       data: {
         levelId: source.levelId,
+        skillId: source.skillId,
         titleEn: `${source.titleEn} (copy)`,
         titleAr: `${source.titleAr} (نسخة)`,
         descriptionEn: source.descriptionEn,

@@ -26,6 +26,39 @@ import { ExplainService } from './explain.service.js';
 import { OrderingService } from './ordering.service.js';
 import { ScorerService, type ScoredItem } from './scorer.service.js';
 
+/**
+ * Structural mirror of `training-plans`' `PlanTrackSnapshotTree` — declared
+ * independently rather than imported, since `training-plans` already
+ * imports this module (`PlanBuilderService` → `RecommendationService`) and
+ * an import the other direction would create a module dependency cycle
+ * (`import-x/no-cycle`, caught by this repo's own lint config). The caller
+ * (`PlanBuilderService`) fetches the tree and passes it in.
+ */
+export interface SnapshotTreeInput {
+  skills: {
+    isRemoved: boolean;
+    outcomes: {
+      id: string;
+      sourceOutcomeId: string | null;
+      titleEn: string;
+      titleAr: string;
+      descriptionEn: string;
+      descriptionAr: string;
+      order: number;
+      isRemoved: boolean;
+      createdAt: Date;
+      progress: {
+        id: string;
+        status: string;
+        attemptCount: number;
+        lastScore: number | null;
+        achievedAt: Date | null;
+      } | null;
+    }[];
+  }[];
+  content: { sourceContentId: string | null; isRemoved: boolean }[];
+}
+
 export type RecommendationTrigger =
   'LEVEL_ASSIGNED' | 'PLAN_BUILD' | 'SESSION_ENDED' | 'OUTCOME_FAILED' | 'LEVEL_CHANGED' | 'MANUAL';
 
@@ -201,26 +234,17 @@ export class RecommendationService {
     requiredOutcomes: LearnerOutcome[],
     mandatoryContentIds: Set<string>,
   ): Promise<RecommendationItemResult[]> {
-    const carriedOverOutcomeIds = new Set(
-      requiredOutcomes
-        .filter((lo) => lo.attemptCount > 0 && lo.status !== 'ACHIEVED')
-        .map((lo) => lo.outcomeId),
+    const explained = this.buildExplainedItems(
+      orderedItems,
+      outcomesById,
+      requiredOutcomes,
+      mandatoryContentIds,
     );
 
     const results: RecommendationItemResult[] = [];
-    // Own counter, not the loop index — an outcome missing from
-    // `outcomesById` (shouldn't happen, but `continue`s rather than throws)
-    // would otherwise leave a gap in persisted ranks.
     let rank = 0;
 
-    for (const scoredItem of orderedItems) {
-      const outcome = outcomesById.get(scoredItem.outcomeId);
-      if (!outcome) continue;
-
-      const isMandatory = mandatoryContentIds.has(scoredItem.contentItem.id);
-      const isCarriedOver = carriedOverOutcomeIds.has(scoredItem.outcomeId);
-      const explanation = this.explainer.explain(scoredItem, outcome, isMandatory, isCarriedOver);
-
+    for (const { scoredItem, explanation } of explained) {
       const created = await this.recommendationItems.create({
         recommendationId,
         contentItemId: scoredItem.contentItem.id,
@@ -249,6 +273,180 @@ export class RecommendationService {
     }
 
     return results;
+  }
+
+  /**
+   * Pure explain+rank step factored out of `persistItems` so the snapshot
+   * path (`generateFromSnapshot`) can reuse the exact same explain logic
+   * without writing `Recommendation`/`RecommendationItem` rows — those FK to
+   * master `Outcome`/`ContentItem` and a snapshot-sourced pick can't satisfy
+   * that constraint (confirmed: skip persistence for snapshot-based plans).
+   */
+  private buildExplainedItems(
+    orderedItems: ScoredItem[],
+    outcomesById: Map<string, Outcome>,
+    requiredOutcomes: LearnerOutcome[],
+    mandatoryContentIds: Set<string>,
+  ): { scoredItem: ScoredItem; explanation: ReturnType<ExplainService['explain']> }[] {
+    const carriedOverOutcomeIds = new Set(
+      requiredOutcomes
+        .filter((lo) => lo.attemptCount > 0 && lo.status !== 'ACHIEVED')
+        .map((lo) => lo.outcomeId),
+    );
+
+    const results: {
+      scoredItem: ScoredItem;
+      explanation: ReturnType<ExplainService['explain']>;
+    }[] = [];
+
+    for (const scoredItem of orderedItems) {
+      const outcome = outcomesById.get(scoredItem.outcomeId);
+      if (!outcome) continue;
+
+      const isMandatory = mandatoryContentIds.has(scoredItem.contentItem.id);
+      const isCarriedOver = carriedOverOutcomeIds.has(scoredItem.outcomeId);
+      const explanation = this.explainer.explain(scoredItem, outcome, isMandatory, isCarriedOver);
+
+      results.push({ scoredItem, explanation });
+    }
+
+    return results;
+  }
+
+  /**
+   * Snapshot-scoped sibling of `generate()` for a plan whose track was
+   * copied via `PlanSnapshotService` (wizard step2, confirmed design):
+   * candidates are built from `PlanContentSnapshot`/`PlanOutcomeSnapshot`
+   * (via `CandidatePoolService.buildPoolFromSnapshot`) instead of master
+   * `ContentItem`/`Outcome`, outcome ids in every result are
+   * `PlanOutcomeSnapshot.id`s. No `Recommendation`/`RecommendationItem` rows
+   * are persisted — this returns the ranked, explained result in-memory
+   * straight to the caller (`PlanBuilderService`), which is responsible for
+   * turning it into `Session`/`SessionContent` rows.
+   */
+  async generateFromSnapshot(params: {
+    snapshotTree: SnapshotTreeInput;
+    language: 'EN' | 'AR';
+    yearsOfExperience: number | null;
+    excludeContentItemIds?: ReadonlySet<string>;
+  }): Promise<{ items: RecommendationItemResult[]; coverageGaps: CoverageGap[] }> {
+    const activeOutcomes = params.snapshotTree.skills
+      .filter((skill) => !skill.isRemoved)
+      .flatMap((skill) => skill.outcomes)
+      .filter((outcome) => !outcome.isRemoved);
+
+    const outstandingOutcomeSnapshotIds = new Set(
+      activeOutcomes.filter((outcome) => outcome.progress?.status !== 'ACHIEVED').map((o) => o.id),
+    );
+
+    // Synthetic `Outcome`/`LearnerOutcome` shapes — only fields the scoring
+    // pipeline actually reads (`id`, `titleEn/Ar`, `descriptionEn/Ar`,
+    // `status`, `priority` via `order`, `attemptCount`) are populated with
+    // real snapshot data; everything else is an unused placeholder, never
+    // read by `scoreAndRank`/`coverageGaps`/`explainer` (verified against
+    // every call site in this file and the signal functions).
+    const outcomesById = new Map<string, Outcome>(
+      activeOutcomes.map((outcome) => [
+        outcome.id,
+        {
+          id: outcome.id,
+          levelId: '',
+          skillId: null,
+          titleEn: outcome.titleEn,
+          titleAr: outcome.titleAr,
+          descriptionEn: outcome.descriptionEn,
+          descriptionAr: outcome.descriptionAr,
+          targetSkills: [],
+          trainingForm: 'CONVERSATION',
+          order: outcome.order,
+          isEnabled: true,
+          createdAt: outcome.createdAt,
+          updatedAt: outcome.createdAt,
+        } as unknown as Outcome,
+      ]),
+    );
+
+    const requiredOutcomes: LearnerOutcome[] = activeOutcomes.map(
+      (outcome) =>
+        ({
+          id: outcome.progress?.id ?? outcome.id,
+          learnerId: '',
+          outcomeId: outcome.id,
+          assignmentId: '',
+          status: outcome.progress?.status ?? 'NOT_STARTED',
+          priority: outcome.order,
+          isCustom: false,
+          attemptCount: outcome.progress?.attemptCount ?? 0,
+          lastScore: outcome.progress?.lastScore ?? null,
+          achievedAt: outcome.progress?.achievedAt ?? null,
+          createdAt: outcome.createdAt,
+          updatedAt: outcome.createdAt,
+        }) as unknown as LearnerOutcome,
+    );
+
+    const outcomeSnapshotsWithSources = activeOutcomes.map((outcome) => ({
+      ...outcome,
+      sourceContentIds: [] as string[],
+    }));
+
+    // Content bound to each outcome comes from the snapshot's copied
+    // ContentItem links — resolved via the ORIGINAL master ContentOutcome
+    // bindings for every source outcome this snapshot outcome descended
+    // from, restricted to content this snapshot actually kept a copy of.
+    const contentSnapshotBySourceId = new Set(
+      params.snapshotTree.content
+        .filter((c) => !c.isRemoved && c.sourceContentId)
+        .map((c) => c.sourceContentId!),
+    );
+    for (const outcome of outcomeSnapshotsWithSources) {
+      if (!outcome.sourceOutcomeId) continue;
+      const bindings = await contentOutcomeRepository.findByOutcome(outcome.sourceOutcomeId);
+      outcome.sourceContentIds = bindings
+        .map((b) => b.contentItemId)
+        .filter((contentId) => contentSnapshotBySourceId.has(contentId));
+    }
+
+    const pool = await this.candidatePool.buildPoolFromSnapshot({
+      outcomeSnapshots: outcomeSnapshotsWithSources,
+      language: params.language,
+      outstandingOutcomeSnapshotIds,
+      ...(params.excludeContentItemIds
+        ? { excludeContentItemIds: params.excludeContentItemIds }
+        : {}),
+    });
+
+    const scored = await this.scoreAndRank(
+      pool,
+      requiredOutcomes,
+      outcomesById,
+      params.yearsOfExperience,
+    );
+
+    const gaps = this.coverageGaps.detect(requiredOutcomes, outcomesById, scored);
+
+    const explained = this.buildExplainedItems(
+      scored,
+      outcomesById,
+      requiredOutcomes,
+      pool.mandatoryContentIds,
+    );
+
+    const items: RecommendationItemResult[] = explained.map(
+      ({ scoredItem, explanation }, rank) => ({
+        id: `snapshot-${scoredItem.contentItem.id}-${scoredItem.outcomeId}`,
+        contentItemId: scoredItem.contentItem.id,
+        outcomeId: scoredItem.outcomeId,
+        rank,
+        score: scoredItem.score,
+        reasonCode: explanation.reasonCode,
+        reasonEn: explanation.reasonEn,
+        reasonAr: explanation.reasonAr,
+        signalBreakdown: scoredItem.signalBreakdown,
+        status: 'PROPOSED',
+      }),
+    );
+
+    return { items, coverageGaps: gaps };
   }
 
   /** `MANUAL` trigger (`RC-16`) — same pipeline, no level change. */

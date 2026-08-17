@@ -1,7 +1,11 @@
 import type { ContentItem } from '@/modules/content/content.module.js';
 import { contentItemRepository } from '@/modules/content/content.module.js';
 import type { LearnerOutcome } from '@/modules/learners/learners.module.js';
-import { learnerOutcomeRepository } from '@/modules/learners/learners.module.js';
+import {
+  learnerExperienceRepository,
+  learnerOutcomeRepository,
+  learnerRepository,
+} from '@/modules/learners/learners.module.js';
 import type {
   RecommendationItemResult,
   ScoredItem,
@@ -10,6 +14,8 @@ import {
   DurationFitService,
   RecommendationService,
 } from '@/modules/recommendations/recommendations.module.js';
+
+import { PlanTrackSnapshotRepository } from '../repositories/plan-track-snapshot.repository.js';
 
 const DEFAULT_SESSION_DURATION_MINUTES = 60;
 
@@ -37,22 +43,22 @@ export interface SuggestedBreakdown {
 export class PlanBuilderService {
   private readonly recommendations = new RecommendationService();
   private readonly durationFit = new DurationFitService();
+  private readonly snapshots = new PlanTrackSnapshotRepository();
 
   async suggest(params: {
     organizationId: string;
+    trainingPlanId: string;
     learnerId: string;
     trainingDays: number;
     sessionDurationMinutes?: number;
   }): Promise<SuggestedBreakdown> {
     const durationMinutes = params.sessionDurationMinutes ?? DEFAULT_SESSION_DURATION_MINUTES;
 
-    const { items } = await this.recommendations.generate({
-      organizationId: params.organizationId,
-      learnerId: params.learnerId,
-      trigger: 'PLAN_BUILD',
-    });
+    const snapshotTree = await this.snapshots.findByTrainingPlanId(params.trainingPlanId);
 
-    const requiredOutcomes = await learnerOutcomeRepository.findByLearner(params.learnerId);
+    const { items, requiredOutcomes } = snapshotTree
+      ? await this.generateFromSnapshotTree(params.learnerId, snapshotTree)
+      : await this.generateFromMasterCatalogue(params.organizationId, params.learnerId);
 
     // No content items exist to recommend yet (the org hasn't authored any) —
     // rather than refusing to build a plan at all, fall back to one session
@@ -102,6 +108,74 @@ export class PlanBuilderService {
     }
 
     return { sessions, deferredItemCount: remainingItems.length };
+  }
+
+  /** Master-catalogue path — today's existing `PLAN_BUILD` pipeline, unchanged. */
+  private async generateFromMasterCatalogue(
+    organizationId: string,
+    learnerId: string,
+  ): Promise<{ items: RecommendationItemResult[]; requiredOutcomes: LearnerOutcome[] }> {
+    const { items } = await this.recommendations.generate({
+      organizationId,
+      learnerId,
+      trigger: 'PLAN_BUILD',
+    });
+    const requiredOutcomes = await learnerOutcomeRepository.findByLearner(learnerId);
+    return { items, requiredOutcomes };
+  }
+
+  /**
+   * Snapshot path — this plan's track was copied via `PlanSnapshotService`
+   * (wizard step2, confirmed design). Scores/ranks against the plan-scoped
+   * copy instead of the master catalogue, via
+   * `RecommendationService.generateFromSnapshot`. `requiredOutcomes` here is
+   * a synthetic `LearnerOutcome[]`-shaped array keyed to
+   * `PlanOutcomeSnapshot.id`s (not real `Outcome.id`s) — every downstream
+   * consumer in this file (`pickPrimaryOutcome`, `suggestFromOutcomesOnly`)
+   * only reads `.outcomeId`/`.priority`/`.status`, so this is safe.
+   */
+  private async generateFromSnapshotTree(
+    learnerId: string,
+    snapshotTree: NonNullable<
+      Awaited<ReturnType<PlanTrackSnapshotRepository['findByTrainingPlanId']>>
+    >,
+  ): Promise<{ items: RecommendationItemResult[]; requiredOutcomes: LearnerOutcome[] }> {
+    const learner = await learnerRepository.findByIdScoped(learnerId);
+    if (!learner) {
+      throw new Error(`Learner ${learnerId} not found`);
+    }
+    const experience = await learnerExperienceRepository.findByLearner(learnerId);
+
+    const activeOutcomes = snapshotTree.skills
+      .filter((skill) => !skill.isRemoved)
+      .flatMap((skill) => skill.outcomes)
+      .filter((outcome) => !outcome.isRemoved);
+
+    const requiredOutcomes: LearnerOutcome[] = activeOutcomes.map(
+      (outcome) =>
+        ({
+          id: outcome.progress?.id ?? outcome.id,
+          learnerId,
+          outcomeId: outcome.id,
+          assignmentId: '',
+          status: outcome.progress?.status ?? 'NOT_STARTED',
+          priority: outcome.order,
+          isCustom: false,
+          attemptCount: outcome.progress?.attemptCount ?? 0,
+          lastScore: outcome.progress?.lastScore ?? null,
+          achievedAt: outcome.progress?.achievedAt ?? null,
+          createdAt: outcome.createdAt,
+          updatedAt: outcome.createdAt,
+        }) as unknown as LearnerOutcome,
+    );
+
+    const { items } = await this.recommendations.generateFromSnapshot({
+      snapshotTree,
+      language: learner.preferredLanguage,
+      yearsOfExperience: experience?.yearsOfExperience ?? null,
+    });
+
+    return { items, requiredOutcomes };
   }
 
   /**

@@ -14,13 +14,20 @@ const TTL_SECONDS = 600;
 export class PkceStoreService {
   private readonly pkceEntries = new PkceEntryRepository();
 
-  async save(state: string, codeVerifier: string): Promise<void> {
-    await this.pkceEntries.upsert(state, codeVerifier, new Date(Date.now() + TTL_SECONDS * 1000));
+  async save(state: string, codeVerifier: string, inviteToken?: string): Promise<void> {
+    await this.pkceEntries.upsert(
+      state,
+      codeVerifier,
+      new Date(Date.now() + TTL_SECONDS * 1000),
+      inviteToken,
+    );
   }
 
-  async consume(state: string): Promise<string | null> {
+  async consume(
+    state: string,
+  ): Promise<{ codeVerifier: string; inviteToken: string | null } | null> {
     const entry = await this.pkceEntries.consume(state);
     if (!entry || entry.expiresAt < new Date()) return null;
-    return entry.codeVerifier;
+    return { codeVerifier: entry.codeVerifier, inviteToken: entry.inviteToken };
   }
 }

@@ -67,7 +67,7 @@ export async function processSendReportJob(payload: QueuePayloads['report.send']
 
     for (const recipient of recipients) {
       const senderPortalUserId =
-        recipient.role === 'MANAGER' ? recipient.portalUserId : plan?.createdById;
+        recipient.role === 'DEPARTMENT_MANAGER' ? recipient.portalUserId : plan?.createdById;
 
       await emailService.send({
         to: recipient.email,

@@ -9,7 +9,7 @@ import { portalUserRepository } from '@/modules/users/users.module.js';
 import { queueService } from '@/queue/queue-instance.js';
 
 export interface ReportRecipient {
-  role: 'MANAGER' | 'LEARNER';
+  role: 'DEPARTMENT_MANAGER' | 'LEARNER';
   portalUserId?: string;
   email: string;
   name: string;
@@ -55,7 +55,7 @@ export function registerSessionCompletedHandlers(): void {
       });
       if (manager) {
         addRecipient(manager.locale, {
-          role: 'MANAGER',
+          role: 'DEPARTMENT_MANAGER',
           portalUserId: manager.id,
           email: manager.email,
           name: manager.name,

@@ -26,6 +26,17 @@ export class SkillRepository extends BaseRepository<Skill, SkillDelegate> {
     return this.delegate.findFirst({ where: { id } });
   }
 
+  /** Batched form of `findByIdScoped` — `Skill` is directly tenant-scoped, so `findMany` is safe. */
+  async findManyByIds(ids: string[]): Promise<Skill[]> {
+    if (ids.length === 0) return [];
+    return this.delegate.findMany({ where: { id: { in: ids } } });
+  }
+
+  /** A level's skills, ordered by name — the level-scoped skill catalogue (`Skill.levelId`). */
+  async findByLevel(levelId: string): Promise<Skill[]> {
+    return this.delegate.findMany({ where: { levelId }, orderBy: { nameEn: 'asc' } });
+  }
+
   async duplicate(sourceId: string, newKey: string): Promise<Skill> {
     const source = await this.findByIdScoped(sourceId);
     if (!source) {
@@ -41,7 +52,7 @@ export class SkillRepository extends BaseRepository<Skill, SkillDelegate> {
         category: source.category,
         descriptionEn: source.descriptionEn,
         descriptionAr: source.descriptionAr,
-        targetTracks: source.targetTracks,
+        levelId: source.levelId,
         levels: source.levels,
         assessmentEnabled: source.assessmentEnabled,
         isEnabled: false,

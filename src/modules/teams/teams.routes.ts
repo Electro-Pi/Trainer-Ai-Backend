@@ -24,7 +24,7 @@ async function resolveManagerId(req: { params: { id?: string } }): Promise<strin
   return team?.managerId ?? null;
 }
 
-/** §7.2: MANAGER reaches only their own team; HR reads org-wide; CONTENT_MANAGER has no row here. */
+/** §7.2: DEPARTMENT_MANAGER reaches only their own team; ADMIN reads org-wide; CONTENT_CREATOR has no row here. */
 export function createTeamsRouter(): Router {
   const router = Router();
 
@@ -32,7 +32,7 @@ export function createTeamsRouter(): Router {
 
   router.get(
     '/',
-    authorize('MANAGER', 'HR', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ query: teamFilterSchema }),
     (req, res, next) => {
       controller.list(req, res).catch(next);
@@ -50,7 +50,7 @@ export function createTeamsRouter(): Router {
 
   router.post(
     '/',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ body: createTeamSchema }),
     (req, res, next) => {
       controller.create(req, res).catch(next);
@@ -59,7 +59,7 @@ export function createTeamsRouter(): Router {
 
   router.patch(
     '/:id',
-    authorize('MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ params: teamIdParamsSchema, body: updateTeamSchema }),
     requireTeamAccess(resolveManagerId),
     (req, res, next) => {

@@ -15,6 +15,7 @@ export const QUEUE_NAMES = [
   'outcome.escalate',
   'cleanup',
   'health.alert',
+  'invite.send',
 ] as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[number];
@@ -32,6 +33,7 @@ export interface QueuePayloads {
   'outcome.escalate': { learnerId: string; organizationId: string; outcomeId: string };
   cleanup: { organizationId?: string };
   'health.alert': Record<string, never>;
+  'invite.send': { portalInviteId: string; organizationId: string };
 }
 
 export interface QueueRetryOptions {
@@ -58,4 +60,5 @@ export const QUEUE_DEFAULT_JOB_OPTIONS: Record<QueueName, QueueRetryOptions> = {
   'outcome.escalate': { retryLimit: 0 },
   cleanup: { retryLimit: 0 },
   'health.alert': { retryLimit: 0 },
+  'invite.send': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
 };

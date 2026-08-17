@@ -138,6 +138,7 @@ export class TrainingPlanService {
 
     const breakdown = await this.planBuilder.suggest({
       organizationId: actor.organizationId,
+      trainingPlanId: plan.id,
       learnerId: plan.learnerId,
       trainingDays: plan.trainingDays,
       ...(sessionDurationMinutes !== undefined ? { sessionDurationMinutes } : {}),

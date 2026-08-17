@@ -7,8 +7,20 @@ import { validate } from '@/common/pipes/validate.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 
+import { PlanSnapshotController } from './controllers/plan-snapshot.controller.js';
 import { TrainingPlanController } from './controllers/training-plan.controller.js';
 import { TrainingPlanRepository } from './repositories/training-plan.repository.js';
+import {
+  addPlanContentSnapshotSchema,
+  addPlanOutcomeSnapshotSchema,
+  addPlanSkillSnapshotSchema,
+  contentSnapshotIdParamsSchema,
+  outcomeSnapshotIdParamsSchema,
+  skillSnapshotIdParamsSchema,
+  updatePlanContentSnapshotSchema,
+  updatePlanOutcomeSnapshotSchema,
+  updatePlanSkillSnapshotSchema,
+} from './validators/plan-snapshot.validators.js';
 import {
   createTrainingPlanSchema,
   planIdParamsSchema,
@@ -19,8 +31,9 @@ import {
 } from './validators/training-plan.validators.js';
 
 const controller = new TrainingPlanController();
+const snapshotController = new PlanSnapshotController();
 const plansRepo = new TrainingPlanRepository();
-const WRITE_ROLES = ['MANAGER', 'ADMIN'] as const;
+const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
 
 async function resolveManagerIdByLearnerInBody(req: {
   body: { learnerId?: string };
@@ -98,6 +111,116 @@ export function createTrainingPlansRouter(): Router {
     requireTeamAccess(resolveManagerIdByPlan),
     (req, res, next) => {
       controller.coverage(req, res).catch(next);
+    },
+  );
+
+  // ── Plan-scoped catalogue snapshot (wizard step2) ──────────────────────
+  router.post(
+    '/:id/snapshot',
+    authorize(...WRITE_ROLES),
+    validate({ params: planIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.create(req, res).catch(next);
+    },
+  );
+
+  router.get(
+    '/:id/snapshot',
+    validate({ params: planIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.getTree(req, res).catch(next);
+    },
+  );
+
+  router.post(
+    '/:id/snapshot/skills',
+    authorize(...WRITE_ROLES),
+    validate({ params: planIdParamsSchema, body: addPlanSkillSnapshotSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.addSkill(req, res).catch(next);
+    },
+  );
+
+  router.patch(
+    '/:id/snapshot/skills/:skillSnapshotId',
+    authorize(...WRITE_ROLES),
+    validate({ params: skillSnapshotIdParamsSchema, body: updatePlanSkillSnapshotSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.updateSkill(req, res).catch(next);
+    },
+  );
+
+  router.delete(
+    '/:id/snapshot/skills/:skillSnapshotId',
+    authorize(...WRITE_ROLES),
+    validate({ params: skillSnapshotIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.removeSkill(req, res).catch(next);
+    },
+  );
+
+  router.post(
+    '/:id/snapshot/skills/:skillSnapshotId/outcomes',
+    authorize(...WRITE_ROLES),
+    validate({ params: skillSnapshotIdParamsSchema, body: addPlanOutcomeSnapshotSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.addOutcome(req, res).catch(next);
+    },
+  );
+
+  router.patch(
+    '/:id/snapshot/outcomes/:outcomeSnapshotId',
+    authorize(...WRITE_ROLES),
+    validate({ params: outcomeSnapshotIdParamsSchema, body: updatePlanOutcomeSnapshotSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.updateOutcome(req, res).catch(next);
+    },
+  );
+
+  router.delete(
+    '/:id/snapshot/outcomes/:outcomeSnapshotId',
+    authorize(...WRITE_ROLES),
+    validate({ params: outcomeSnapshotIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.removeOutcome(req, res).catch(next);
+    },
+  );
+
+  router.post(
+    '/:id/snapshot/content',
+    authorize(...WRITE_ROLES),
+    validate({ params: planIdParamsSchema, body: addPlanContentSnapshotSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.addContent(req, res).catch(next);
+    },
+  );
+
+  router.patch(
+    '/:id/snapshot/content/:contentSnapshotId',
+    authorize(...WRITE_ROLES),
+    validate({ params: contentSnapshotIdParamsSchema, body: updatePlanContentSnapshotSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.updateContent(req, res).catch(next);
+    },
+  );
+
+  router.delete(
+    '/:id/snapshot/content/:contentSnapshotId',
+    authorize(...WRITE_ROLES),
+    validate({ params: contentSnapshotIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.removeContent(req, res).catch(next);
     },
   );
 

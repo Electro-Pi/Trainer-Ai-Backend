@@ -16,6 +16,7 @@ function toResponseDto(outcome: Outcome): OutcomeResponseDto {
   return {
     id: outcome.id,
     levelId: outcome.levelId,
+    skillId: outcome.skillId,
     titleEn: outcome.titleEn,
     titleAr: outcome.titleAr,
     descriptionEn: outcome.descriptionEn,

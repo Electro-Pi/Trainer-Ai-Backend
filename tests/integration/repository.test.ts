@@ -68,7 +68,7 @@ describe('BaseRepository.findMany — cursor pagination (§4.3)', () => {
 describe('BaseRepository.findMany — cursor pagination on a DateTime sort field', () => {
   it('paging through a DateTime-sorted repository (TeamRepository.createdAt) visits every row exactly once', async () => {
     const org = await createTestOrganization();
-    const { user: manager } = await createAuthedUser(org.id, 'MANAGER');
+    const { user: manager } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
 
     const created = [];
     const baseTime = Date.now();

@@ -9,6 +9,7 @@ import { SkillController } from './controllers/skill.controller.js';
 import {
   createSkillSchema,
   duplicateSkillSchema,
+  levelIdParamsSchema,
   setSkillEnabledSchema,
   skillFilterSchema,
   skillIdParamsSchema,
@@ -17,7 +18,7 @@ import {
 
 const controller = new SkillController();
 
-/** Any signed-in portal role reads the catalogue; MANAGER/CONTENT_MANAGER/ADMIN write it — mirrors tracks.routes.ts. */
+/** Any signed-in portal role reads the catalogue; DEPARTMENT_MANAGER/CONTENT_CREATOR/ADMIN write it — mirrors tracks.routes.ts. */
 export function createSkillsRouter(): Router {
   const router = Router();
 
@@ -29,7 +30,7 @@ export function createSkillsRouter(): Router {
 
   router.post(
     '/',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ body: createSkillSchema }),
     (req, res, next) => {
       controller.create(req, res).catch(next);
@@ -42,7 +43,7 @@ export function createSkillsRouter(): Router {
 
   router.patch(
     '/:id',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: skillIdParamsSchema, body: updateSkillSchema }),
     (req, res, next) => {
       controller.update(req, res).catch(next);
@@ -51,7 +52,7 @@ export function createSkillsRouter(): Router {
 
   router.patch(
     '/:id/enabled',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: skillIdParamsSchema, body: setSkillEnabledSchema }),
     (req, res, next) => {
       controller.setEnabled(req, res).catch(next);
@@ -60,7 +61,7 @@ export function createSkillsRouter(): Router {
 
   router.post(
     '/:id/duplicate',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: skillIdParamsSchema, body: duplicateSkillSchema }),
     (req, res, next) => {
       controller.duplicate(req, res).catch(next);
@@ -69,10 +70,32 @@ export function createSkillsRouter(): Router {
 
   router.delete(
     '/:id',
-    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
     validate({ params: skillIdParamsSchema }),
     (req, res, next) => {
       controller.delete(req, res).catch(next);
+    },
+  );
+
+  return router;
+}
+
+/** Nested under `/levels/:levelId/skills` (mirrors `levelOutcomesRouter`) — list + create a level's skills. */
+export function createLevelSkillsRouter(): Router {
+  const router = Router({ mergeParams: true });
+
+  router.use(authenticate(), tenantScope());
+
+  router.get('/', validate({ params: levelIdParamsSchema }), (req, res, next) => {
+    controller.listByLevel(req, res).catch(next);
+  });
+
+  router.post(
+    '/',
+    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
+    validate({ params: levelIdParamsSchema, body: createSkillSchema.omit({ levelId: true }) }),
+    (req, res, next) => {
+      controller.createOnLevel(req, res).catch(next);
     },
   );
 
