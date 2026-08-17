@@ -32,6 +32,7 @@ import {
 } from '@/modules/recommendations/recommendations.module.js';
 import { reportsRouter } from '@/modules/reports/reports.module.js';
 import { rsvpWebhookRouter, sessionsRouter } from '@/modules/sessions/sessions.module.js';
+import { skillsRouter } from '@/modules/skills/skills.module.js';
 import { teamsRouter } from '@/modules/teams/teams.module.js';
 import { tracksRouter } from '@/modules/tracks/tracks.module.js';
 import { trainingPlansRouter } from '@/modules/training-plans/training-plans.module.js';
@@ -74,6 +75,7 @@ export function createApp(): Express {
   v1.use('/learners', learnerRecommendationsRouter);
   v1.use('/recommendations', recommendationsRouter);
   v1.use('/tracks', tracksRouter);
+  v1.use('/skills', skillsRouter);
   v1.use('/tracks/:trackId/levels', trackLevelsRouter);
   v1.use('/levels', levelsRouter);
   v1.use('/levels/:levelId/outcomes', levelOutcomesRouter);

@@ -35,12 +35,24 @@ export class PerformanceService {
   private async learnerRows(learnerIds: string[]): Promise<LearnerPerformanceRow[]> {
     if (learnerIds.length === 0) return [];
 
-    const [learners, sessions, assignments, outcomeCounts] = await Promise.all([
+    const [learners, sessions, assignments, outcomeCounts, plans] = await Promise.all([
       learnerRepository.findManyByIds(learnerIds),
       analyticsRepository.sessionsForLearners(learnerIds),
       analyticsRepository.activeAssignmentsForLearners(learnerIds),
       analyticsRepository.outcomeStatusCountsByLearner(learnerIds),
+      analyticsRepository.latestPlansForLearners(learnerIds),
     ]);
+
+    // `plans` is ordered `createdAt desc` — the first row seen per learner is their latest.
+    const latestPlanStatusByLearner = new Map<string, LearnerPerformanceRow['planStatus']>();
+    for (const plan of plans) {
+      if (!latestPlanStatusByLearner.has(plan.learnerId)) {
+        latestPlanStatusByLearner.set(
+          plan.learnerId,
+          plan.status as LearnerPerformanceRow['planStatus'],
+        );
+      }
+    }
 
     const assignmentByLearner = new Map(assignments.map((a) => [a.learnerId, a]));
     const levelIds = [...new Set(assignments.map((a) => a.levelId))];
@@ -87,6 +99,7 @@ export class PerformanceService {
           outcomesAchieved: outcomes.achieved,
           outcomesTotal: outcomes.total,
           status: statusFor(attended.length, avgScore),
+          planStatus: latestPlanStatusByLearner.get(learner.id) ?? null,
         };
       });
   }

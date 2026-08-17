@@ -89,6 +89,23 @@ export class OutcomeService {
     return updated;
   }
 
+  async duplicate(actor: ActingUser, id: string): Promise<Outcome> {
+    await this.getById(id);
+    const copy = await this.outcomes.duplicate(id);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'outcome.duplicated',
+      entityType: 'Outcome',
+      entityId: copy.id,
+      after: { sourceId: id, titleEn: copy.titleEn },
+    });
+
+    return copy;
+  }
+
   /** Disables without deleting — `LearnerOutcome` rows already materialized against this outcome are untouched (non-negotiable 17). */
   async setEnabled(actor: ActingUser, id: string, isEnabled: boolean): Promise<Outcome> {
     const before = await this.getById(id);

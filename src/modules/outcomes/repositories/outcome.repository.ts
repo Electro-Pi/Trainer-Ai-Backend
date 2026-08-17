@@ -46,6 +46,35 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
   }
 
   /**
+   * `TC-07`-equivalent for a single outcome — copies title/description/
+   * skills/training-form into a new row on the same level, appended after
+   * the current last outcome (`order`), disabled by default so it can be
+   * reviewed/edited before going live (mirrors `TrackRepository.duplicate`'s
+   * `isEnabled: false` convention).
+   */
+  async duplicate(sourceId: string): Promise<Outcome> {
+    const source = await this.findByIdScoped(sourceId);
+    if (!source) {
+      throw new Error(`Outcome ${sourceId} not found`);
+    }
+    const siblings = await this.findByLevel(source.levelId);
+
+    return this.delegate.create({
+      data: {
+        levelId: source.levelId,
+        titleEn: `${source.titleEn} (copy)`,
+        titleAr: `${source.titleAr} (نسخة)`,
+        descriptionEn: source.descriptionEn,
+        descriptionAr: source.descriptionAr,
+        targetSkills: source.targetSkills,
+        trainingForm: source.trainingForm,
+        order: siblings.length,
+        isEnabled: false,
+      },
+    });
+  }
+
+  /**
    * An outcome can only be hard-deleted while nothing real has attached to
    * it yet — no content link, no learner assignment/progress, no session,
    * no recommendation, no rubric/question bank, and it isn't another

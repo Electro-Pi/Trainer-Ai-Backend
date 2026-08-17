@@ -10,7 +10,10 @@ export interface LearnerPerformanceRow {
   averageScore: number | null;
   outcomesAchieved: number;
   outcomesTotal: number;
+  /** Risk/health signal — session attendance and score, not plan lifecycle. */
   status: 'ON_TRACK' | 'AT_RISK' | 'NO_ACTIVITY';
+  /** The learner's most recently created `TrainingPlan.status`, or `null` if they have no plan at all. Distinct concept from `status` above. */
+  planStatus: 'DRAFT' | 'CONFIRMED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | null;
 }
 
 export interface TeamPerformanceResponseDto {

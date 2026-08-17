@@ -85,5 +85,14 @@ export function createOutcomesRouter(): Router {
     },
   );
 
+  router.post(
+    '/:id/duplicate',
+    authorize('MANAGER', 'CONTENT_MANAGER', 'ADMIN'),
+    validate({ params: outcomeIdParamsSchema }),
+    (req, res, next) => {
+      controller.duplicate(req, res).catch(next);
+    },
+  );
+
   return router;
 }

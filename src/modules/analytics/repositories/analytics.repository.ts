@@ -102,6 +102,24 @@ export class AnalyticsRepository {
     });
   }
 
+  /**
+   * `PF-01` — one row per learner: their most recently created `TrainingPlan`
+   * (there is no "current plan" pointer anywhere else in the schema, so
+   * "most recent by createdAt" is the closest thing to it). Query is a
+   * single `findMany` ordered so the first row per `learnerId` — picked in
+   * the caller, since Prisma has no `DISTINCT ON` — is the latest one.
+   */
+  async latestPlansForLearners(
+    learnerIds: string[],
+  ): Promise<{ learnerId: string; status: string; createdAt: Date }[]> {
+    if (learnerIds.length === 0) return [];
+    return prisma.trainingPlan.findMany({
+      where: { learnerId: { in: learnerIds } },
+      select: { learnerId: true, status: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async outcomesWithSkillTags(
     outcomeIds: string[],
   ): Promise<{ id: string; targetSkills: string[]; levelId: string }[]> {

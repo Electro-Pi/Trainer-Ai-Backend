@@ -75,4 +75,10 @@ export class OutcomeController {
     await service.delete(toActingUser(req.auth!), id);
     res.status(204).send();
   }
+
+  async duplicate(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const outcome = await service.duplicate(toActingUser(req.auth!), id);
+    res.status(201).json(toResponseDto(outcome));
+  }
 }
