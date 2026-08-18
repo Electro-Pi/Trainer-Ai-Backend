@@ -4,7 +4,12 @@ import { runWithTenant } from '@/database/tenant-context.js';
 import { TeamRepository } from '@/modules/teams/repositories/team.repository.js';
 import { TrackRepository } from '@/modules/tracks/repositories/track.repository.js';
 
-import { createAuthedUser, createTestOrganization, createTrack } from '../helpers/fixtures.js';
+import {
+  createAuthedUser,
+  createDepartment,
+  createTestOrganization,
+  createTrack,
+} from '../helpers/fixtures.js';
 
 const tracks = new TrackRepository();
 const teams = new TeamRepository();
@@ -69,6 +74,7 @@ describe('BaseRepository.findMany — cursor pagination on a DateTime sort field
   it('paging through a DateTime-sorted repository (TeamRepository.createdAt) visits every row exactly once', async () => {
     const org = await createTestOrganization();
     const { user: manager } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
+    const department = await createDepartment(org.id);
 
     const created = [];
     const baseTime = Date.now();
@@ -78,6 +84,7 @@ describe('BaseRepository.findMany — cursor pagination on a DateTime sort field
           teams.create({
             organizationId: org.id,
             managerId: manager.id,
+            departmentId: department.id,
             name: `Team ${i}`,
             // Explicit, strictly increasing timestamps — `@default(now())`
             // rows created in a tight loop can collide on the same

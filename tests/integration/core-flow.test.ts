@@ -158,7 +158,7 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     const teamRes = await request(app)
       .post('/api/v1/teams')
       .set('Authorization', managerAuth)
-      .send({ name: 'Cairo Sales Team' });
+      .send({ name: 'Cairo Sales Team', departmentId: department.id });
     expect(teamRes.status).toBe(201);
     const teamId = teamRes.body.id as string;
 

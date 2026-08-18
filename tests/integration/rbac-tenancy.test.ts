@@ -6,6 +6,7 @@ import { createApp } from '@/app.js';
 import {
   createAuthedUser,
   createCatalogueTree,
+  createDepartment,
   createTeam,
   createTestOrganization,
 } from '../helpers/fixtures.js';
@@ -16,11 +17,12 @@ describe('RBAC: teams module (§7.2 ownership matrix)', () => {
   it('a DEPARTMENT_MANAGER can create a team for themself and read it back', async () => {
     const org = await createTestOrganization();
     const { user, authHeader } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
+    const department = await createDepartment(org.id);
 
     const createRes = await request(app)
       .post('/api/v1/teams')
       .set('Authorization', authHeader)
-      .send({ name: 'My Team' });
+      .send({ name: 'My Team', departmentId: department.id });
     expect(createRes.status).toBe(201);
     expect(createRes.body.managerId).toBe(user.id);
 

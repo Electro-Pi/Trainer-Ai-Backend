@@ -44,10 +44,12 @@ export class AuthService {
    *   email, checked below). Matching by tenant in this branch would either
    *   fail to find the org or — worse — silently create a duplicate one.
    * - **Uninvited** (brand-new signup, no token): today's `entraTenantId`
-   *   upsert-or-create logic, provisioning as `ADMIN` — the new default,
-   *   replacing the old `MANAGER` default. An existing user (matched by
-   *   `entraObjectId`, either path) never has their role re-derived on
-   *   repeat sign-in; role is set once, at first provisioning, full stop.
+   *   upsert-or-create logic, provisioning as `DEPARTMENT_MANAGER` — the
+   *   least-privileged role, never elevated automatically (AU-04/AU-01: no
+   *   sign-in path may hand out `ADMIN` without an explicit invite). An
+   *   existing user (matched by `entraObjectId`, either path) never has
+   *   their role re-derived on repeat sign-in; role is set once, at first
+   *   provisioning, full stop.
    */
   async signInWithMicrosoft(
     result: EntraSignInResult,
@@ -90,7 +92,7 @@ export class AuthService {
             entraObjectId: result.claims.entraObjectId,
             email: result.claims.email,
             name: result.claims.name,
-            role: invite ? invite.role : 'ADMIN',
+            role: invite ? invite.role : 'DEPARTMENT_MANAGER',
             graphTokenCacheEncrypted,
             graphHomeAccountId: result.homeAccountId,
             lastLoginAt: new Date(),
