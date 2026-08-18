@@ -4,6 +4,7 @@ import { toCollectionResponse } from '@/common/interceptors/response-envelope.in
 import type { AuthContext } from '@/common/types/express.js';
 
 import type {
+  CreateFullTrackDto,
   CreateTrackDto,
   TrackFilterDto,
   TrackResponseDto,
@@ -64,6 +65,12 @@ export class TrackController {
     const dto = req.body as CreateTrackDto;
     const track = await service.create(toActingUser(req.auth!), dto);
     res.status(201).json(await toResponseDto(track));
+  }
+
+  async createFull(req: Request, res: Response): Promise<void> {
+    const dto = req.body as CreateFullTrackDto;
+    const result = await service.createFull(toActingUser(req.auth!), dto);
+    res.status(201).json(result);
   }
 
   async update(req: Request, res: Response): Promise<void> {

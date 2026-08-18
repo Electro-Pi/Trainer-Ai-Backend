@@ -50,3 +50,71 @@ export interface TrackFilterDto {
   cursor?: string;
   isEnabled?: boolean;
 }
+
+export type LevelKey = 'beginner' | 'intermediate' | 'advanced' | 'expert';
+
+export interface CreateFullContentDto {
+  title: string;
+  contentType: 'DOCUMENT' | 'SLIDES' | 'TEXT' | 'LINK' | 'IMAGE';
+  textBody?: string;
+  sourceUrl?: string;
+  language: 'EN' | 'AR';
+  estimatedMinutes: number;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  isMandatory?: boolean;
+  /** Indexes into this skill's `outcomes[]` — resolved to real outcome ids inside the transaction. */
+  outcomeIndexes: number[];
+}
+
+export interface CreateFullOutcomeDto {
+  titleEn: string;
+  titleAr: string;
+  descriptionEn: string;
+  descriptionAr: string;
+  trainingForm: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
+}
+
+export interface CreateFullSkillDto {
+  nameEn: string;
+  nameAr: string;
+  category: string;
+  descriptionEn: string;
+  descriptionAr: string;
+  assessmentEnabled?: boolean;
+  outcomes: CreateFullOutcomeDto[];
+  content: CreateFullContentDto[];
+}
+
+export interface CreateFullLevelDto {
+  key: LevelKey;
+  skills: CreateFullSkillDto[];
+}
+
+export interface CreateFullTrackDto {
+  nameEn: string;
+  nameAr: string;
+  descriptionEn: string;
+  descriptionAr: string;
+  departmentId: string;
+  icon?: TrackIcon;
+  levels: CreateFullLevelDto[];
+}
+
+export interface FullTrackResponseDto {
+  track: TrackResponseDto;
+  levels: {
+    id: string;
+    key: LevelKey;
+    nameEn: string;
+    nameAr: string;
+    order: number;
+    skills: {
+      id: string;
+      nameEn: string;
+      nameAr: string;
+      category: string;
+      outcomes: { id: string; titleEn: string; titleAr: string }[];
+      content: { id: string; title: string; status: string }[];
+    }[];
+  }[];
+}

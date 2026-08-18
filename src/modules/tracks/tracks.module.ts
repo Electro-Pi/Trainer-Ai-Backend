@@ -67,3 +67,14 @@ openApiRegistry.registerPath({
   summary: 'Reorders tracks transactionally',
   responses: { 200: { description: 'New order' } },
 });
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/tracks/full',
+  tags: ['Tracks'],
+  summary:
+    'Track-creation wizard: creates a track with its levels, skills, outcomes, and content in one transaction (MANAGER, CONTENT_MANAGER, ADMIN)',
+  responses: {
+    201: { description: 'Created track with full nested level/skill/outcome/content tree' },
+  },
+});

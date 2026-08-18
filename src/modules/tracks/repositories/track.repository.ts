@@ -4,9 +4,51 @@ import { BaseRepository } from '@/common/repositories/base.repository.js';
 import { prisma } from '@/database/prisma.service.js';
 import { getCurrentOrganizationId } from '@/database/tenant-context.js';
 
+import type { CreateFullTrackDto, FullTrackResponseDto } from '../dto/track.dto.js';
+
 export type { Track };
 
 type TrackDelegate = typeof prisma.track;
+
+/**
+ * Mirrors `prisma/seed/tracks.seed.ts`'s `LEVEL_TEMPLATE` — deliberately
+ * duplicated rather than imported (that file lives outside `src/`'s build
+ * graph). Keep both in sync if the 4 canonical levels ever change.
+ */
+const LEVEL_TEMPLATE: {
+  key: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+  nameEn: string;
+  nameAr: string;
+}[] = [
+  { key: 'beginner', nameEn: 'Beginner', nameAr: 'مبتدئ' },
+  { key: 'intermediate', nameEn: 'Intermediate', nameAr: 'متوسط' },
+  { key: 'advanced', nameEn: 'Advanced', nameAr: 'متقدم' },
+  { key: 'expert', nameEn: 'Expert', nameAr: 'خبير' },
+];
+
+function mostCommon<T>(values: T[]): T | undefined {
+  const counts = new Map<T, number>();
+  let best: T | undefined;
+  let bestCount = 0;
+  for (const value of values) {
+    const count = (counts.get(value) ?? 0) + 1;
+    counts.set(value, count);
+    if (count > bestCount) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function slugify(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
 
 export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
   constructor() {
@@ -197,5 +239,208 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
       ) AS deduped
       ORDER BY "sortOrder" ASC
     `;
+  }
+
+  /**
+   * Track-creation wizard's single Save action — creates Track, its selected
+   * Levels, and every nested Skill/Outcome/ContentItem (+ ContentOutcome
+   * joins) inside one `prisma.$transaction`, so a failure partway leaves
+   * nothing orphaned. Same raw-`tx` escape hatch `duplicate()` above uses:
+   * child models have no repository access to the ambient transaction
+   * client, so this reaches Prisma directly rather than composing
+   * `SkillRepository`/`OutcomeRepository`/`ContentRepository` (none of which
+   * accept an external `tx`).
+   *
+   * `trainingForm`/`targetSkills`/`impactIndicators` aren't collected by the
+   * wizard UI — derived here from the submitted skills/outcomes instead of
+   * asking the manager to fill in fields the flow has no natural home for
+   * (product decision, not a technical constraint).
+   */
+  async createFull(dto: CreateFullTrackDto, actorId: string): Promise<FullTrackResponseDto> {
+    const organizationId = getCurrentOrganizationId();
+    if (!organizationId) {
+      throw new Error('createFull() called outside runWithTenant()');
+    }
+
+    const key = await this.generateUniqueTrackKey(organizationId, dto.nameEn);
+
+    const allSkillNames = [...new Set(dto.levels.flatMap((l) => l.skills.map((s) => s.nameEn)))];
+    const allTrainingForms = dto.levels.flatMap((l) =>
+      l.skills.flatMap((s) => s.outcomes.map((o) => o.trainingForm)),
+    );
+    const derivedTrainingForm = mostCommon(allTrainingForms) ?? 'CONVERSATION';
+
+    return prisma.$transaction(async (tx) => {
+      const track = await tx.track.create({
+        data: {
+          organizationId,
+          key,
+          nameEn: dto.nameEn,
+          nameAr: dto.nameAr,
+          descriptionEn: dto.descriptionEn,
+          descriptionAr: dto.descriptionAr,
+          departmentId: dto.departmentId,
+          targetSkills: allSkillNames,
+          trainingForm: derivedTrainingForm,
+          impactIndicators: allSkillNames,
+          icon: dto.icon ?? 'Sales',
+        },
+      });
+
+      const levels: FullTrackResponseDto['levels'] = [];
+
+      for (const [levelIndex, levelDto] of dto.levels.entries()) {
+        const template = LEVEL_TEMPLATE.find((l) => l.key === levelDto.key);
+        if (!template) {
+          throw new Error(`Unknown level key: ${levelDto.key}`);
+        }
+
+        const level = await tx.level.create({
+          data: {
+            trackId: track.id,
+            key: template.key,
+            nameEn: template.nameEn,
+            nameAr: template.nameAr,
+            descriptionEn: `${template.nameEn} level of ${dto.nameEn}.`,
+            descriptionAr: `مستوى ${template.nameAr} في ${dto.nameAr}.`,
+            order: levelIndex + 1,
+          },
+        });
+
+        const skills: FullTrackResponseDto['levels'][number]['skills'] = [];
+
+        for (const skillDto of levelDto.skills) {
+          // Inlined (not extracted to a helper) so `tx`'s tenant-extended
+          // Prisma type stays inferred from this closure — naming it as a
+          // parameter type elsewhere doesn't structurally match.
+          const skillKeyBase = slugify(skillDto.nameEn) || 'skill';
+          let skillKey = skillKeyBase;
+          let skillKeySuffix = 2;
+          while (await tx.skill.findFirst({ where: { organizationId, key: skillKey } })) {
+            skillKey = `${skillKeyBase}-${skillKeySuffix}`;
+            skillKeySuffix += 1;
+          }
+          const skill = await tx.skill.create({
+            data: {
+              organizationId,
+              levelId: level.id,
+              key: skillKey,
+              nameEn: skillDto.nameEn,
+              nameAr: skillDto.nameAr,
+              category: skillDto.category,
+              descriptionEn: skillDto.descriptionEn,
+              descriptionAr: skillDto.descriptionAr,
+              levels: [template.nameEn],
+              assessmentEnabled: skillDto.assessmentEnabled ?? true,
+            },
+          });
+
+          const outcomes: Outcome[] = [];
+          for (const [outcomeIndex, outcomeDto] of skillDto.outcomes.entries()) {
+            const outcome = await tx.outcome.create({
+              data: {
+                levelId: level.id,
+                skillId: skill.id,
+                titleEn: outcomeDto.titleEn,
+                titleAr: outcomeDto.titleAr,
+                descriptionEn: outcomeDto.descriptionEn,
+                descriptionAr: outcomeDto.descriptionAr,
+                targetSkills: [skillDto.nameEn],
+                trainingForm: outcomeDto.trainingForm,
+                order: outcomeIndex + 1,
+              },
+            });
+            outcomes.push(outcome);
+          }
+
+          const content: FullTrackResponseDto['levels'][number]['skills'][number]['content'] = [];
+          for (const contentDto of skillDto.content) {
+            const item = await tx.contentItem.create({
+              data: {
+                organizationId,
+                title: contentDto.title,
+                trackId: track.id,
+                levelId: level.id,
+                contentType: contentDto.contentType,
+                textBody: contentDto.textBody ?? null,
+                sourceUrl: contentDto.sourceUrl ?? null,
+                language: contentDto.language,
+                estimatedMinutes: contentDto.estimatedMinutes,
+                difficulty: contentDto.difficulty,
+                isMandatory: contentDto.isMandatory ?? false,
+                skillTags: [skillDto.nameEn],
+                createdById: actorId,
+                status: 'PUBLISHED',
+                publishedAt: new Date(),
+              },
+            });
+            for (const idx of contentDto.outcomeIndexes) {
+              await tx.contentOutcome.create({
+                data: { contentItemId: item.id, outcomeId: outcomes[idx]!.id },
+              });
+            }
+            content.push({ id: item.id, title: item.title, status: item.status });
+          }
+
+          skills.push({
+            id: skill.id,
+            nameEn: skill.nameEn,
+            nameAr: skill.nameAr,
+            category: skill.category,
+            outcomes: outcomes.map((o) => ({ id: o.id, titleEn: o.titleEn, titleAr: o.titleAr })),
+            content,
+          });
+        }
+
+        levels.push({
+          id: level.id,
+          key: level.key as CreateFullTrackDto['levels'][number]['key'],
+          nameEn: level.nameEn,
+          nameAr: level.nameAr,
+          order: level.order,
+          skills,
+        });
+      }
+
+      const departmentRow = await tx.department.findFirst({
+        where: { id: track.departmentId },
+        select: { name: true },
+      });
+
+      return {
+        track: {
+          id: track.id,
+          organizationId: track.organizationId,
+          key: track.key,
+          nameEn: track.nameEn,
+          nameAr: track.nameAr,
+          descriptionEn: track.descriptionEn,
+          descriptionAr: track.descriptionAr,
+          departmentId: track.departmentId,
+          departmentName: departmentRow?.name ?? '',
+          targetSkills: track.targetSkills,
+          trainingForm: track.trainingForm,
+          impactIndicators: track.impactIndicators,
+          icon: track.icon,
+          isEnabled: track.isEnabled,
+          sortOrder: track.sortOrder,
+          createdAt: track.createdAt.toISOString(),
+          updatedAt: track.updatedAt.toISOString(),
+        },
+        levels,
+      };
+    });
+  }
+
+  /** Probe-loop key generation, scoped to the ambient transaction so concurrent creates in the same tx never collide. */
+  private async generateUniqueTrackKey(organizationId: string, nameEn: string): Promise<string> {
+    const base = slugify(nameEn) || 'track';
+    let candidate = base;
+    let suffix = 2;
+    while (await prisma.track.findFirst({ where: { organizationId, key: candidate } })) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
   }
 }

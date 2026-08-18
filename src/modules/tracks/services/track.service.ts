@@ -3,7 +3,13 @@ import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
 import { departmentRepository } from '@/modules/departments/departments.module.js';
 
-import type { CreateTrackDto, TrackFilterDto, UpdateTrackDto } from '../dto/track.dto.js';
+import type {
+  CreateFullTrackDto,
+  CreateTrackDto,
+  FullTrackResponseDto,
+  TrackFilterDto,
+  UpdateTrackDto,
+} from '../dto/track.dto.js';
 import { TrackRepository, type Track } from '../repositories/track.repository.js';
 
 export interface ActingUser {
@@ -207,6 +213,48 @@ export class TrackService {
       entityId: id,
       before: { key: track.key, nameEn: track.nameEn },
     });
+  }
+
+  /**
+   * Track-creation wizard's Save action — validates `departmentId`, then
+   * delegates the actual multi-model transaction to the repository (same
+   * layering `duplicate()` above uses: service validates/orchestrates,
+   * repository does the raw `tx` work). One audit row is written after the
+   * transaction commits, summarizing the whole created tree.
+   */
+  async createFull(actor: ActingUser, dto: CreateFullTrackDto): Promise<FullTrackResponseDto> {
+    const departmentId = await this.resolveDepartmentId(actor, dto.departmentId);
+
+    const result = await this.tracks.createFull({ ...dto, departmentId }, actor.id);
+
+    const skillCount = result.levels.reduce((sum, l) => sum + l.skills.length, 0);
+    const outcomeCount = result.levels.reduce(
+      (sum, l) => sum + l.skills.reduce((s, sk) => s + sk.outcomes.length, 0),
+      0,
+    );
+    const contentCount = result.levels.reduce(
+      (sum, l) => sum + l.skills.reduce((s, sk) => s + sk.content.length, 0),
+      0,
+    );
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'track.created',
+      entityType: 'Track',
+      entityId: result.track.id,
+      after: {
+        key: result.track.key,
+        nameEn: result.track.nameEn,
+        levelCount: result.levels.length,
+        skillCount,
+        outcomeCount,
+        contentCount,
+      },
+    });
+
+    return result;
   }
 
   /** `P4-6` — transactional full reorder; every id in `order` must belong to the caller's org. */
