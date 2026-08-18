@@ -392,8 +392,6 @@ async function upsertContentItem(input: {
         textBody: input.textBody,
         sourceUrl: input.sourceUrl,
         language: input.language,
-        estimatedMinutes: input.estimatedMinutes,
-        difficulty: input.difficulty,
         createdById: input.createdById,
       },
     }));
