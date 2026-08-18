@@ -107,8 +107,6 @@ export async function seedDemo(organizationId: string): Promise<void> {
       textBody: null,
       sourceUrl: null,
       language: 'EN',
-      estimatedMinutes: 15,
-      difficulty: 'EASY',
       createdById: contentManager.id,
       outcomeIds: [discoveryOutcome.id],
     });
@@ -121,8 +119,6 @@ export async function seedDemo(organizationId: string): Promise<void> {
       textBody: null,
       sourceUrl: null,
       language: 'EN',
-      estimatedMinutes: 20,
-      difficulty: 'EASY',
       createdById: contentManager.id,
       outcomeIds: [discoveryOutcome.id],
     });
@@ -136,8 +132,6 @@ export async function seedDemo(organizationId: string): Promise<void> {
         'Examples: "What does success look like for your team this quarter?" "What have you already tried?"',
       sourceUrl: null,
       language: 'EN',
-      estimatedMinutes: 5,
-      difficulty: 'EASY',
       createdById: contentManager.id,
       outcomeIds: [discoveryOutcome.id],
     });
@@ -150,8 +144,6 @@ export async function seedDemo(organizationId: string): Promise<void> {
       textBody: null,
       sourceUrl: 'https://example.com/demo-sales-discovery-call',
       language: 'EN',
-      estimatedMinutes: 10,
-      difficulty: 'MEDIUM',
       createdById: contentManager.id,
       outcomeIds: [discoveryOutcome.id],
     });
@@ -164,8 +156,6 @@ export async function seedDemo(organizationId: string): Promise<void> {
       textBody: null,
       sourceUrl: null,
       language: 'EN',
-      estimatedMinutes: 3,
-      difficulty: 'EASY',
       createdById: contentManager.id,
       outcomeIds: [discoveryOutcome.id],
     });
@@ -384,8 +374,6 @@ async function upsertContentItem(input: {
   textBody: string | null;
   sourceUrl: string | null;
   language: 'EN' | 'AR';
-  estimatedMinutes: number;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
   createdById: string;
   outcomeIds: string[];
 }) {
@@ -404,8 +392,6 @@ async function upsertContentItem(input: {
         textBody: input.textBody,
         sourceUrl: input.sourceUrl,
         language: input.language,
-        estimatedMinutes: input.estimatedMinutes,
-        difficulty: input.difficulty,
         createdById: input.createdById,
       },
     }));

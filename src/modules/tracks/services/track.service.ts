@@ -87,7 +87,6 @@ export class TrackService {
       targetSkills: dto.targetSkills,
       trainingForm: dto.trainingForm,
       impactIndicators: dto.impactIndicators,
-      ...(dto.icon !== undefined ? { icon: dto.icon } : {}),
     } as never);
 
     await writeAuditLog({
@@ -120,7 +119,6 @@ export class TrackService {
       ...(dto.targetSkills !== undefined ? { targetSkills: dto.targetSkills } : {}),
       ...(dto.trainingForm !== undefined ? { trainingForm: dto.trainingForm } : {}),
       ...(dto.impactIndicators !== undefined ? { impactIndicators: dto.impactIndicators } : {}),
-      ...(dto.icon !== undefined ? { icon: dto.icon } : {}),
     } as never);
 
     await writeAuditLog({

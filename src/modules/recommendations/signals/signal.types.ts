@@ -2,8 +2,6 @@ import type { ContentItem } from '@/modules/content/content.module.js';
 
 import type { ContentEffectiveness } from '../repositories/content-effectiveness.repository.js';
 
-export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
-
 /** Minimal shape the signals need from a `ContentOutcome` join row — matches `ContentOutcomeRepository.findByContentItems`'s projection. */
 export interface ContentOutcomeBinding {
   contentItemId: string;
@@ -37,12 +35,6 @@ export interface SignalContext {
 }
 
 export type SignalFn = (context: SignalContext) => number;
-
-export const DIFFICULTY_RANK: Record<Difficulty, number> = {
-  EASY: 0,
-  MEDIUM: 1,
-  HARD: 2,
-};
 
 export function clamp01(value: number): number {
   if (Number.isNaN(value)) return 0;

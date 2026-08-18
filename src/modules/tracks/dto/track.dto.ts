@@ -1,5 +1,3 @@
-export type TrackIcon = 'Sales' | 'Presentation Skills' | 'Marketing' | 'HR';
-
 export interface TrackResponseDto {
   id: string;
   organizationId: string;
@@ -13,7 +11,6 @@ export interface TrackResponseDto {
   targetSkills: string[];
   trainingForm: string;
   impactIndicators: string[];
-  icon: string;
   isEnabled: boolean;
   sortOrder: number;
   createdAt: string;
@@ -30,7 +27,6 @@ export interface CreateTrackDto {
   targetSkills: string[];
   trainingForm: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   impactIndicators: string[];
-  icon?: TrackIcon;
 }
 
 export interface UpdateTrackDto {
@@ -42,7 +38,6 @@ export interface UpdateTrackDto {
   targetSkills?: string[];
   trainingForm?: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   impactIndicators?: string[];
-  icon?: TrackIcon;
 }
 
 export interface TrackFilterDto {
@@ -59,9 +54,6 @@ export interface CreateFullContentDto {
   textBody?: string;
   sourceUrl?: string;
   language: 'EN' | 'AR';
-  estimatedMinutes: number;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  isMandatory?: boolean;
   /** Indexes into this skill's `outcomes[]` — resolved to real outcome ids inside the transaction. */
   outcomeIndexes: number[];
 }
@@ -71,7 +63,6 @@ export interface CreateFullOutcomeDto {
   titleAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  trainingForm: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
 }
 
 export interface CreateFullSkillDto {
@@ -96,7 +87,6 @@ export interface CreateFullTrackDto {
   descriptionEn: string;
   descriptionAr: string;
   departmentId: string;
-  icon?: TrackIcon;
   levels: CreateFullLevelDto[];
 }
 

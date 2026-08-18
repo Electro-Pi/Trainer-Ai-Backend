@@ -26,21 +26,6 @@ const LEVEL_TEMPLATE: {
   { key: 'expert', nameEn: 'Expert', nameAr: 'خبير' },
 ];
 
-function mostCommon<T>(values: T[]): T | undefined {
-  const counts = new Map<T, number>();
-  let best: T | undefined;
-  let bestCount = 0;
-  for (const value of values) {
-    const count = (counts.get(value) ?? 0) + 1;
-    counts.set(value, count);
-    if (count > bestCount) {
-      best = value;
-      bestCount = count;
-    }
-  }
-  return best;
-}
-
 function slugify(text: string): string {
   return text
     .trim()
@@ -131,7 +116,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           targetSkills: source.targetSkills,
           trainingForm: source.trainingForm,
           impactIndicators: source.impactIndicators,
-          icon: source.icon,
           isEnabled: false,
           sortOrder: source.sortOrder,
         },
@@ -165,7 +149,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
               descriptionEn: outcome.descriptionEn,
               descriptionAr: outcome.descriptionAr,
               targetSkills: outcome.targetSkills,
-              trainingForm: outcome.trainingForm,
               order: outcome.order,
               isEnabled: outcome.isEnabled,
             },
@@ -265,10 +248,11 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
     const key = await this.generateUniqueTrackKey(organizationId, dto.nameEn);
 
     const allSkillNames = [...new Set(dto.levels.flatMap((l) => l.skills.map((s) => s.nameEn)))];
-    const allTrainingForms = dto.levels.flatMap((l) =>
-      l.skills.flatMap((s) => s.outcomes.map((o) => o.trainingForm)),
-    );
-    const derivedTrainingForm = mostCommon(allTrainingForms) ?? 'CONVERSATION';
+    // Outcome.trainingForm was removed from the DB and DTO (Track.icon/
+    // ContentItem removal pass). Track.trainingForm still exists, but the
+    // wizard no longer collects any per-outcome data to derive it from, so
+    // it's hardcoded to the neutral default instead of aggregated.
+    const derivedTrainingForm = 'CONVERSATION';
 
     return prisma.$transaction(async (tx) => {
       const track = await tx.track.create({
@@ -283,7 +267,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           targetSkills: allSkillNames,
           trainingForm: derivedTrainingForm,
           impactIndicators: allSkillNames,
-          icon: dto.icon ?? 'Sales',
         },
       });
 
@@ -346,7 +329,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
                 descriptionEn: outcomeDto.descriptionEn,
                 descriptionAr: outcomeDto.descriptionAr,
                 targetSkills: [skillDto.nameEn],
-                trainingForm: outcomeDto.trainingForm,
                 order: outcomeIndex + 1,
               },
             });
@@ -365,9 +347,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
                 textBody: contentDto.textBody ?? null,
                 sourceUrl: contentDto.sourceUrl ?? null,
                 language: contentDto.language,
-                estimatedMinutes: contentDto.estimatedMinutes,
-                difficulty: contentDto.difficulty,
-                isMandatory: contentDto.isMandatory ?? false,
                 skillTags: [skillDto.nameEn],
                 createdById: actorId,
                 status: 'PUBLISHED',
@@ -421,7 +400,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           targetSkills: track.targetSkills,
           trainingForm: track.trainingForm,
           impactIndicators: track.impactIndicators,
-          icon: track.icon,
           isEnabled: track.isEnabled,
           sortOrder: track.sortOrder,
           createdAt: track.createdAt.toISOString(),

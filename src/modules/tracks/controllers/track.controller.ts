@@ -34,7 +34,6 @@ async function toResponseDto(track: Track): Promise<TrackResponseDto> {
     targetSkills: track.targetSkills,
     trainingForm: track.trainingForm,
     impactIndicators: track.impactIndicators,
-    icon: track.icon,
     isEnabled: track.isEnabled,
     sortOrder: track.sortOrder,
     createdAt: track.createdAt.toISOString(),

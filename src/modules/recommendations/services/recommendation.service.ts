@@ -152,7 +152,6 @@ export class RecommendationService {
       scored,
       outcomesById,
       requiredOutcomes,
-      pool.mandatoryContentIds,
     );
 
     await writeAuditLog({
@@ -232,14 +231,8 @@ export class RecommendationService {
     orderedItems: ScoredItem[],
     outcomesById: Map<string, Outcome>,
     requiredOutcomes: LearnerOutcome[],
-    mandatoryContentIds: Set<string>,
   ): Promise<RecommendationItemResult[]> {
-    const explained = this.buildExplainedItems(
-      orderedItems,
-      outcomesById,
-      requiredOutcomes,
-      mandatoryContentIds,
-    );
+    const explained = this.buildExplainedItems(orderedItems, outcomesById, requiredOutcomes);
 
     const results: RecommendationItemResult[] = [];
     let rank = 0;
@@ -286,7 +279,6 @@ export class RecommendationService {
     orderedItems: ScoredItem[],
     outcomesById: Map<string, Outcome>,
     requiredOutcomes: LearnerOutcome[],
-    mandatoryContentIds: Set<string>,
   ): { scoredItem: ScoredItem; explanation: ReturnType<ExplainService['explain']> }[] {
     const carriedOverOutcomeIds = new Set(
       requiredOutcomes
@@ -303,9 +295,8 @@ export class RecommendationService {
       const outcome = outcomesById.get(scoredItem.outcomeId);
       if (!outcome) continue;
 
-      const isMandatory = mandatoryContentIds.has(scoredItem.contentItem.id);
       const isCarriedOver = carriedOverOutcomeIds.has(scoredItem.outcomeId);
-      const explanation = this.explainer.explain(scoredItem, outcome, isMandatory, isCarriedOver);
+      const explanation = this.explainer.explain(scoredItem, outcome, isCarriedOver);
 
       results.push({ scoredItem, explanation });
     }
@@ -357,7 +348,6 @@ export class RecommendationService {
           descriptionEn: outcome.descriptionEn,
           descriptionAr: outcome.descriptionAr,
           targetSkills: [],
-          trainingForm: 'CONVERSATION',
           order: outcome.order,
           isEnabled: true,
           createdAt: outcome.createdAt,
@@ -424,12 +414,7 @@ export class RecommendationService {
 
     const gaps = this.coverageGaps.detect(requiredOutcomes, outcomesById, scored);
 
-    const explained = this.buildExplainedItems(
-      scored,
-      outcomesById,
-      requiredOutcomes,
-      pool.mandatoryContentIds,
-    );
+    const explained = this.buildExplainedItems(scored, outcomesById, requiredOutcomes);
 
     const items: RecommendationItemResult[] = explained.map(
       ({ scoredItem, explanation }, rank) => ({

@@ -161,7 +161,6 @@ export async function createOutcome(
         descriptionEn: 'Run a discovery call',
         descriptionAr: 'إجراء مكالمة استكشاف',
         targetSkills: ['listening'],
-        trainingForm: 'CONVERSATION',
         order: overrides.order ?? 0,
       },
     }),

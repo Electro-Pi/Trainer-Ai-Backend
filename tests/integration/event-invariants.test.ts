@@ -151,8 +151,6 @@ describe('cleanup.job invariant: the hard boundary is never crossed', () => {
           contentType: 'TEXT',
           textBody: 'Body',
           language: 'EN',
-          estimatedMinutes: 5,
-          difficulty: 'EASY',
           createdById: manager.id,
         },
       });

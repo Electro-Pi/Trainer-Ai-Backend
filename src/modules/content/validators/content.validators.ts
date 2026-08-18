@@ -1,15 +1,9 @@
 import { z } from 'zod';
 
-import {
-  cuidSchema,
-  estimatedMinutesSchema,
-  httpsUrlSchema,
-  paginationSchema,
-} from '@/common/validators/primitives.js';
+import { cuidSchema, httpsUrlSchema, paginationSchema } from '@/common/validators/primitives.js';
 
 const contentTypeSchema = z.enum(['DOCUMENT', 'SLIDES', 'TEXT', 'LINK', 'IMAGE']);
 const languageSchema = z.enum(['EN', 'AR']);
-const difficultySchema = z.enum(['EASY', 'MEDIUM', 'HARD']);
 const contentStatusSchema = z.enum(['DRAFT', 'IN_REVIEW', 'PUBLISHED', 'ARCHIVED']);
 
 const titleSchema = z.string().trim().min(1).max(300);
@@ -30,9 +24,6 @@ const baseCreateContentSchema = z.object({
   textBody: textBodySchema.optional(),
   sourceUrl: httpsUrlSchema.optional(),
   language: languageSchema,
-  estimatedMinutes: estimatedMinutesSchema,
-  difficulty: difficultySchema,
-  isMandatory: z.boolean().optional(),
   skillTags: skillTagsSchema.optional(),
   outcomeIds: z.array(cuidSchema).min(1, { error: 'At least one outcome is required (CM-01)' }),
 });
@@ -61,9 +52,6 @@ export const updateContentSchema = z.object({
   title: titleSchema.optional(),
   textBody: textBodySchema.optional(),
   sourceUrl: httpsUrlSchema.optional(),
-  estimatedMinutes: estimatedMinutesSchema.optional(),
-  difficulty: difficultySchema.optional(),
-  isMandatory: z.boolean().optional(),
   skillTags: skillTagsSchema.optional(),
   outcomeIds: z.array(cuidSchema).min(1).optional(),
 });
@@ -88,8 +76,6 @@ export const bulkCreateContentSchema = z.object({
 export const bulkMetadataEditSchema = z.object({
   contentItemIds: z.array(cuidSchema).min(1).max(200),
   skillTags: skillTagsSchema.optional(),
-  difficulty: difficultySchema.optional(),
-  isMandatory: z.boolean().optional(),
 });
 
 export const contentSearchQuerySchema = z.object({

@@ -7,7 +7,6 @@ export interface OutcomeResponseDto {
   descriptionEn: string;
   descriptionAr: string;
   targetSkills: string[];
-  trainingForm: string;
   order: number;
   isEnabled: boolean;
   createdAt: string;
@@ -20,7 +19,6 @@ export interface CreateOutcomeDto {
   descriptionEn: string;
   descriptionAr: string;
   targetSkills: string[];
-  trainingForm: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   skillId?: string;
 }
 
@@ -30,6 +28,5 @@ export interface UpdateOutcomeDto {
   descriptionEn?: string;
   descriptionAr?: string;
   targetSkills?: string[];
-  trainingForm?: 'CONVERSATION' | 'CASE' | 'SIMULATION' | 'ROLEPLAY';
   skillId?: string;
 }

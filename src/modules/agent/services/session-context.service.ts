@@ -80,7 +80,6 @@ export class SessionContextService {
         descriptionEn: outcome.descriptionEn,
         descriptionAr: outcome.descriptionAr,
         targetSkills: outcome.targetSkills,
-        trainingForm: outcome.trainingForm as string,
         isCarriedOver: so.isCarriedOver,
         priority: so.isCarriedOver ? 1 : 0,
       });
@@ -173,8 +172,6 @@ export class SessionContextService {
         contentType: item.contentType,
         textBody: item.textBody,
         sourceUrl: item.sourceUrl,
-        estimatedMinutes: item.estimatedMinutes,
-        difficulty: item.difficulty,
         source: sc.source,
         deliveredAt: sc.deliveredAt?.toISOString() ?? null,
         media,

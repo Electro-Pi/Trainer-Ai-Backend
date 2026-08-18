@@ -6,9 +6,6 @@ const trainingFormSchema = z.enum(['CONVERSATION', 'CASE', 'SIMULATION', 'ROLEPL
 
 const bilingualTextSchema = z.string().trim().min(1).max(500);
 
-/** Matches the frontend's fixed 4-option icon picker (`components/portal/icons.tsx`'s `TrackIcon`). */
-export const trackIconSchema = z.enum(['Sales', 'Presentation Skills', 'Marketing', 'HR']);
-
 export const createTrackSchema = z.object({
   key: slugSchema,
   nameEn: bilingualTextSchema,
@@ -19,7 +16,6 @@ export const createTrackSchema = z.object({
   targetSkills: z.array(z.string().trim().min(1).max(200)).min(1),
   trainingForm: trainingFormSchema,
   impactIndicators: z.array(z.string().trim().min(1).max(200)).min(1),
-  icon: trackIconSchema.optional(),
 });
 
 export const updateTrackSchema = z.object({
@@ -31,7 +27,6 @@ export const updateTrackSchema = z.object({
   targetSkills: z.array(z.string().trim().min(1).max(200)).min(1).optional(),
   trainingForm: trainingFormSchema.optional(),
   impactIndicators: z.array(z.string().trim().min(1).max(200)).min(1).optional(),
-  icon: trackIconSchema.optional(),
 });
 
 export const trackFilterSchema = paginationSchema.extend({
@@ -59,7 +54,6 @@ export const duplicateTrackSchema = z.object({
 const levelKeySchema = z.enum(['beginner', 'intermediate', 'advanced', 'expert']);
 const contentTypeSchema = z.enum(['DOCUMENT', 'SLIDES', 'TEXT', 'LINK', 'IMAGE']);
 const languageSchema = z.enum(['EN', 'AR']);
-const difficultySchema = z.enum(['EASY', 'MEDIUM', 'HARD']);
 const categorySchema = z.string().trim().min(1).max(120);
 
 const createFullOutcomeSchema = z.object({
@@ -67,7 +61,6 @@ const createFullOutcomeSchema = z.object({
   titleAr: bilingualTextSchema,
   descriptionEn: z.string().trim().min(1).max(4000),
   descriptionAr: z.string().trim().min(1).max(4000),
-  trainingForm: trainingFormSchema,
 });
 
 const baseCreateFullContentSchema = z.object({
@@ -80,9 +73,6 @@ const baseCreateFullContentSchema = z.object({
     .refine((value) => value.startsWith('https://'), { error: 'URL must use https' })
     .optional(),
   language: languageSchema,
-  estimatedMinutes: z.number().int().positive().max(480),
-  difficulty: difficultySchema,
-  isMandatory: z.boolean().optional(),
   outcomeIndexes: z.array(z.number().int().nonnegative()).min(1),
 });
 
@@ -151,7 +141,6 @@ export const createFullTrackSchema = z
     descriptionEn: z.string().trim().min(1).max(4000),
     descriptionAr: z.string().trim().min(1).max(4000),
     departmentId: cuidSchema,
-    icon: trackIconSchema.optional(),
     levels: z.array(createFullLevelSchema).min(1, { error: 'Select at least one level' }),
   })
   .check((ctx) => {

@@ -403,7 +403,6 @@ model Track {
   targetSkills     String[]
   trainingForm     TrainingForm
   impactIndicators String[]
-  icon             String       @default("Sales")
   isEnabled        Boolean      @default(true)
   sortOrder        Int          @default(0)
   createdAt        DateTime     @default(now())
@@ -498,7 +497,6 @@ model Outcome {
   descriptionAr String
   /// @deprecated superseded by `skillId` — kept through the migration window.
   targetSkills  String[]
-  trainingForm  TrainingForm
   order         Int
   isEnabled     Boolean      @default(true)
   createdAt     DateTime     @default(now())
@@ -585,12 +583,9 @@ model ContentItem {
   textBody         String?
   sourceUrl        String?
   language         Language
-  estimatedMinutes Int
-  difficulty       Difficulty
   status           ContentStatus @default(DRAFT)
   version          Int           @default(1)
   parentVersionId  String?       @unique
-  isMandatory      Boolean       @default(false)
   skillTags        String[]
   createdById      String
   publishedAt      DateTime?

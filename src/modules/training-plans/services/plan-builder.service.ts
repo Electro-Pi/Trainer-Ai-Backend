@@ -75,9 +75,6 @@ export class PlanBuilderService {
       items.map((item) => item.contentItemId),
     );
     const contentById = new Map<string, ContentItem>(contentItems.map((item) => [item.id, item]));
-    const mandatoryContentIds = new Set(
-      contentItems.filter((item) => item.isMandatory).map((item) => item.id),
-    );
 
     const sessions: SuggestedSession[] = [];
     let remainingItems = items;
@@ -91,7 +88,7 @@ export class PlanBuilderService {
       const otherItems = remainingItems.filter((item) => item.outcomeId !== primaryOutcomeId);
 
       const scoredForFit = this.toScoredItems(candidatesForSlot, contentById);
-      const fit = this.durationFit.fit(scoredForFit, durationMinutes, mandatoryContentIds);
+      const fit = this.durationFit.fit(scoredForFit, durationMinutes);
 
       sessions.push({
         sequence,

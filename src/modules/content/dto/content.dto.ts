@@ -8,12 +8,9 @@ export interface ContentResponseDto {
   textBody: string | null;
   sourceUrl: string | null;
   language: 'EN' | 'AR';
-  estimatedMinutes: number;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
   status: 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
   version: number;
   parentVersionId: string | null;
-  isMandatory: boolean;
   skillTags: string[];
   outcomeIds: string[];
   createdById: string;
@@ -31,9 +28,6 @@ export interface CreateContentDto {
   textBody?: string;
   sourceUrl?: string;
   language: 'EN' | 'AR';
-  estimatedMinutes: number;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  isMandatory?: boolean;
   skillTags?: string[];
   outcomeIds: string[];
 }
@@ -42,9 +36,6 @@ export interface UpdateContentDto {
   title?: string;
   textBody?: string;
   sourceUrl?: string;
-  estimatedMinutes?: number;
-  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
-  isMandatory?: boolean;
   skillTags?: string[];
   outcomeIds?: string[];
 }
@@ -67,8 +58,6 @@ export interface BulkCreateContentDto {
 export interface BulkMetadataEditDto {
   contentItemIds: string[];
   skillTags?: string[];
-  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
-  isMandatory?: boolean;
 }
 
 export interface CoverageGapDto {

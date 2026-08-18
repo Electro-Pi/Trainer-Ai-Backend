@@ -12,8 +12,6 @@ import {
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { sessionContentRepository, sessionRepository } from '@/modules/sessions/sessions.module.js';
 
-const DIFFICULTY_RANK: Record<string, number> = { EASY: 0, MEDIUM: 1, HARD: 2 };
-const DEFAULT_DIFFICULTY_CEILING = DIFFICULTY_RANK['EASY'] as number;
 const MAX_REMEDIAL_ITEMS = 2;
 
 export interface RemediationResult {
@@ -22,17 +20,16 @@ export interface RemediationResult {
   contentType: string;
   textBody: string | null;
   sourceUrl: string | null;
-  difficulty: string;
-  estimatedMinutes: number;
 }
 
 /**
  * `RC-07`, ARCHITECTURE §8.3 — the in-session remediation pipeline. Target
- * < 2s, hence deterministic filtering + sort, no scoring signals, no vector
- * query, no LLM round-trip: same outcome, no harder than what's already been
- * delivered this session (defaults to `EASY`-only if nothing delivered yet
- * — the agent is reporting a failed check, so easing off is the point), and
- * excludes anything already delivered in this session.
+ * < 2s, hence deterministic filtering, no scoring signals, no vector query,
+ * no LLM round-trip: same outcome, excludes anything already delivered in
+ * this session. `ContentItem.difficulty` was removed from the schema, so the
+ * "no harder than what's already been delivered" difficulty ceiling no
+ * longer applies — candidates are taken in the order `findCandidates`
+ * returns them, capped at `MAX_REMEDIAL_ITEMS`.
  */
 export class RemediationService {
   async find(sessionId: string, outcomeId: string): Promise<RemediationResult[]> {
@@ -56,12 +53,6 @@ export class RemediationService {
       const deliveredContentIds = new Set(
         sessionContents.filter((sc) => sc.deliveredAt !== null).map((sc) => sc.contentItemId),
       );
-      const deliveredContentItems = await contentItemRepository.findManyByIdsScoped([
-        ...deliveredContentIds,
-      ]);
-      const difficultyCeiling = deliveredContentItems.length
-        ? Math.max(...deliveredContentItems.map((c) => DIFFICULTY_RANK[c.difficulty] ?? 2))
-        : DEFAULT_DIFFICULTY_CEILING;
 
       const boundContentIds = new Set(
         (await contentOutcomeRepository.findByOutcome(outcomeId)).map((b) => b.contentItemId),
@@ -76,8 +67,6 @@ export class RemediationService {
       const ranked = candidates
         .filter((item) => boundContentIds.has(item.id))
         .filter((item) => !deliveredContentIds.has(item.id))
-        .filter((item) => (DIFFICULTY_RANK[item.difficulty] ?? 2) <= difficultyCeiling)
-        .sort((a, b) => (DIFFICULTY_RANK[a.difficulty] ?? 2) - (DIFFICULTY_RANK[b.difficulty] ?? 2))
         .slice(0, MAX_REMEDIAL_ITEMS);
 
       return ranked.map((item) => this.toResult(item));
@@ -91,8 +80,6 @@ export class RemediationService {
       contentType: item.contentType,
       textBody: item.textBody,
       sourceUrl: item.sourceUrl,
-      difficulty: item.difficulty,
-      estimatedMinutes: item.estimatedMinutes,
     };
   }
 }

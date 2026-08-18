@@ -207,9 +207,11 @@ describe('OrderingService — prerequisite topological sort (RC-02)', () => {
 describe('DurationFitService — greedy fit to session length (RC-04)', () => {
   const durationFit = new DurationFitService();
 
-  function scoredItem(id: string, estimatedMinutes: number): ScoredItem {
+  // ContentItem.estimatedMinutes was removed from the schema — every item now
+  // costs a flat ASSUMED_CONTENT_MINUTES (15) for bin-packing purposes.
+  function scoredItem(id: string): ScoredItem {
     return {
-      contentItem: { id, estimatedMinutes, difficulty: 'EASY' } as never,
+      contentItem: { id } as never,
       outcomeId: 'outcome-1',
       score: 0.5,
       signalBreakdown: {} as never,
@@ -217,23 +219,23 @@ describe('DurationFitService — greedy fit to session length (RC-04)', () => {
   }
 
   it('fits items while the budget allows, defers the rest, and preserves order', () => {
-    const items = [scoredItem('A', 10), scoredItem('B', 10), scoredItem('C', 10)];
-    const result = durationFit.fit(items, 20, new Set());
+    const items = [scoredItem('A'), scoredItem('B'), scoredItem('C')];
+    const result = durationFit.fit(items, 30);
     expect(result.fitted.map((i) => i.contentItem.id)).toEqual(['A', 'B']);
     expect(result.deferred.map((i) => i.contentItem.id)).toEqual(['C']);
   });
 
-  it('mandatory items are always taken even when they blow the budget', () => {
-    const items = [scoredItem('A', 10), scoredItem('B', 100)];
-    const result = durationFit.fit(items, 10, new Set(['B']));
-    expect(result.fitted.map((i) => i.contentItem.id)).toEqual(['A', 'B']);
-    expect(result.deferred).toHaveLength(0);
+  it('does not re-sort — prerequisite order from OrderingService survives', () => {
+    const items = [scoredItem('first'), scoredItem('second'), scoredItem('third')];
+    const result = durationFit.fit(items, 15);
+    expect(result.fitted.map((i) => i.contentItem.id)).toEqual(['first']);
+    expect(result.deferred.map((i) => i.contentItem.id)).toEqual(['second', 'third']);
   });
 
-  it('does not re-sort by size — prerequisite order from OrderingService survives', () => {
-    const items = [scoredItem('big', 30), scoredItem('small', 5)];
-    const result = durationFit.fit(items, 30, new Set());
-    expect(result.fitted.map((i) => i.contentItem.id)).toEqual(['big']);
-    expect(result.deferred.map((i) => i.contentItem.id)).toEqual(['small']);
+  it('no items fit when the budget is smaller than one item', () => {
+    const items = [scoredItem('A')];
+    const result = durationFit.fit(items, 5);
+    expect(result.fitted).toHaveLength(0);
+    expect(result.deferred.map((i) => i.contentItem.id)).toEqual(['A']);
   });
 });

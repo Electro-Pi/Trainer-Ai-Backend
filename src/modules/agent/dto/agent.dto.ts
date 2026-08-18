@@ -23,7 +23,6 @@ export interface SessionContextOutcome {
   descriptionEn: string;
   descriptionAr: string;
   targetSkills: string[];
-  trainingForm: string;
   isCarriedOver: boolean;
   priority: number;
 }
@@ -46,8 +45,6 @@ export interface SessionContextContentItem {
   contentType: string;
   textBody: string | null;
   sourceUrl: string | null;
-  estimatedMinutes: number;
-  difficulty: string;
   source: string;
   deliveredAt: string | null;
   media: SessionContextMedia[];

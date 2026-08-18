@@ -8,12 +8,10 @@ import type { LearnerOutcome } from '@/modules/learners/learners.module.js';
 export type Language = 'EN' | 'AR';
 
 export interface CandidatePoolResult {
-  /** Published, language-matched, not-yet-achieved candidates — may include mandatory items outside the top ranking cutoff (`RC-12`). */
+  /** Published, language-matched, not-yet-achieved candidates. */
   candidates: ContentItem[];
   /** `contentItemId → outcomeId[]` this candidate is bound to, restricted to the learner's required outcome set. */
   boundOutcomesByContent: Map<string, string[]>;
-  /** Content ids that are `isMandatory` — force-included regardless of score (`RC-12`). */
-  mandatoryContentIds: Set<string>;
 }
 
 /**
@@ -38,7 +36,7 @@ export class CandidatePoolService {
     );
 
     if (outstandingOutcomeIds.size === 0) {
-      return { candidates: [], boundOutcomesByContent: new Map(), mandatoryContentIds: new Set() };
+      return { candidates: [], boundOutcomesByContent: new Map() };
     }
 
     const published = await contentItemRepository.findCandidates({
@@ -62,11 +60,8 @@ export class CandidatePoolService {
     const candidates = published.filter(
       (item) => boundOutcomesByContent.has(item.id) && !params.excludeContentItemIds?.has(item.id),
     );
-    const mandatoryContentIds = new Set(
-      candidates.filter((item) => item.isMandatory).map((item) => item.id),
-    );
 
-    return { candidates, boundOutcomesByContent, mandatoryContentIds };
+    return { candidates, boundOutcomesByContent };
   }
 
   /**
@@ -79,8 +74,8 @@ export class CandidatePoolService {
    *
    * Candidates are the REAL master `ContentItem`s behind each snapshot
    * content row's `sourceContentId` (confirmed direction: score using the
-   * original library content when one was copied, so difficulty/duration/
-   * effectiveness/mandatory all reflect real data). A manager-authored
+   * original library content when one was copied, so effectiveness/semantic
+   * signals reflect real data). A manager-authored
    * snapshot content row with no `sourceContentId` has nothing to resolve
    * to a real `ContentItem` and is therefore not scorable by this pipeline
    * — it's surfaced separately by `PlanSnapshotService.getTree()` for the
@@ -93,7 +88,7 @@ export class CandidatePoolService {
     excludeContentItemIds?: ReadonlySet<string>;
   }): Promise<CandidatePoolResult> {
     if (params.outstandingOutcomeSnapshotIds.size === 0) {
-      return { candidates: [], boundOutcomesByContent: new Map(), mandatoryContentIds: new Set() };
+      return { candidates: [], boundOutcomesByContent: new Map() };
     }
 
     const contentIdToOutcomeSnapshotIds = new Map<string, string[]>();
@@ -122,10 +117,6 @@ export class CandidatePoolService {
       boundOutcomesByContent.set(contentId, outcomeSnapshotIds);
     }
 
-    const mandatoryContentIds = new Set(
-      candidates.filter((item) => item.isMandatory).map((item) => item.id),
-    );
-
-    return { candidates, boundOutcomesByContent, mandatoryContentIds };
+    return { candidates, boundOutcomesByContent };
   }
 }

@@ -22,7 +22,6 @@ function toResponseDto(outcome: Outcome): OutcomeResponseDto {
     descriptionEn: outcome.descriptionEn,
     descriptionAr: outcome.descriptionAr,
     targetSkills: outcome.targetSkills,
-    trainingForm: outcome.trainingForm,
     order: outcome.order,
     isEnabled: outcome.isEnabled,
     createdAt: outcome.createdAt.toISOString(),

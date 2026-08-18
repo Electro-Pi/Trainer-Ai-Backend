@@ -523,7 +523,6 @@ export async function seedTracks(organizationId: string): Promise<void> {
             descriptionEn: outcome.descriptionEn,
             descriptionAr: outcome.descriptionAr,
             targetSkills: outcome.targetSkills,
-            trainingForm: track.trainingForm,
             order: outcomeOrder,
           };
 

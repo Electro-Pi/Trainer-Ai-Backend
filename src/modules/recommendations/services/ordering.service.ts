@@ -3,16 +3,16 @@ import type { ContentPrerequisite } from '@/modules/content/content.module.js';
 
 import type { ScoredItem } from './scorer.service.js';
 
-const DIFFICULTY_RANK: Record<string, number> = { EASY: 0, MEDIUM: 1, HARD: 2 };
-
 /**
  * `P6-4` — ARCHITECTURE §8.1 step 4, `RC-02`. Topological sort over
  * `ContentPrerequisite.prerequisiteContentId` edges restricted to content
  * items present in this ranked set — a prerequisite pointing outside the set
  * (already achieved, or in a different pool) doesn't constrain order here.
  * A cycle is impossible to satisfy honestly, so it logs a warning and falls
- * back to difficulty order (`EASY` → `HARD`) rather than silently dropping
- * items or throwing and blocking the whole recommendation.
+ * back to score order rather than silently dropping items or throwing and
+ * blocking the whole recommendation. (Previously fell back to difficulty
+ * order first; `ContentItem.difficulty` no longer exists, so this is now a
+ * pure score sort.)
  */
 export class OrderingService {
   order(items: ScoredItem[], prerequisites: ContentPrerequisite[]): ScoredItem[] {
@@ -31,9 +31,9 @@ export class OrderingService {
     if (!sorted) {
       logger.warn(
         { contentItemIds: [...itemIds] },
-        'Prerequisite cycle detected in recommendation set — falling back to difficulty order (RC-02)',
+        'Prerequisite cycle detected in recommendation set — falling back to score order (RC-02)',
       );
-      return this.byDifficultyThenScore(items);
+      return this.byScore(items);
     }
 
     const positionById = new Map(sorted.map((id, index) => [id, index]));
@@ -74,12 +74,7 @@ export class OrderingService {
     return result.length === itemIds.size ? result : null;
   }
 
-  private byDifficultyThenScore(items: ScoredItem[]): ScoredItem[] {
-    return [...items].sort((a, b) => {
-      const diffDelta =
-        DIFFICULTY_RANK[a.contentItem.difficulty]! - DIFFICULTY_RANK[b.contentItem.difficulty]!;
-      if (diffDelta !== 0) return diffDelta;
-      return b.score - a.score;
-    });
+  private byScore(items: ScoredItem[]): ScoredItem[] {
+    return [...items].sort((a, b) => b.score - a.score);
   }
 }

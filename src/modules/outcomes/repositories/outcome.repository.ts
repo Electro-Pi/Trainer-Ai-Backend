@@ -77,7 +77,6 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
         descriptionEn: source.descriptionEn,
         descriptionAr: source.descriptionAr,
         targetSkills: source.targetSkills,
-        trainingForm: source.trainingForm,
         order: siblings.length,
         isEnabled: false,
       },

@@ -2,6 +2,14 @@ import type { Outcome } from '@/modules/outcomes/outcomes.module.js';
 
 import type { ScoredItem } from './scorer.service.js';
 
+/**
+ * `MANDATORY` is kept as a valid value even though nothing can produce it
+ * anymore — `ContentItem.isMandatory` was removed from the schema, so
+ * `pickReasonCode` no longer has a mandatory branch (see below). Left in
+ * place rather than chased through every consumer (stored `RecommendationItem`
+ * rows, API response types, frontend reason-code switches) since a dead enum
+ * member is harmless; removing it would be a separate, broader cleanup.
+ */
 export type ReasonCode =
   | 'MANDATORY'
   | 'OUTCOME_CARRIED_OVER'
@@ -27,22 +35,12 @@ const EFFECTIVENESS_HIGH_THRESHOLD = 0.75;
  * learner's report (P9) the other from the same row.
  */
 export class ExplainService {
-  explain(
-    item: ScoredItem,
-    outcome: Outcome,
-    isMandatory: boolean,
-    isCarriedOver: boolean,
-  ): Explanation {
-    const reasonCode = this.pickReasonCode(item, isMandatory, isCarriedOver);
+  explain(item: ScoredItem, outcome: Outcome, isCarriedOver: boolean): Explanation {
+    const reasonCode = this.pickReasonCode(item, isCarriedOver);
     return { reasonCode, ...this.render(reasonCode, outcome) };
   }
 
-  private pickReasonCode(
-    item: ScoredItem,
-    isMandatory: boolean,
-    isCarriedOver: boolean,
-  ): ReasonCode {
-    if (isMandatory) return 'MANDATORY';
+  private pickReasonCode(item: ScoredItem, isCarriedOver: boolean): ReasonCode {
     if (isCarriedOver) return 'OUTCOME_CARRIED_OVER';
     if (item.signalBreakdown.gapMatch === 1) return 'REMEDIAL_FOR_WEAK_CRITERION';
     if (item.signalBreakdown.effectiveness >= EFFECTIVENESS_HIGH_THRESHOLD)

@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 import { cuidSchema } from '@/common/validators/primitives.js';
 
-const trainingFormSchema = z.enum(['CONVERSATION', 'CASE', 'SIMULATION', 'ROLEPLAY']);
 const bilingualTextSchema = z.string().trim().min(1).max(500);
 
 export const createOutcomeSchema = z.object({
@@ -11,7 +10,6 @@ export const createOutcomeSchema = z.object({
   descriptionEn: z.string().trim().min(1).max(4000),
   descriptionAr: z.string().trim().min(1).max(4000),
   targetSkills: z.array(z.string().trim().min(1).max(200)).min(1),
-  trainingForm: trainingFormSchema,
   skillId: cuidSchema.optional(),
 });
 
@@ -21,7 +19,6 @@ export const updateOutcomeSchema = z.object({
   descriptionEn: z.string().trim().min(1).max(4000).optional(),
   descriptionAr: z.string().trim().min(1).max(4000).optional(),
   targetSkills: z.array(z.string().trim().min(1).max(200)).min(1).optional(),
-  trainingForm: trainingFormSchema.optional(),
   skillId: cuidSchema.optional(),
 });
 

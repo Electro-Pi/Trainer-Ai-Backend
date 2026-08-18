@@ -143,9 +143,6 @@ export class ContentService {
       textBody: dto.textBody ?? null,
       sourceUrl: dto.sourceUrl ?? null,
       language: dto.language,
-      estimatedMinutes: dto.estimatedMinutes,
-      difficulty: dto.difficulty,
-      isMandatory: dto.isMandatory ?? false,
       skillTags: dto.skillTags ?? [],
       createdById: actor.id,
     } as never);
@@ -185,9 +182,6 @@ export class ContentService {
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.textBody !== undefined ? { textBody: dto.textBody } : {}),
       ...(dto.sourceUrl !== undefined ? { sourceUrl: dto.sourceUrl } : {}),
-      ...(dto.estimatedMinutes !== undefined ? { estimatedMinutes: dto.estimatedMinutes } : {}),
-      ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
-      ...(dto.isMandatory !== undefined ? { isMandatory: dto.isMandatory } : {}),
       ...(dto.skillTags !== undefined ? { skillTags: dto.skillTags } : {}),
     } as never);
 
@@ -298,9 +292,6 @@ export class ContentService {
       textBody: source.textBody,
       sourceUrl: source.sourceUrl,
       language: source.language,
-      estimatedMinutes: source.estimatedMinutes,
-      difficulty: source.difficulty,
-      isMandatory: source.isMandatory,
       skillTags: source.skillTags,
       createdById: actor.id,
       version: source.version + 1,
@@ -354,8 +345,6 @@ export class ContentService {
     for (const id of dto.contentItemIds) {
       const item = await this.contentItems.update(id, {
         ...(dto.skillTags !== undefined ? { skillTags: dto.skillTags } : {}),
-        ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
-        ...(dto.isMandatory !== undefined ? { isMandatory: dto.isMandatory } : {}),
       } as never);
       updated.push(item);
     }
@@ -370,7 +359,6 @@ export class ContentService {
       after: {
         contentItemIds: dto.contentItemIds,
         skillTags: dto.skillTags,
-        difficulty: dto.difficulty,
       },
     });
 

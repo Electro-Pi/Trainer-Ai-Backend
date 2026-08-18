@@ -65,7 +65,6 @@ export class OutcomeService {
       descriptionEn: dto.descriptionEn,
       descriptionAr: dto.descriptionAr,
       targetSkills: dto.targetSkills,
-      trainingForm: dto.trainingForm,
       order: siblings.length,
       ...(dto.skillId !== undefined ? { skillId: dto.skillId } : {}),
     } as never);
@@ -96,7 +95,6 @@ export class OutcomeService {
       ...(dto.descriptionEn !== undefined ? { descriptionEn: dto.descriptionEn } : {}),
       ...(dto.descriptionAr !== undefined ? { descriptionAr: dto.descriptionAr } : {}),
       ...(dto.targetSkills !== undefined ? { targetSkills: dto.targetSkills } : {}),
-      ...(dto.trainingForm !== undefined ? { trainingForm: dto.trainingForm } : {}),
       ...(dto.skillId !== undefined ? { skillId: dto.skillId } : {}),
     } as never);
 
