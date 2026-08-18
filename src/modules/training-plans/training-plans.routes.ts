@@ -4,6 +4,7 @@ import { authenticate } from '@/common/guards/authenticate.guard.js';
 import { authorize, requireTeamAccess } from '@/common/guards/authorize.guard.js';
 import { tenantScope } from '@/common/guards/tenant.guard.js';
 import { validate } from '@/common/pipes/validate.js';
+import { mediaUpload } from '@/modules/content/middleware/media-upload.middleware.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 
@@ -221,6 +222,28 @@ export function createTrainingPlansRouter(): Router {
     requireTeamAccess(resolveManagerIdByPlan),
     (req, res, next) => {
       snapshotController.removeContent(req, res).catch(next);
+    },
+  );
+
+  router.get(
+    '/:id/snapshot/content/:contentSnapshotId/media',
+    validate({ params: contentSnapshotIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.listMedia(req, res).catch(next);
+    },
+  );
+
+  router.post(
+    '/:id/snapshot/content/:contentSnapshotId/media',
+    authorize(...WRITE_ROLES),
+    validate({ params: contentSnapshotIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      mediaUpload(req, res, next);
+    },
+    (req, res, next) => {
+      snapshotController.uploadMedia(req, res).catch(next);
     },
   );
 

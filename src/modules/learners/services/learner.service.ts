@@ -140,7 +140,7 @@ export class LearnerService {
     const existing = await this.experiences.findByLearner(learnerId);
 
     const data = {
-      background: dto.background,
+      background: dto.background ?? '',
       yearsOfExperience: dto.yearsOfExperience,
       priorTraining: dto.priorTraining ?? null,
       notes: dto.notes ?? null,

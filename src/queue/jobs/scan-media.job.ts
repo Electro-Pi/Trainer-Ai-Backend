@@ -1,25 +1,59 @@
 import { container } from '@/config/container.js';
 import { logger } from '@/logger/logger.service.js';
 import { MediaAssetRepository } from '@/modules/content/repositories/media-asset.repository.js';
+import { PlanContentMediaRepository } from '@/modules/training-plans/repositories/plan-content-media.repository.js';
 import type { Scanner, StorageService } from '@/shared-types.js';
 
 import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
 
 const mediaAssets = new MediaAssetRepository();
+const planContentMedia = new PlanContentMediaRepository();
 
 /**
  * `CM-07` — publish is blocked unless `MediaAsset.scanStatus = CLEAN`
  * (enforced in the content service, not here). This job only runs the scan
  * and records the result; on `CLEAN` it enqueues `media.extract` to continue
  * the pipeline (§10 table), never inline.
+ *
+ * `payload.mediaAssetId` is looked up against the master `MediaAsset` table
+ * first, falling back to `PlanContentMedia` — a plan-snapshot upload
+ * (`PlanContentMediaService.upload`) enqueues into this same queue since the
+ * malware-scan step applies equally to both, but a snapshot upload has no
+ * `ContentItem`/`contentItemId` to chain `media.extract`/`content.embed`
+ * into (those feed the recommender against the master catalogue, which a
+ * plan-only content copy never participates in) — so the `CLEAN` follow-up
+ * only fires for a real `MediaAsset`.
  */
 export async function processScanMediaJob(payload: QueuePayloads['media.scan']): Promise<void> {
   const asset = await mediaAssets.findById(payload.mediaAssetId);
-  if (!asset) {
+  if (asset) {
+    const storage = container.resolveStorage<StorageService>();
+    const scanner = container.resolveScanner<Scanner>();
+
+    const downloadUrl = await storage.getDownloadUrl(asset.blobKey, 300);
+    const response = await fetch(downloadUrl);
+    const data = Buffer.from(await response.arrayBuffer());
+
+    const result = await scanner.scan(data);
+    await mediaAssets.setScanStatus(asset.id, result.status);
+
+    logger.info({ mediaAssetId: asset.id, status: result.status }, 'Media scan complete');
+
+    if (result.status === 'CLEAN') {
+      await queueService.enqueue('media.extract', {
+        mediaAssetId: asset.id,
+        organizationId: payload.organizationId,
+      });
+    }
+    return;
+  }
+
+  const planMedia = await planContentMedia.findById(payload.mediaAssetId);
+  if (!planMedia) {
     logger.warn(
       { mediaAssetId: payload.mediaAssetId },
-      'scan-media: media asset not found, skipping',
+      'scan-media: media asset not found in either MediaAsset or PlanContentMedia, skipping',
     );
     return;
   }
@@ -27,19 +61,18 @@ export async function processScanMediaJob(payload: QueuePayloads['media.scan']):
   const storage = container.resolveStorage<StorageService>();
   const scanner = container.resolveScanner<Scanner>();
 
-  const downloadUrl = await storage.getDownloadUrl(asset.blobKey, 300);
+  const downloadUrl = await storage.getDownloadUrl(planMedia.blobKey, 300);
   const response = await fetch(downloadUrl);
   const data = Buffer.from(await response.arrayBuffer());
 
   const result = await scanner.scan(data);
-  await mediaAssets.setScanStatus(asset.id, result.status);
+  await planContentMedia.update(planMedia.id, {
+    scanStatus: result.status,
+    processedAt: new Date(),
+  } as never);
 
-  logger.info({ mediaAssetId: asset.id, status: result.status }, 'Media scan complete');
-
-  if (result.status === 'CLEAN') {
-    await queueService.enqueue('media.extract', {
-      mediaAssetId: asset.id,
-      organizationId: payload.organizationId,
-    });
-  }
+  logger.info(
+    { planContentMediaId: planMedia.id, status: result.status },
+    'Plan content media scan complete',
+  );
 }

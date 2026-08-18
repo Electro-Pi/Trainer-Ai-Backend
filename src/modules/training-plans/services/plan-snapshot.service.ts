@@ -79,6 +79,9 @@ export class PlanSnapshotService {
       skillId: skill.id,
       nameEn: skill.nameEn,
       nameAr: skill.nameAr,
+      descriptionEn: skill.descriptionEn,
+      descriptionAr: skill.descriptionAr,
+      category: skill.category,
       levels: skill.levels,
     }));
 
@@ -154,7 +157,14 @@ export class PlanSnapshotService {
   async addSkill(
     actor: ActingUser,
     trainingPlanId: string,
-    dto: { nameEn: string; nameAr: string; levels: string[] },
+    dto: {
+      nameEn: string;
+      nameAr: string;
+      descriptionEn: string;
+      descriptionAr: string;
+      category: string;
+      levels: string[];
+    },
   ) {
     const tree = await this.getTree(trainingPlanId);
     const created = await this.snapshots.addSkill(tree.id, { sourceSkillId: null, ...dto });
@@ -176,7 +186,14 @@ export class PlanSnapshotService {
     actor: ActingUser,
     trainingPlanId: string,
     skillSnapshotId: string,
-    dto: Partial<{ nameEn: string; nameAr: string; levels: string[] }>,
+    dto: Partial<{
+      nameEn: string;
+      nameAr: string;
+      descriptionEn: string;
+      descriptionAr: string;
+      category: string;
+      levels: string[];
+    }>,
   ) {
     await this.assertSkillBelongsToPlan(trainingPlanId, skillSnapshotId);
     const updated = await this.snapshots.updateSkill(skillSnapshotId, dto);
@@ -290,9 +307,18 @@ export class PlanSnapshotService {
   async addContent(
     actor: ActingUser,
     trainingPlanId: string,
-    dto: { title: string; contentType: string; sourceUrl: string | null; textBody: string | null },
+    dto: {
+      skillSnapshotId: string | null;
+      title: string;
+      contentType: string;
+      sourceUrl: string | null;
+      textBody: string | null;
+    },
   ) {
     const tree = await this.getTree(trainingPlanId);
+    if (dto.skillSnapshotId) {
+      await this.assertSkillBelongsToPlan(trainingPlanId, dto.skillSnapshotId);
+    }
     const created = await this.snapshots.addContent(tree.id, { sourceContentId: null, ...dto });
 
     await writeAuditLog({

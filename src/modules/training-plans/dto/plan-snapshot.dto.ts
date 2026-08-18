@@ -22,19 +22,36 @@ export interface PlanSkillSnapshotResponseDto {
   sourceSkillId: string | null;
   nameEn: string;
   nameAr: string;
+  descriptionEn: string;
+  descriptionAr: string;
+  category: string;
   levels: string[];
   isRemoved: boolean;
   outcomes: PlanOutcomeSnapshotResponseDto[];
+  content: PlanContentSnapshotResponseDto[];
+}
+
+export interface PlanContentMediaResponseDto {
+  id: string;
+  contentSnapshotId: string;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  scanStatus: string;
+  downloadUrl: string;
+  createdAt: string;
 }
 
 export interface PlanContentSnapshotResponseDto {
   id: string;
+  skillSnapshotId: string | null;
   sourceContentId: string | null;
   title: string;
   contentType: string;
   sourceUrl: string | null;
   textBody: string | null;
   isRemoved: boolean;
+  media: PlanContentMediaResponseDto[];
 }
 
 export interface PlanTrackSnapshotResponseDto {
@@ -52,12 +69,18 @@ export interface PlanTrackSnapshotResponseDto {
 export interface AddPlanSkillSnapshotDto {
   nameEn: string;
   nameAr: string;
+  descriptionEn: string;
+  descriptionAr: string;
+  category: string;
   levels: string[];
 }
 
 export interface UpdatePlanSkillSnapshotDto {
   nameEn?: string;
   nameAr?: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+  category?: string;
   levels?: string[];
 }
 
@@ -78,6 +101,7 @@ export interface UpdatePlanOutcomeSnapshotDto {
 }
 
 export interface AddPlanContentSnapshotDto {
+  skillSnapshotId?: string;
   title: string;
   contentType: 'DOCUMENT' | 'SLIDES' | 'TEXT' | 'LINK' | 'IMAGE';
   sourceUrl?: string;

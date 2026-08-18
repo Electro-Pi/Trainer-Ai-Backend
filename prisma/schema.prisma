@@ -886,6 +886,9 @@ model PlanSkillSnapshot {
   sourceSkillId String?
   nameEn        String
   nameAr        String
+  descriptionEn String   @default("")
+  descriptionAr String   @default("")
+  category      String   @default("")
   /// Copy of `Skill.levels[]` at snapshot time — global to the skill, not
   /// per-track, matching the corrected master-catalogue model.
   levels        String[]
@@ -895,6 +898,7 @@ model PlanSkillSnapshot {
 
   snapshot PlanTrackSnapshot     @relation(fields: [snapshotId], references: [id])
   outcomes PlanOutcomeSnapshot[]
+  content  PlanContentSnapshot[]
 
   @@index([snapshotId])
   @@map("plan_skill_snapshots")
@@ -946,6 +950,12 @@ model PlanLearnerOutcomeSnapshot {
 model PlanContentSnapshot {
   id              String      @id @default(cuid(2))
   snapshotId      String
+  /// Owning skill within the snapshot — content is skill-scoped here (unlike
+  /// the master catalogue's ContentItem, which links to outcomes via
+  /// ContentOutcome), matching how the track-creation wizard collects
+  /// content per skill card. Nullable only through the migration window for
+  /// rows created before this column existed.
+  skillSnapshotId String?
   sourceContentId String?
   title           String
   contentType     ContentType
@@ -954,10 +964,36 @@ model PlanContentSnapshot {
   isRemoved       Boolean     @default(false)
   createdAt       DateTime    @default(now())
 
-  snapshot PlanTrackSnapshot @relation(fields: [snapshotId], references: [id])
+  snapshot      PlanTrackSnapshot   @relation(fields: [snapshotId], references: [id])
+  skillSnapshot PlanSkillSnapshot?  @relation(fields: [skillSnapshotId], references: [id])
+  media         PlanContentMedia[]
 
   @@index([snapshotId])
+  @@index([skillSnapshotId])
   @@map("plan_content_snapshots")
+}
+
+/// Plan-scoped counterpart to `MediaAsset` — a DOCUMENT/SLIDES/IMAGE
+/// `PlanContentSnapshot` needs an uploaded blob the same way a master
+/// `ContentItem` does, but `MediaAsset.contentItemId` is a required FK, so a
+/// separate table (not a nullable-widened `MediaAsset`) keeps the existing
+/// master-catalogue media pipeline's invariants untouched.
+model PlanContentMedia {
+  id                    String          @id @default(cuid(2))
+  contentSnapshotId     String
+  blobKey               String
+  originalFilename      String
+  mimeType              String
+  sizeBytes             Int
+  checksum              String
+  scanStatus            MediaScanStatus @default(PENDING)
+  processedAt           DateTime?
+  createdAt             DateTime        @default(now())
+
+  contentSnapshot PlanContentSnapshot @relation(fields: [contentSnapshotId], references: [id])
+
+  @@index([contentSnapshotId])
+  @@map("plan_content_media")
 }
 
 model PlanTemplate {

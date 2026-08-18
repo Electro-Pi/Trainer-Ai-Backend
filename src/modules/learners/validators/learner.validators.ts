@@ -47,7 +47,7 @@ export const teamIdParamsSchema = z.object({
 });
 
 export const putLearnerExperienceSchema = z.object({
-  background: z.string().trim().min(1).max(4000),
+  background: z.string().trim().max(4000).optional(),
   yearsOfExperience: z.coerce.number().int().min(0).max(60),
   priorTraining: z.string().trim().max(4000).optional(),
   notes: z.string().trim().max(4000).optional(),

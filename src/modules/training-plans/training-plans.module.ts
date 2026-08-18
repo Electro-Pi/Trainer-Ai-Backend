@@ -1,5 +1,6 @@
 import { openApiRegistry } from '@/swagger/swagger.js';
 
+import { PlanContentMediaRepository } from './repositories/plan-content-media.repository.js';
 import { PlanTemplateRepository } from './repositories/plan-template.repository.js';
 import { PlanTrackSnapshotRepository } from './repositories/plan-track-snapshot.repository.js';
 import { TrainingPlanRepository } from './repositories/training-plan.repository.js';
@@ -7,6 +8,7 @@ import { createTrainingPlansRouter } from './training-plans.routes.js';
 
 export type { TrainingPlan } from './repositories/training-plan.repository.js';
 export type { PlanTemplate } from './repositories/plan-template.repository.js';
+export type { PlanContentMedia } from './repositories/plan-content-media.repository.js';
 export type {
   PlanContentSnapshot,
   PlanLearnerOutcomeSnapshot,
@@ -26,6 +28,7 @@ export const trainingPlansRouter = createTrainingPlansRouter();
 export const trainingPlanRepository = new TrainingPlanRepository();
 export const planTemplateRepository = new PlanTemplateRepository();
 export const planTrackSnapshotRepository = new PlanTrackSnapshotRepository();
+export const planContentMediaRepository = new PlanContentMediaRepository();
 
 openApiRegistry.registerPath({
   method: 'post',
@@ -162,6 +165,23 @@ openApiRegistry.registerPath({
   tags: ['Training Plans'],
   summary: 'Soft-removes a plan-scoped content snapshot',
   responses: { 204: { description: 'Removed' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'get',
+  path: '/plans/{id}/snapshot/content/{contentSnapshotId}/media',
+  tags: ['Training Plans'],
+  summary: 'Lists media uploaded to a plan-scoped content snapshot',
+  responses: { 200: { description: 'Media list' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/plans/{id}/snapshot/content/{contentSnapshotId}/media',
+  tags: ['Training Plans'],
+  summary:
+    'Uploads a media asset to a plan-scoped content snapshot — magic-byte MIME sniff, malware scan, no effect on the master catalogue',
+  responses: { 201: { description: 'Created plan content media, scan pending' } },
 });
 
 openApiRegistry.registerPath({

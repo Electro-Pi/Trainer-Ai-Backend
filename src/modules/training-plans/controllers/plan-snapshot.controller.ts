@@ -1,11 +1,13 @@
 import type { Request, Response } from 'express';
 
+import { ValidationError } from '@/common/exceptions/app-error.js';
 import type { AuthContext } from '@/common/types/express.js';
 
 import type {
   AddPlanContentSnapshotDto,
   AddPlanOutcomeSnapshotDto,
   AddPlanSkillSnapshotDto,
+  PlanContentMediaResponseDto,
   PlanContentSnapshotResponseDto,
   PlanOutcomeSnapshotResponseDto,
   PlanSkillSnapshotResponseDto,
@@ -14,29 +16,49 @@ import type {
   UpdatePlanOutcomeSnapshotDto,
   UpdatePlanSkillSnapshotDto,
 } from '../dto/plan-snapshot.dto.js';
+import type { PlanContentMedia } from '../repositories/plan-content-media.repository.js';
 import type {
   PlanContentSnapshot,
   PlanOutcomeSnapshot,
   PlanSkillSnapshot,
   PlanTrackSnapshotTree,
 } from '../repositories/plan-track-snapshot.repository.js';
+import { PlanContentMediaService } from '../services/plan-content-media.service.js';
 import { type ActingUser, PlanSnapshotService } from '../services/plan-snapshot.service.js';
 
 const service = new PlanSnapshotService();
+const mediaService = new PlanContentMediaService();
 
 function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
-function toContentDto(content: PlanContentSnapshot): PlanContentSnapshotResponseDto {
+async function toMediaDto(media: PlanContentMedia): Promise<PlanContentMediaResponseDto> {
+  return {
+    id: media.id,
+    contentSnapshotId: media.contentSnapshotId,
+    originalFilename: media.originalFilename,
+    mimeType: media.mimeType,
+    sizeBytes: media.sizeBytes,
+    scanStatus: media.scanStatus,
+    downloadUrl: await mediaService.getDownloadUrl(media.id),
+    createdAt: media.createdAt.toISOString(),
+  };
+}
+
+async function toContentDto(
+  content: PlanContentSnapshot & { media?: PlanContentMedia[] },
+): Promise<PlanContentSnapshotResponseDto> {
   return {
     id: content.id,
+    skillSnapshotId: content.skillSnapshotId,
     sourceContentId: content.sourceContentId,
     title: content.title,
     contentType: content.contentType,
     sourceUrl: content.sourceUrl,
     textBody: content.textBody,
     isRemoved: content.isRemoved,
+    media: await Promise.all((content.media ?? []).map(toMediaDto)),
   };
 }
 
@@ -70,21 +92,28 @@ function toOutcomeDto(
   };
 }
 
-function toSkillDto(
-  skill: PlanSkillSnapshot & { outcomes?: Parameters<typeof toOutcomeDto>[0][] },
-): PlanSkillSnapshotResponseDto {
+async function toSkillDto(
+  skill: PlanSkillSnapshot & {
+    outcomes?: Parameters<typeof toOutcomeDto>[0][];
+    content?: Parameters<typeof toContentDto>[0][];
+  },
+): Promise<PlanSkillSnapshotResponseDto> {
   return {
     id: skill.id,
     sourceSkillId: skill.sourceSkillId,
     nameEn: skill.nameEn,
     nameAr: skill.nameAr,
+    descriptionEn: skill.descriptionEn,
+    descriptionAr: skill.descriptionAr,
+    category: skill.category,
     levels: skill.levels,
     isRemoved: skill.isRemoved,
     outcomes: (skill.outcomes ?? []).map(toOutcomeDto),
+    content: await Promise.all((skill.content ?? []).map(toContentDto)),
   };
 }
 
-function toTreeDto(tree: PlanTrackSnapshotTree): PlanTrackSnapshotResponseDto {
+async function toTreeDto(tree: PlanTrackSnapshotTree): Promise<PlanTrackSnapshotResponseDto> {
   return {
     id: tree.id,
     trainingPlanId: tree.trainingPlanId,
@@ -93,8 +122,8 @@ function toTreeDto(tree: PlanTrackSnapshotTree): PlanTrackSnapshotResponseDto {
     nameAr: tree.nameAr,
     descriptionEn: tree.descriptionEn,
     descriptionAr: tree.descriptionAr,
-    skills: tree.skills.map(toSkillDto),
-    content: tree.content.map(toContentDto),
+    skills: await Promise.all(tree.skills.map(toSkillDto)),
+    content: await Promise.all(tree.content.map(toContentDto)),
   };
 }
 
@@ -102,27 +131,34 @@ export class PlanSnapshotController {
   async create(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const tree = await service.createFromMasterTrack(toActingUser(req.auth!), id);
-    res.status(201).json(toTreeDto(tree));
+    res.status(201).json(await toTreeDto(tree));
   }
 
   async getTree(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const tree = await service.getTree(id);
-    res.status(200).json(toTreeDto(tree));
+    res.status(200).json(await toTreeDto(tree));
   }
 
   async addSkill(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const dto = req.body as AddPlanSkillSnapshotDto;
-    const created = await service.addSkill(toActingUser(req.auth!), id, dto);
-    res.status(201).json(toSkillDto(created));
+    const created = await service.addSkill(toActingUser(req.auth!), id, {
+      nameEn: dto.nameEn,
+      nameAr: dto.nameAr,
+      descriptionEn: dto.descriptionEn ?? '',
+      descriptionAr: dto.descriptionAr ?? '',
+      category: dto.category ?? '',
+      levels: dto.levels,
+    });
+    res.status(201).json(await toSkillDto(created));
   }
 
   async updateSkill(req: Request, res: Response): Promise<void> {
     const { id, skillSnapshotId } = req.params as { id: string; skillSnapshotId: string };
     const dto = req.body as UpdatePlanSkillSnapshotDto;
     const updated = await service.updateSkill(toActingUser(req.auth!), id, skillSnapshotId, dto);
-    res.status(200).json(toSkillDto(updated));
+    res.status(200).json(await toSkillDto(updated));
   }
 
   async removeSkill(req: Request, res: Response): Promise<void> {
@@ -160,12 +196,13 @@ export class PlanSnapshotController {
     const { id } = req.params as { id: string };
     const dto = req.body as AddPlanContentSnapshotDto;
     const created = await service.addContent(toActingUser(req.auth!), id, {
+      skillSnapshotId: dto.skillSnapshotId ?? null,
       title: dto.title,
       contentType: dto.contentType,
       sourceUrl: dto.sourceUrl ?? null,
       textBody: dto.textBody ?? null,
     });
-    res.status(201).json(toContentDto(created));
+    res.status(201).json(await toContentDto(created));
   }
 
   async updateContent(req: Request, res: Response): Promise<void> {
@@ -177,12 +214,32 @@ export class PlanSnapshotController {
       contentSnapshotId,
       dto,
     );
-    res.status(200).json(toContentDto(updated));
+    res.status(200).json(await toContentDto(updated));
   }
 
   async removeContent(req: Request, res: Response): Promise<void> {
     const { id, contentSnapshotId } = req.params as { id: string; contentSnapshotId: string };
     await service.removeContent(toActingUser(req.auth!), id, contentSnapshotId);
     res.status(204).send();
+  }
+
+  async uploadMedia(req: Request, res: Response): Promise<void> {
+    const { id, contentSnapshotId } = req.params as { id: string; contentSnapshotId: string };
+    if (!req.file) {
+      throw new ValidationError([
+        { path: 'file', code: 'required', message: 'A file is required' },
+      ]);
+    }
+    const created = await mediaService.upload(toActingUser(req.auth!), id, contentSnapshotId, {
+      buffer: req.file.buffer,
+      originalFilename: req.file.originalname,
+    });
+    res.status(201).json(await toMediaDto(created));
+  }
+
+  async listMedia(req: Request, res: Response): Promise<void> {
+    const { contentSnapshotId } = req.params as { id: string; contentSnapshotId: string };
+    const assets = await mediaService.listByContentSnapshot(contentSnapshotId);
+    res.status(200).json({ data: await Promise.all(assets.map(toMediaDto)) });
   }
 }

@@ -1,4 +1,5 @@
 import type {
+  PlanContentMedia,
   PlanContentSnapshot,
   PlanLearnerOutcomeSnapshot,
   PlanOutcomeSnapshot,
@@ -9,6 +10,7 @@ import type {
 import { prisma } from '@/database/prisma.service.js';
 
 export type {
+  PlanContentMedia,
   PlanContentSnapshot,
   PlanLearnerOutcomeSnapshot,
   PlanOutcomeSnapshot,
@@ -19,8 +21,10 @@ export type {
 export interface PlanTrackSnapshotTree extends PlanTrackSnapshot {
   skills: (PlanSkillSnapshot & {
     outcomes: (PlanOutcomeSnapshot & { progress: PlanLearnerOutcomeSnapshot | null })[];
+    content: (PlanContentSnapshot & { media: PlanContentMedia[] })[];
   })[];
-  content: PlanContentSnapshot[];
+  /** Content with no `skillSnapshotId` (manager-added at the track level, or a pre-migration row). */
+  content: (PlanContentSnapshot & { media: PlanContentMedia[] })[];
 }
 
 /**
@@ -36,9 +40,12 @@ export class PlanTrackSnapshotRepository {
     return prisma.planTrackSnapshot.findUnique({
       where: { trainingPlanId },
       include: {
-        content: true,
+        content: { where: { skillSnapshotId: null }, include: { media: true } },
         skills: {
-          include: { outcomes: { include: { progress: true } } },
+          include: {
+            outcomes: { include: { progress: true } },
+            content: { include: { media: true } },
+          },
         },
       },
     });
@@ -48,9 +55,12 @@ export class PlanTrackSnapshotRepository {
     return prisma.planTrackSnapshot.findUnique({
       where: { id },
       include: {
-        content: true,
+        content: { where: { skillSnapshotId: null }, include: { media: true } },
         skills: {
-          include: { outcomes: { include: { progress: true } } },
+          include: {
+            outcomes: { include: { progress: true } },
+            content: { include: { media: true } },
+          },
         },
       },
     });
@@ -72,7 +82,15 @@ export class PlanTrackSnapshotRepository {
       descriptionEn: string;
       descriptionAr: string;
     };
-    trackSkills: { skillId: string; nameEn: string; nameAr: string; levels: string[] }[];
+    trackSkills: {
+      skillId: string;
+      nameEn: string;
+      nameAr: string;
+      descriptionEn: string;
+      descriptionAr: string;
+      category: string;
+      levels: string[];
+    }[];
     outcomesBySkillId: Map<
       string,
       {
@@ -118,6 +136,9 @@ export class PlanTrackSnapshotRepository {
             sourceSkillId: trackSkill.skillId,
             nameEn: trackSkill.nameEn,
             nameAr: trackSkill.nameAr,
+            descriptionEn: trackSkill.descriptionEn,
+            descriptionAr: trackSkill.descriptionAr,
+            category: trackSkill.category,
             levels: trackSkill.levels,
           },
         });
@@ -148,6 +169,7 @@ export class PlanTrackSnapshotRepository {
             const contentSnapshot = await tx.planContentSnapshot.create({
               data: {
                 snapshotId: snapshot.id,
+                skillSnapshotId: skillSnapshot.id,
                 sourceContentId: content.id,
                 title: content.title,
                 contentType: content.contentType as never,
@@ -172,14 +194,30 @@ export class PlanTrackSnapshotRepository {
 
   async addSkill(
     snapshotId: string,
-    data: { sourceSkillId: string | null; nameEn: string; nameAr: string; levels: string[] },
+    data: {
+      sourceSkillId: string | null;
+      nameEn: string;
+      nameAr: string;
+      descriptionEn: string;
+      descriptionAr: string;
+      category: string;
+      levels: string[];
+    },
   ): Promise<PlanSkillSnapshot> {
     return prisma.planSkillSnapshot.create({ data: { snapshotId, ...data } });
   }
 
   async updateSkill(
     skillSnapshotId: string,
-    data: Partial<{ nameEn: string; nameAr: string; levels: string[]; isRemoved: boolean }>,
+    data: Partial<{
+      nameEn: string;
+      nameAr: string;
+      descriptionEn: string;
+      descriptionAr: string;
+      category: string;
+      levels: string[];
+      isRemoved: boolean;
+    }>,
   ): Promise<PlanSkillSnapshot> {
     return prisma.planSkillSnapshot.update({ where: { id: skillSnapshotId }, data });
   }
@@ -230,6 +268,7 @@ export class PlanTrackSnapshotRepository {
   async addContent(
     snapshotId: string,
     data: {
+      skillSnapshotId: string | null;
       sourceContentId: string | null;
       title: string;
       contentType: string;
