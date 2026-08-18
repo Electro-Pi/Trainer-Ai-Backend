@@ -17,7 +17,7 @@ import type { SignalContext } from '@/modules/recommendations/signals/signal.typ
 // exactly the right amount of fixture for a unit test at this altitude.
 function baseContext(overrides: Partial<SignalContext> = {}): SignalContext {
   return {
-    contentItem: { id: 'content-1', difficulty: 'EASY', estimatedMinutes: 10 } as never,
+    contentItem: { id: 'content-1' } as never,
     outcomeId: 'outcome-1',
     contentOutcomes: [{ contentItemId: 'content-1', outcomeId: 'outcome-1' }],
     outcomePriority: 0,
@@ -77,42 +77,11 @@ describe('outcomePrioritySignal (weight 0.20, RC-03)', () => {
   });
 });
 
-describe('difficultyFitSignal (weight 0.15, RC-09 cold start)', () => {
-  it('scores a neutral 0.5 when no experience has ever been recorded (cold start)', () => {
-    const ctx = baseContext({ yearsOfExperience: null });
-    expect(difficultyFitSignal(ctx)).toBe(0.5);
-  });
-
-  it('scores 1 for an exact band match (0-2 years -> EASY)', () => {
-    const ctx = baseContext({
-      yearsOfExperience: 1,
-      contentItem: { difficulty: 'EASY' } as never,
-    });
-    expect(difficultyFitSignal(ctx)).toBe(1);
-  });
-
-  it('scores 0.5 for one band off (0-2 years experience vs MEDIUM content)', () => {
-    const ctx = baseContext({
-      yearsOfExperience: 1,
-      contentItem: { difficulty: 'MEDIUM' } as never,
-    });
-    expect(difficultyFitSignal(ctx)).toBe(0.5);
-  });
-
-  it('scores 0 for two bands off (0-2 years experience vs HARD content)', () => {
-    const ctx = baseContext({
-      yearsOfExperience: 1,
-      contentItem: { difficulty: 'HARD' } as never,
-    });
-    expect(difficultyFitSignal(ctx)).toBe(0);
-  });
-
-  it('maps 5+ years to the HARD band', () => {
-    const ctx = baseContext({
-      yearsOfExperience: 7,
-      contentItem: { difficulty: 'HARD' } as never,
-    });
-    expect(difficultyFitSignal(ctx)).toBe(1);
+describe('difficultyFitSignal (weight 0.15) — always neutral, ContentItem.difficulty removed from schema', () => {
+  it('always scores a neutral 0.5, regardless of experience or content', () => {
+    expect(difficultyFitSignal(baseContext({ yearsOfExperience: null }))).toBe(0.5);
+    expect(difficultyFitSignal(baseContext({ yearsOfExperience: 1 }))).toBe(0.5);
+    expect(difficultyFitSignal(baseContext({ yearsOfExperience: 7 }))).toBe(0.5);
   });
 });
 
@@ -169,9 +138,9 @@ describe('semanticSimilaritySignal (weight 0.10)', () => {
 describe('OrderingService — prerequisite topological sort (RC-02)', () => {
   const ordering = new OrderingService();
 
-  function scoredItem(id: string, difficulty: 'EASY' | 'MEDIUM' | 'HARD', score = 0.5): ScoredItem {
+  function scoredItem(id: string, score = 0.5): ScoredItem {
     return {
-      contentItem: { id, difficulty, estimatedMinutes: 10 } as never,
+      contentItem: { id } as never,
       outcomeId: 'outcome-1',
       score,
       signalBreakdown: {} as never,
@@ -179,25 +148,25 @@ describe('OrderingService — prerequisite topological sort (RC-02)', () => {
   }
 
   it('orders a simple prerequisite chain correctly (B depends on A)', () => {
-    const items = [scoredItem('B', 'EASY'), scoredItem('A', 'EASY')];
+    const items = [scoredItem('B'), scoredItem('A')];
     const prerequisites = [{ contentItemId: 'B', prerequisiteContentId: 'A' } as never];
     const result = ordering.order(items, prerequisites);
     expect(result.map((i) => i.contentItem.id)).toEqual(['A', 'B']);
   });
 
-  it('falls back to difficulty order on a genuine cycle instead of throwing', () => {
-    const items = [scoredItem('A', 'MEDIUM'), scoredItem('B', 'EASY')];
+  it('falls back to score order on a genuine cycle instead of throwing (ContentItem.difficulty removed)', () => {
+    const items = [scoredItem('A', 0.3), scoredItem('B', 0.9)];
     const prerequisites = [
       { contentItemId: 'A', prerequisiteContentId: 'B' } as never,
       { contentItemId: 'B', prerequisiteContentId: 'A' } as never,
     ];
     const result = ordering.order(items, prerequisites);
-    // Cycle fallback sorts EASY before MEDIUM, not by insertion order.
+    // Cycle fallback sorts by score descending, not difficulty.
     expect(result.map((i) => i.contentItem.id)).toEqual(['B', 'A']);
   });
 
   it('ignores a prerequisite pointing outside the current candidate set', () => {
-    const items = [scoredItem('A', 'EASY')];
+    const items = [scoredItem('A')];
     const prerequisites = [{ contentItemId: 'A', prerequisiteContentId: 'not-in-pool' } as never];
     expect(() => ordering.order(items, prerequisites)).not.toThrow();
     expect(ordering.order(items, prerequisites).map((i) => i.contentItem.id)).toEqual(['A']);
