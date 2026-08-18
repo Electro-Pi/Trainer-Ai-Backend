@@ -143,17 +143,27 @@ export class PlanBuilderService {
     }
     const experience = await learnerExperienceRepository.findByLearner(learnerId);
 
+    // `Session.primaryOutcomeId` / `SessionOutcome.outcomeId` are hard FKs
+    // to the master `Outcome` table (schema.prisma:1067) — a
+    // `PlanOutcomeSnapshot.id` can never satisfy that constraint, so
+    // scheduling must key everything off `sourceOutcomeId` (the real
+    // `Outcome.id` this snapshot row was copied from) instead of the
+    // snapshot row's own id. A manager-added outcome with no master source
+    // (`sourceOutcomeId: null`) has nothing valid to schedule a session
+    // against under today's schema, so it's excluded here — it still shows
+    // in the plan's snapshot editor/review, it just can't drive a session's
+    // primaryOutcomeId until Session/SessionOutcome gain snapshot-aware FKs.
     const activeOutcomes = snapshotTree.skills
       .filter((skill) => !skill.isRemoved)
       .flatMap((skill) => skill.outcomes)
-      .filter((outcome) => !outcome.isRemoved);
+      .filter((outcome) => !outcome.isRemoved && outcome.sourceOutcomeId);
 
     const requiredOutcomes: LearnerOutcome[] = activeOutcomes.map(
       (outcome) =>
         ({
           id: outcome.progress?.id ?? outcome.id,
           learnerId,
-          outcomeId: outcome.id,
+          outcomeId: outcome.sourceOutcomeId as string,
           assignmentId: '',
           status: outcome.progress?.status ?? 'NOT_STARTED',
           priority: outcome.order,
@@ -171,8 +181,13 @@ export class PlanBuilderService {
       language: learner.preferredLanguage,
       yearsOfExperience: experience?.yearsOfExperience ?? null,
     });
+    const remapped = items.map((item) => {
+      const source = activeOutcomes.find((o) => o.id === item.outcomeId)?.sourceOutcomeId;
+      return source ? { ...item, outcomeId: source } : null;
+    });
+    const validItems = remapped.filter((item): item is RecommendationItemResult => item !== null);
 
-    return { items, requiredOutcomes };
+    return { items: validItems, requiredOutcomes };
   }
 
   /**
