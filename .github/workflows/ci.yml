@@ -49,7 +49,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Install Playwright OS deps
-        timeout-minutes: 5
+        timeout-minutes: 10
         env:
           DEBIAN_FRONTEND: noninteractive
         run: npx playwright install-deps chromium
