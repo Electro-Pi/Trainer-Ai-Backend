@@ -61,8 +61,6 @@ export const updatePlanSkillSnapshotSchema = z
 export const addPlanOutcomeSnapshotSchema = z.object({
   titleEn: bilingualTextSchema,
   titleAr: bilingualTextSchema,
-  descriptionEn: z.string().trim().min(1).max(4000),
-  descriptionAr: z.string().trim().min(1).max(4000),
   order: sortOrderSchema,
 });
 
@@ -70,8 +68,6 @@ export const updatePlanOutcomeSnapshotSchema = z
   .object({
     titleEn: bilingualTextSchema.optional(),
     titleAr: bilingualTextSchema.optional(),
-    descriptionEn: z.string().trim().min(1).max(4000).optional(),
-    descriptionAr: z.string().trim().min(1).max(4000).optional(),
     order: sortOrderSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { error: 'At least one field is required' });

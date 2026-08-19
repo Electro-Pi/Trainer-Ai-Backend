@@ -35,15 +35,15 @@ const envSchema = z.object({
   AI_SERVICE_BASE_URL: z.string().default(''),
   AI_SERVICE_TOKEN: z.string().default(''),
 
+  // ── AI Trainer microservice (separate host — slide decks + external
+  // live-session dispatch, see modules/ai-trainer) ──────────────────
+  AI_TRAINER_HOST: z.string().default(''),
+
   UPLOADTHING_TOKEN: z.string().min(1, { error: 'UPLOADTHING_TOKEN is required' }),
 
   SCANNER_PROVIDER: z.enum(['fake', 'clamav']).default('fake'),
   CLAMAV_HOST: z.string().default('localhost'),
   CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
-
-  EMBEDDING_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
-  OPENAI_API_KEY: z.string().default(''),
-  OCR_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
 
   EMAIL_PROVIDER: z.enum(['fake', 'smtp', 'graph']).default('fake'),
   SMTP_HOST: z.string().default(''),

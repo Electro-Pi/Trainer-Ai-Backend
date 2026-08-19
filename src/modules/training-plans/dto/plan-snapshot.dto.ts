@@ -10,8 +10,6 @@ export interface PlanOutcomeSnapshotResponseDto {
   sourceOutcomeId: string | null;
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
   order: number;
   isRemoved: boolean;
   progress: PlanLearnerOutcomeSnapshotResponseDto | null;
@@ -87,16 +85,12 @@ export interface UpdatePlanSkillSnapshotDto {
 export interface AddPlanOutcomeSnapshotDto {
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
   order: number;
 }
 
 export interface UpdatePlanOutcomeSnapshotDto {
   titleEn?: string;
   titleAr?: string;
-  descriptionEn?: string;
-  descriptionAr?: string;
   order?: number;
 }
 

@@ -4,7 +4,6 @@ import { MediaAssetRepository } from '@/modules/content/repositories/media-asset
 import { PlanContentMediaRepository } from '@/modules/training-plans/repositories/plan-content-media.repository.js';
 import type { Scanner, StorageService } from '@/shared-types.js';
 
-import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
 
 const mediaAssets = new MediaAssetRepository();
@@ -13,17 +12,12 @@ const planContentMedia = new PlanContentMediaRepository();
 /**
  * `CM-07` — publish is blocked unless `MediaAsset.scanStatus = CLEAN`
  * (enforced in the content service, not here). This job only runs the scan
- * and records the result; on `CLEAN` it enqueues `media.extract` to continue
- * the pipeline (§10 table), never inline.
+ * and records the result.
  *
  * `payload.mediaAssetId` is looked up against the master `MediaAsset` table
  * first, falling back to `PlanContentMedia` — a plan-snapshot upload
  * (`PlanContentMediaService.upload`) enqueues into this same queue since the
- * malware-scan step applies equally to both, but a snapshot upload has no
- * `ContentItem`/`contentItemId` to chain `media.extract`/`content.embed`
- * into (those feed the recommender against the master catalogue, which a
- * plan-only content copy never participates in) — so the `CLEAN` follow-up
- * only fires for a real `MediaAsset`.
+ * malware-scan step applies equally to both.
  */
 export async function processScanMediaJob(payload: QueuePayloads['media.scan']): Promise<void> {
   const asset = await mediaAssets.findById(payload.mediaAssetId);
@@ -39,13 +33,6 @@ export async function processScanMediaJob(payload: QueuePayloads['media.scan']):
     await mediaAssets.setScanStatus(asset.id, result.status);
 
     logger.info({ mediaAssetId: asset.id, status: result.status }, 'Media scan complete');
-
-    if (result.status === 'CLEAN') {
-      await queueService.enqueue('media.extract', {
-        mediaAssetId: asset.id,
-        organizationId: payload.organizationId,
-      });
-    }
     return;
   }
 

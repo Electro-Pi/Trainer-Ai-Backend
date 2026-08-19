@@ -77,8 +77,6 @@ export class SessionContextService {
         id: outcome.id,
         titleEn: outcome.titleEn,
         titleAr: outcome.titleAr,
-        descriptionEn: outcome.descriptionEn,
-        descriptionAr: outcome.descriptionAr,
         targetSkills: outcome.targetSkills,
         isCarriedOver: so.isCarriedOver,
         priority: so.isCarriedOver ? 1 : 0,

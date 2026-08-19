@@ -106,8 +106,6 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
       .send({
         titleEn: 'Discovery calls',
         titleAr: 'مكالمات الاستكشاف',
-        descriptionEn: 'Run a discovery call',
-        descriptionAr: 'إجراء مكالمة استكشاف',
         targetSkills: ['listening'],
         trainingForm: 'CONVERSATION',
       });

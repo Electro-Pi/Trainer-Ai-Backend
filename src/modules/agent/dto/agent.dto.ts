@@ -20,8 +20,6 @@ export interface SessionContextOutcome {
   id: string;
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
   targetSkills: string[];
   isCarriedOver: boolean;
   priority: number;

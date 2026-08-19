@@ -61,8 +61,6 @@ export interface CreateFullContentDto {
 export interface CreateFullOutcomeDto {
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
 }
 
 export interface CreateFullSkillDto {

@@ -49,10 +49,12 @@ jobs:
         run: npx playwright install chromium
 
       - name: Install Playwright OS deps
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
           DEBIAN_FRONTEND: noninteractive
-        run: npx playwright install-deps chromium
+        # apt mirror lookups (azure.archive.ubuntu.com) are occasionally slow/flaky
+        # on hosted runners; retry once on failure/timeout before giving up.
+        run: npx playwright install-deps chromium || npx playwright install-deps chromium
 
       - name: Test (with coverage)
         env:

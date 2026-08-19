@@ -5,7 +5,6 @@ import { eventBus } from '@/events/event-bus.js';
 import { levelRepository } from '@/modules/levels/levels.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { trackRepository } from '@/modules/tracks/tracks.module.js';
-import { queueService } from '@/queue/queue-instance.js';
 
 import type {
   BulkCreateContentDto,
@@ -226,8 +225,7 @@ export class ContentService {
   /**
    * `CM-12` — only `PUBLISHED`, malware-clean content is recommendable or
    * deliverable (non-negotiable 6). Any `PENDING`/`INFECTED`/`FAILED` media
-   * on the item blocks publish outright (`CM-07`). Enqueues `content.embed`
-   * after commit so semantic search/recommendation see the published text.
+   * on the item blocks publish outright (`CM-07`).
    */
   async publish(actor: ActingUser, id: string): Promise<ContentItem> {
     const before = await this.getItemOrThrow(id);
@@ -261,11 +259,6 @@ export class ContentService {
 
     // Rule 1 (ARCHITECTURE §4.4) — publish only after the write commits.
     eventBus.publish('content.published', {
-      contentItemId: id,
-      organizationId: actor.organizationId,
-    });
-
-    await queueService.enqueue('content.embed', {
       contentItemId: id,
       organizationId: actor.organizationId,
     });

@@ -166,20 +166,22 @@ model Organization {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
-  portalUsers     PortalUser[]
-  departments     Department[]
-  teams           Team[]
-  learners        Learner[]
-  tracks          Track[]
-  skills          Skill[]
-  contentItems    ContentItem[]
-  recommendations Recommendation[]
-  trainingPlans   TrainingPlan[]
-  planTemplates   PlanTemplate[]
-  sessions        Session[]
-  reports         Report[]
-  auditLogs       AuditLog[]
-  portalInvites   PortalInvite[]
+  portalUsers      PortalUser[]
+  departments      Department[]
+  teams            Team[]
+  learners         Learner[]
+  tracks           Track[]
+  skills           Skill[]
+  contentItems     ContentItem[]
+  recommendations  Recommendation[]
+  trainingPlans    TrainingPlan[]
+  planTemplates    PlanTemplate[]
+  sessions         Session[]
+  reports          Report[]
+  auditLogs        AuditLog[]
+  portalInvites    PortalInvite[]
+  slideDecks       SlideDeck[]
+  externalSessions ExternalSession[]
 
   @@map("organizations")
 }
@@ -352,16 +354,17 @@ model Learner {
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
-  organization    Organization        @relation(fields: [organizationId], references: [id])
-  team            Team                @relation(fields: [teamId], references: [id])
-  department      Department?         @relation(fields: [departmentId], references: [id])
-  experience      LearnerExperience?
-  assignments     LearnerAssignment[]
-  outcomes        LearnerOutcome[]
-  recommendations Recommendation[]
-  trainingPlans   TrainingPlan[]
-  sessions        Session[]
-  invitations     Invitation[]
+  organization     Organization        @relation(fields: [organizationId], references: [id])
+  team             Team                @relation(fields: [teamId], references: [id])
+  department       Department?         @relation(fields: [departmentId], references: [id])
+  experience       LearnerExperience?
+  assignments      LearnerAssignment[]
+  outcomes         LearnerOutcome[]
+  recommendations  Recommendation[]
+  trainingPlans    TrainingPlan[]
+  sessions         Session[]
+  invitations      Invitation[]
+  externalSessions ExternalSession[]
 
   @@unique([organizationId, entraObjectId])
   @@index([organizationId])
@@ -448,6 +451,7 @@ model Skill {
   organization Organization @relation(fields: [organizationId], references: [id])
   level        Level?       @relation(fields: [levelId], references: [id])
   outcomes     Outcome[]
+  slideDecks   SlideDeck[]
 
   @@unique([organizationId, key])
   @@index([organizationId])
@@ -482,7 +486,7 @@ model Level {
 }
 
 model Outcome {
-  id            String       @id @default(cuid(2))
+  id            String   @id @default(cuid(2))
   levelId       String
   /// New 1:1 owner — an Outcome has exactly one Skill. Nullable through the
   /// migration window: existing rows are backfilled from `targetSkills[0]`
@@ -493,14 +497,12 @@ model Outcome {
   skillId       String?
   titleEn       String
   titleAr       String
-  descriptionEn String
-  descriptionAr String
   /// @deprecated superseded by `skillId` — kept through the migration window.
   targetSkills  String[]
   order         Int
-  isEnabled     Boolean      @default(true)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  isEnabled     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   level                Level                  @relation(fields: [levelId], references: [id])
   skill                Skill?                 @relation(fields: [skillId], references: [id])
@@ -518,6 +520,66 @@ model Outcome {
   @@index([levelId])
   @@index([skillId])
   @@map("outcomes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AI Trainer integration — SlideDeck / ExternalSession
+// ─────────────────────────────────────────────────────────────────────────
+
+/// One generated slide deck per `Skill`, produced by the external AI Trainer
+/// service's `POST /slides` (one deck per skill in a track). `aiDeckId` is
+/// their `slide_deck_id` (uuid) — the FK we pass back to them on
+/// `POST /sessions/external`. Re-generating a skill's deck updates this row
+/// in place (upsert on `skillId`) rather than creating a duplicate.
+model SlideDeck {
+  id              String   @id @default(cuid(2))
+  organizationId  String
+  skillId         String
+  aiDeckId        String   @unique
+  status          String
+  slideCount      Int?
+  generationError String?
+  downloadUrl     String?
+  createdAt       DateTime @default(now())
+
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  skill            Skill             @relation(fields: [skillId], references: [id])
+  externalSessions ExternalSession[]
+
+  @@index([skillId])
+  @@map("slide_decks")
+}
+
+/// A live AI-trainer-bot session on an already-provisioned meeting link,
+/// started via the external AI Trainer service's `POST /sessions/external`.
+/// `id` is THEIR session id (uuid), used as our PK directly rather than
+/// minting our own — this row is a thin local record of ownership +
+/// opportunistically-cached progress; transcript/evaluation are never
+/// persisted here and are always proxied live (see `ai-trainer` module).
+model ExternalSession {
+  id                   String    @id
+  organizationId       String
+  learnerId            String
+  slideDeckId          String
+  skillName            String
+  userRole             String
+  meetingUrl           String
+  status               String
+  dispatchError        String?
+  currentSlideIndex    Int?
+  maxSlideIndexReached Int?
+  questionsRecorded    Int?
+  startedAt            DateTime?
+  endedAt              DateTime?
+  createdAt            DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  learner      Learner      @relation(fields: [learnerId], references: [id])
+  slideDeck    SlideDeck    @relation(fields: [slideDeckId], references: [id])
+
+  @@index([learnerId])
+  @@index([slideDeckId])
+  @@map("external_sessions")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -574,24 +636,24 @@ model LearnerOutcome {
 // ─────────────────────────────────────────────────────────────────────────
 
 model ContentItem {
-  id               String        @id @default(cuid(2))
-  organizationId   String
-  title            String
-  trackId          String
-  levelId          String
-  contentType      ContentType
-  textBody         String?
-  sourceUrl        String?
-  language         Language
-  status           ContentStatus @default(DRAFT)
-  version          Int           @default(1)
-  parentVersionId  String?       @unique
-  skillTags        String[]
-  createdById      String
-  publishedAt      DateTime?
-  archivedAt       DateTime?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id              String        @id @default(cuid(2))
+  organizationId  String
+  title           String
+  trackId         String
+  levelId         String
+  contentType     ContentType
+  textBody        String?
+  sourceUrl       String?
+  language        Language
+  status          ContentStatus @default(DRAFT)
+  version         Int           @default(1)
+  parentVersionId String?       @unique
+  skillTags       String[]
+  createdById     String
+  publishedAt     DateTime?
+  archivedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   organization  Organization @relation(fields: [organizationId], references: [id])
   track         Track        @relation(fields: [trackId], references: [id])
@@ -964,8 +1026,8 @@ model PlanContentSnapshot {
   isRemoved       Boolean     @default(false)
   createdAt       DateTime    @default(now())
 
-  snapshot      PlanTrackSnapshot   @relation(fields: [snapshotId], references: [id])
-  skillSnapshot PlanSkillSnapshot?  @relation(fields: [skillSnapshotId], references: [id])
+  snapshot      PlanTrackSnapshot  @relation(fields: [snapshotId], references: [id])
+  skillSnapshot PlanSkillSnapshot? @relation(fields: [skillSnapshotId], references: [id])
   media         PlanContentMedia[]
 
   @@index([snapshotId])
@@ -979,16 +1041,16 @@ model PlanContentSnapshot {
 /// separate table (not a nullable-widened `MediaAsset`) keeps the existing
 /// master-catalogue media pipeline's invariants untouched.
 model PlanContentMedia {
-  id                    String          @id @default(cuid(2))
-  contentSnapshotId     String
-  blobKey               String
-  originalFilename      String
-  mimeType              String
-  sizeBytes             Int
-  checksum              String
-  scanStatus            MediaScanStatus @default(PENDING)
-  processedAt           DateTime?
-  createdAt             DateTime        @default(now())
+  id                String          @id @default(cuid(2))
+  contentSnapshotId String
+  blobKey           String
+  originalFilename  String
+  mimeType          String
+  sizeBytes         Int
+  checksum          String
+  scanStatus        MediaScanStatus @default(PENDING)
+  processedAt       DateTime?
+  createdAt         DateTime        @default(now())
 
   contentSnapshot PlanContentSnapshot @relation(fields: [contentSnapshotId], references: [id])
 

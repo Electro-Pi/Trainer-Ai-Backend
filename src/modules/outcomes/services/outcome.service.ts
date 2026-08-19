@@ -62,8 +62,6 @@ export class OutcomeService {
       levelId,
       titleEn: dto.titleEn,
       titleAr: dto.titleAr,
-      descriptionEn: dto.descriptionEn,
-      descriptionAr: dto.descriptionAr,
       targetSkills: dto.targetSkills,
       order: siblings.length,
       ...(dto.skillId !== undefined ? { skillId: dto.skillId } : {}),
@@ -92,8 +90,6 @@ export class OutcomeService {
     const updated = await this.outcomes.update(id, {
       ...(dto.titleEn !== undefined ? { titleEn: dto.titleEn } : {}),
       ...(dto.titleAr !== undefined ? { titleAr: dto.titleAr } : {}),
-      ...(dto.descriptionEn !== undefined ? { descriptionEn: dto.descriptionEn } : {}),
-      ...(dto.descriptionAr !== undefined ? { descriptionAr: dto.descriptionAr } : {}),
       ...(dto.targetSkills !== undefined ? { targetSkills: dto.targetSkills } : {}),
       ...(dto.skillId !== undefined ? { skillId: dto.skillId } : {}),
     } as never);

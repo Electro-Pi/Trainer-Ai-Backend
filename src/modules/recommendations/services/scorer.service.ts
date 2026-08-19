@@ -96,9 +96,9 @@ export class ScorerService {
 
   /**
    * One embedding + nearest-neighbor query per required outcome (not per
-   * candidate) — embeds the outcome's own title+description as the query
-   * text, restricted to this pool's candidate ids, then keeps each
-   * candidate's closest chunk distance.
+   * candidate) — embeds the outcome's own title as the query text,
+   * restricted to this pool's candidate ids, then keeps each candidate's
+   * closest chunk distance.
    */
   private async resolveSemanticDistances(
     input: ScorerInput,
@@ -107,10 +107,10 @@ export class ScorerService {
     const result = new Map<string, Map<string, number>>();
 
     for (const outcome of input.outcomesById.values()) {
-      const matches = await this.vector.embedAndFindNearest(
-        `${outcome.titleEn}. ${outcome.descriptionEn}`,
-        { contentItemIds, limit: contentItemIds.length },
-      );
+      const matches = await this.vector.embedAndFindNearest(outcome.titleEn, {
+        contentItemIds,
+        limit: contentItemIds.length,
+      });
 
       const byContentItem = new Map<string, number>();
       for (const match of matches) {

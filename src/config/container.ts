@@ -1,10 +1,6 @@
-import { OpenAiEmbeddingService } from '@/ai/embedding.service.js';
-import { FakeEmbeddingService } from '@/ai/fakes/fake-embedding.service.js';
 import { FakeLlmService } from '@/ai/fakes/fake-llm.service.js';
-import { FakeOcrService } from '@/ai/fakes/fake-ocr.service.js';
 import { HttpAiServiceClient } from '@/ai/http-ai-service-client.js';
 import type { AiServiceClient } from '@/ai/interfaces/ai-service-client.interface.js';
-import { OpenAiOcrService } from '@/ai/ocr.service.js';
 import { env } from '@/config/env.js';
 import { FakeEmailService } from '@/email/fakes/fake-email.service.js';
 import { GraphEmailService } from '@/email/graph-email.service.js';
@@ -13,14 +9,7 @@ import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js
 import type { GraphService } from '@/integrations/microsoft/graph.interfaces.js';
 import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
 import { FakeErrorTracker } from '@/observability/fake-error-tracker.service.js';
-import type {
-  EmailService,
-  EmbeddingService,
-  ErrorTracker,
-  OcrService,
-  Scanner,
-  StorageService,
-} from '@/shared-types.js';
+import type { EmailService, ErrorTracker, Scanner, StorageService } from '@/shared-types.js';
 import { ClamAvScanner } from '@/storage/scanner/clamav.scanner.js';
 import { FakeScanner } from '@/storage/scanner/fake-scanner.service.js';
 import { UploadThingStorageService } from '@/storage/uploadthing-storage.service.js';
@@ -34,8 +23,6 @@ export interface Container {
   resolveAiService<T>(): T;
   resolveStorage<T>(): T;
   resolveScanner<T>(): T;
-  resolveEmbedding<T>(): T;
-  resolveOcr<T>(): T;
   resolveEmail<T>(): T;
   resolveErrorTracker<T>(): T;
 }
@@ -44,8 +31,6 @@ export function createContainer(): Container {
   let graphService: GraphService | undefined;
   let storageService: StorageService | undefined;
   let scanner: Scanner | undefined;
-  let ocrService: OcrService | undefined;
-  let embeddingService: EmbeddingService | undefined;
   let aiServiceClient: AiServiceClient | undefined;
   let emailService: EmailService | undefined;
   let errorTracker: ErrorTracker | undefined;
@@ -68,17 +53,6 @@ export function createContainer(): Container {
     resolveScanner: <T>() => {
       scanner ??= env.SCANNER_PROVIDER === 'clamav' ? new ClamAvScanner() : new FakeScanner();
       return scanner as T;
-    },
-    resolveEmbedding: <T>() => {
-      embeddingService ??=
-        env.EMBEDDING_PROVIDER === 'openai'
-          ? new OpenAiEmbeddingService()
-          : new FakeEmbeddingService();
-      return embeddingService as T;
-    },
-    resolveOcr: <T>() => {
-      ocrService ??= env.OCR_PROVIDER === 'openai' ? new OpenAiOcrService() : new FakeOcrService();
-      return ocrService as T;
     },
     resolveEmail: <T>() => {
       emailService ??=

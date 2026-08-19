@@ -59,8 +59,6 @@ const categorySchema = z.string().trim().min(1).max(120);
 const createFullOutcomeSchema = z.object({
   titleEn: bilingualTextSchema,
   titleAr: bilingualTextSchema,
-  descriptionEn: z.string().trim().min(1).max(4000),
-  descriptionAr: z.string().trim().min(1).max(4000),
 });
 
 const baseCreateFullContentSchema = z.object({

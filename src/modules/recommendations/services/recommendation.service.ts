@@ -331,11 +331,11 @@ export class RecommendationService {
     );
 
     // Synthetic `Outcome`/`LearnerOutcome` shapes — only fields the scoring
-    // pipeline actually reads (`id`, `titleEn/Ar`, `descriptionEn/Ar`,
-    // `status`, `priority` via `order`, `attemptCount`) are populated with
-    // real snapshot data; everything else is an unused placeholder, never
-    // read by `scoreAndRank`/`coverageGaps`/`explainer` (verified against
-    // every call site in this file and the signal functions).
+    // pipeline actually reads (`id`, `titleEn/Ar`, `status`, `priority` via
+    // `order`, `attemptCount`) are populated with real snapshot data;
+    // everything else is an unused placeholder, never read by
+    // `scoreAndRank`/`coverageGaps`/`explainer` (verified against every call
+    // site in this file and the signal functions).
     const outcomesById = new Map<string, Outcome>(
       activeOutcomes.map((outcome) => [
         outcome.id,
@@ -345,8 +345,6 @@ export class RecommendationService {
           skillId: null,
           titleEn: outcome.titleEn,
           titleAr: outcome.titleAr,
-          descriptionEn: outcome.descriptionEn,
-          descriptionAr: outcome.descriptionAr,
           targetSkills: [],
           order: outcome.order,
           isEnabled: true,

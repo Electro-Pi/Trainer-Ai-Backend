@@ -9,8 +9,6 @@ export interface PublicOutcome {
   id: string;
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
 }
 
 export interface PublicLevel {
@@ -74,8 +72,6 @@ export class PublicCatalogueService {
                 id: outcome.id,
                 titleEn: outcome.titleEn,
                 titleAr: outcome.titleAr,
-                descriptionEn: outcome.descriptionEn,
-                descriptionAr: outcome.descriptionAr,
               })),
           };
         }),

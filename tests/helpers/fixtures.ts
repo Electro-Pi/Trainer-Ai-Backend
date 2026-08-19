@@ -158,8 +158,6 @@ export async function createOutcome(
         levelId,
         titleEn: 'Discovery calls',
         titleAr: 'مكالمات الاستكشاف',
-        descriptionEn: 'Run a discovery call',
-        descriptionAr: 'إجراء مكالمة استكشاف',
         targetSkills: ['listening'],
         order: overrides.order ?? 0,
       },

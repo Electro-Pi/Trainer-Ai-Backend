@@ -4,8 +4,6 @@ export interface OutcomeResponseDto {
   skillId: string | null;
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
   targetSkills: string[];
   order: number;
   isEnabled: boolean;
@@ -16,8 +14,6 @@ export interface OutcomeResponseDto {
 export interface CreateOutcomeDto {
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
   targetSkills: string[];
   skillId?: string;
 }
@@ -25,8 +21,6 @@ export interface CreateOutcomeDto {
 export interface UpdateOutcomeDto {
   titleEn?: string;
   titleAr?: string;
-  descriptionEn?: string;
-  descriptionAr?: string;
   targetSkills?: string[];
   skillId?: string;
 }

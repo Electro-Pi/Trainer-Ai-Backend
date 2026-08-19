@@ -5,8 +5,6 @@ import { logger } from '@/logger/logger.service.js';
 
 import { processCleanupJob } from './jobs/cleanup.job.js';
 import { processCreateMeetingJob } from './jobs/create-meeting.job.js';
-import { processEmbedContentJob } from './jobs/embed-content.job.js';
-import { processExtractTextJob } from './jobs/extract-text.job.js';
 import { processGenerateReportJob } from './jobs/generate-report.job.js';
 import { processHealthAlertJob } from './jobs/health-alert.job.js';
 import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
@@ -31,8 +29,6 @@ type Processor<K extends QueueName> = (payload: QueuePayloads[K]) => Promise<voi
  */
 const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'media.scan': processScanMediaJob,
-  'media.extract': processExtractTextJob,
-  'content.embed': processEmbedContentJob,
   'meeting.create': processCreateMeetingJob,
   'meeting.update': processMeetingUpdateJob,
   'session.reminder': processSendReminderJob,

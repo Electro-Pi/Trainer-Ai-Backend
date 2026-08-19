@@ -7,8 +7,6 @@ const bilingualTextSchema = z.string().trim().min(1).max(500);
 export const createOutcomeSchema = z.object({
   titleEn: bilingualTextSchema,
   titleAr: bilingualTextSchema,
-  descriptionEn: z.string().trim().min(1).max(4000),
-  descriptionAr: z.string().trim().min(1).max(4000),
   targetSkills: z.array(z.string().trim().min(1).max(200)).min(1),
   skillId: cuidSchema.optional(),
 });
@@ -16,8 +14,6 @@ export const createOutcomeSchema = z.object({
 export const updateOutcomeSchema = z.object({
   titleEn: bilingualTextSchema.optional(),
   titleAr: bilingualTextSchema.optional(),
-  descriptionEn: z.string().trim().min(1).max(4000).optional(),
-  descriptionAr: z.string().trim().min(1).max(4000).optional(),
   targetSkills: z.array(z.string().trim().min(1).max(200)).min(1).optional(),
   skillId: cuidSchema.optional(),
 });

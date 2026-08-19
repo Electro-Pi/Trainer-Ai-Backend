@@ -97,8 +97,6 @@ export class PlanTrackSnapshotRepository {
         id: string;
         titleEn: string;
         titleAr: string;
-        descriptionEn: string;
-        descriptionAr: string;
         order: number;
       }[]
     >;
@@ -152,8 +150,8 @@ export class PlanTrackSnapshotRepository {
               sourceOutcomeId: outcome.id,
               titleEn: outcome.titleEn,
               titleAr: outcome.titleAr,
-              descriptionEn: outcome.descriptionEn,
-              descriptionAr: outcome.descriptionAr,
+              descriptionEn: '',
+              descriptionAr: '',
               order: outcome.order,
             },
           });
@@ -233,14 +231,18 @@ export class PlanTrackSnapshotRepository {
       sourceOutcomeId: string | null;
       titleEn: string;
       titleAr: string;
-      descriptionEn: string;
-      descriptionAr: string;
       order: number;
     },
   ): Promise<PlanOutcomeSnapshot> {
     return prisma.$transaction(async (tx) => {
       const outcome = await tx.planOutcomeSnapshot.create({
-        data: { snapshotId, skillSnapshotId, ...data },
+        data: {
+          snapshotId,
+          skillSnapshotId,
+          ...data,
+          descriptionEn: '',
+          descriptionAr: '',
+        },
       });
       await tx.planLearnerOutcomeSnapshot.create({ data: { outcomeSnapshotId: outcome.id } });
       return outcome;
@@ -252,8 +254,6 @@ export class PlanTrackSnapshotRepository {
     data: Partial<{
       titleEn: string;
       titleAr: string;
-      descriptionEn: string;
-      descriptionAr: string;
       order: number;
       isRemoved: boolean;
     }>,

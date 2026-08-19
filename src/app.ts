@@ -12,6 +12,12 @@ import { container } from '@/config/container.js';
 import { runAllHealthChecks } from '@/health/health-checks.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
 import { agentRouter } from '@/modules/agent/agent.module.js';
+import {
+  draftAiTrainerRouter,
+  externalSessionsRouter,
+  skillAiTrainerRouter,
+  trackAiTrainerRouter,
+} from '@/modules/ai-trainer/ai-trainer.module.js';
 import { analyticsRouter } from '@/modules/analytics/analytics.module.js';
 import {
   outcomeAssessmentsRouter,
@@ -99,6 +105,10 @@ export function createApp(): Express {
   v1.use('/reports', reportsRouter);
   v1.use('/analytics', analyticsRouter);
   v1.use('/public', publicRouter);
+  v1.use('/tracks/:trackId', trackAiTrainerRouter);
+  v1.use('/skills/:skillId', skillAiTrainerRouter);
+  v1.use('/external-sessions', externalSessionsRouter);
+  v1.use('/ai-trainer', draftAiTrainerRouter);
 
   mountSwagger(app);
 

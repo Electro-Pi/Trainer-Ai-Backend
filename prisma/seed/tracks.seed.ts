@@ -18,8 +18,6 @@ import { runWithTenant } from '@/database/tenant-context.js';
 interface OutcomeSeed {
   titleEn: string;
   titleAr: string;
-  descriptionEn: string;
-  descriptionAr: string;
   targetSkills: string[];
 }
 
@@ -64,11 +62,9 @@ function buildLevels(
     nameAr: level.nameAr,
     descriptionEn: descriptionsEn[i] ?? '',
     descriptionAr: descriptionsAr[i] ?? '',
-    outcomes: (outcomesByLevel[i] ?? []).map(([titleEn, titleAr], j) => ({
+    outcomes: (outcomesByLevel[i] ?? []).map(([titleEn, titleAr]) => ({
       titleEn,
       titleAr,
-      descriptionEn: `${titleEn} — outcome ${j + 1} of the ${level.nameEn} level in ${trackKey}.`,
-      descriptionAr: `${titleAr} — الهدف رقم ${j + 1} في مستوى ${level.nameAr}.`,
       targetSkills: [],
     })),
   }));
@@ -520,8 +516,6 @@ export async function seedTracks(organizationId: string): Promise<void> {
             levelId: levelRow.id,
             titleEn: outcome.titleEn,
             titleAr: outcome.titleAr,
-            descriptionEn: outcome.descriptionEn,
-            descriptionAr: outcome.descriptionAr,
             targetSkills: outcome.targetSkills,
             order: outcomeOrder,
           };

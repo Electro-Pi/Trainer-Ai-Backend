@@ -74,8 +74,6 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
         skillId: source.skillId,
         titleEn: `${source.titleEn} (copy)`,
         titleAr: `${source.titleAr} (نسخة)`,
-        descriptionEn: source.descriptionEn,
-        descriptionAr: source.descriptionAr,
         targetSkills: source.targetSkills,
         order: siblings.length,
         isEnabled: false,

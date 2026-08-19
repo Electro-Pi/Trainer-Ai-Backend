@@ -19,8 +19,6 @@ function toResponseDto(outcome: Outcome): OutcomeResponseDto {
     skillId: outcome.skillId,
     titleEn: outcome.titleEn,
     titleAr: outcome.titleAr,
-    descriptionEn: outcome.descriptionEn,
-    descriptionAr: outcome.descriptionAr,
     targetSkills: outcome.targetSkills,
     order: outcome.order,
     isEnabled: outcome.isEnabled,

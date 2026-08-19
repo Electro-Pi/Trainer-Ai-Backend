@@ -77,8 +77,6 @@ function toOutcomeDto(
     sourceOutcomeId: outcome.sourceOutcomeId,
     titleEn: outcome.titleEn,
     titleAr: outcome.titleAr,
-    descriptionEn: outcome.descriptionEn,
-    descriptionAr: outcome.descriptionAr,
     order: outcome.order,
     isRemoved: outcome.isRemoved,
     progress: outcome.progress

@@ -235,8 +235,6 @@ export class PlanSnapshotService {
     dto: {
       titleEn: string;
       titleAr: string;
-      descriptionEn: string;
-      descriptionAr: string;
       order: number;
     },
   ) {
@@ -267,8 +265,6 @@ export class PlanSnapshotService {
     dto: Partial<{
       titleEn: string;
       titleAr: string;
-      descriptionEn: string;
-      descriptionAr: string;
       order: number;
     }>,
   ) {

@@ -10,7 +10,7 @@ export interface JwtAccessClaims {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// P5 — Storage, scanning, OCR, embeddings (ARCHITECTURE §4.5, §4, D-14)
+// P5 — Storage, scanning (ARCHITECTURE §4.5, §4, D-14)
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface StorageBlobListing {
@@ -37,17 +37,6 @@ export interface ScanResult {
 /** Malware scanning (`ClamAvScanner` real, `FakeScanner` dev/test default — CM-07). */
 export interface Scanner {
   scan(data: Buffer): Promise<ScanResult>;
-}
-
-/** Text extraction from documents/slides/images (`CM-05`). Ours per D-14; fake is the default. */
-export interface OcrService {
-  extractText(data: Buffer, mimeType: string): Promise<{ text: string; pageCount?: number }>;
-}
-
-/** Vector embeddings for semantic similarity (`CM-09`) — ours, not the AI team's (MEMORY D-15). */
-export interface EmbeddingService {
-  embed(text: string): Promise<number[]>;
-  readonly dimensions: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
