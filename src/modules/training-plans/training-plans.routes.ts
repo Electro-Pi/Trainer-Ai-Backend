@@ -5,7 +5,7 @@ import { authorize, requireTeamAccess } from '@/common/guards/authorize.guard.js
 import { tenantScope } from '@/common/guards/tenant.guard.js';
 import { validate } from '@/common/pipes/validate.js';
 import { mediaUpload } from '@/modules/content/middleware/media-upload.middleware.js';
-import { learnerRepository } from '@/modules/learners/learners.module.js';
+import { learnerIdParamsSchema, learnerRepository } from '@/modules/learners/learners.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 
 import { PlanSnapshotController } from './controllers/plan-snapshot.controller.js';
@@ -35,6 +35,17 @@ const controller = new TrainingPlanController();
 const snapshotController = new PlanSnapshotController();
 const plansRepo = new TrainingPlanRepository();
 const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
+
+async function resolveManagerIdByLearnerParam(req: {
+  params: { id?: string };
+}): Promise<string | null> {
+  const learnerId = req.params.id;
+  if (!learnerId) return null;
+  const learner = await learnerRepository.findByIdScoped(learnerId);
+  if (!learner) return null;
+  const team = await teamRepository.findByIdScoped(learner.teamId);
+  return team?.managerId ?? null;
+}
 
 async function resolveManagerIdByLearnerInBody(req: {
   body: { learnerId?: string };
@@ -284,6 +295,31 @@ export function createTrainingPlansRouter(): Router {
     requireTeamAccess(resolveManagerIdByPlan),
     (req, res, next) => {
       controller.summaryReport(req, res).catch(next);
+    },
+  );
+
+  return router;
+}
+
+/**
+ * Mounted under `/learners` alongside `learnersRouter` (same pattern as
+ * `recommendations.module.ts`'s `learnerRecommendationsRouter`) — kept out of
+ * `learners.routes.ts` itself so that module never has to import back into
+ * `training-plans`, which would close a cycle through `sessions.module.ts`
+ * (training-plans → sessions already exists for `SessionService`) and race
+ * the two modules' top-level singleton initialization.
+ */
+export function createLearnerActivePlanRouter(): Router {
+  const router = Router();
+
+  router.use(authenticate(), tenantScope());
+
+  router.get(
+    '/:id/active-plan',
+    validate({ params: learnerIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByLearnerParam),
+    (req, res, next) => {
+      controller.getActiveByLearner(req, res).catch(next);
     },
   );
 

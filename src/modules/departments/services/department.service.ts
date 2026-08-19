@@ -1,4 +1,4 @@
-import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
+import { ConflictError, NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
 
@@ -90,5 +90,38 @@ export class DepartmentService {
     });
 
     return updated;
+  }
+
+  /**
+   * Hard delete — deliberately narrower than non-negotiable 17's usual
+   * deactivate/archive rule: a department with zero teams/tracks/learners
+   * still attached has no history to lose, so removing the row outright
+   * (rather than leaving a permanently-disabled placeholder in the list) is
+   * safe. Any dependent still pointing at it blocks the delete instead of
+   * silently orphaning `Team.departmentId`/`Track.departmentId` (both
+   * required, non-nullable columns) or detaching learners from their
+   * department.
+   */
+  async delete(actor: ActingUser, id: string): Promise<void> {
+    const before = await this.getById(actor, id);
+    const dependents = await this.departments.countDependents(id);
+    const total = dependents.teams + dependents.tracks + dependents.learners;
+    if (total > 0) {
+      throw new ConflictError(
+        `Can’t delete “${before.name}” — it still has ${dependents.teams} team(s), ${dependents.tracks} track(s) and ${dependents.learners} learner(s) assigned. Move or remove them first.`,
+      );
+    }
+
+    await this.departments.delete(id);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'department.deleted',
+      entityType: 'Department',
+      entityId: id,
+      before: { name: before.name },
+    });
   }
 }

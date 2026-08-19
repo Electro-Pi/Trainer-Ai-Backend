@@ -4,7 +4,10 @@ import { PlanContentMediaRepository } from './repositories/plan-content-media.re
 import { PlanTemplateRepository } from './repositories/plan-template.repository.js';
 import { PlanTrackSnapshotRepository } from './repositories/plan-track-snapshot.repository.js';
 import { TrainingPlanRepository } from './repositories/training-plan.repository.js';
-import { createTrainingPlansRouter } from './training-plans.routes.js';
+import {
+  createLearnerActivePlanRouter,
+  createTrainingPlansRouter,
+} from './training-plans.routes.js';
 
 export type { TrainingPlan } from './repositories/training-plan.repository.js';
 export type { PlanTemplate } from './repositories/plan-template.repository.js';
@@ -19,6 +22,7 @@ export type {
 } from './repositories/plan-track-snapshot.repository.js';
 
 export const trainingPlansRouter = createTrainingPlansRouter();
+export const learnerActivePlanRouter = createLearnerActivePlanRouter();
 
 // Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `sessions`
 // (reschedule/cancel/attendance) resolves a session's plan through this

@@ -24,7 +24,12 @@ async function resolveManagerId(req: { params: { id?: string } }): Promise<strin
   return team?.managerId ?? null;
 }
 
-/** §7.2: DEPARTMENT_MANAGER reaches only their own team; ADMIN reads org-wide; CONTENT_CREATOR has no row here. */
+/**
+ * §7.2: DEPARTMENT_MANAGER reaches only their own team; ADMIN reads org-wide;
+ * CONTENT_CREATOR has no row here. Delete is ADMIN-only and only succeeds on
+ * an empty team (no learners) — everything else goes through disable/reassign,
+ * per non-negotiable 17.
+ */
 export function createTeamsRouter(): Router {
   const router = Router();
 
@@ -64,6 +69,15 @@ export function createTeamsRouter(): Router {
     requireTeamAccess(resolveManagerId),
     (req, res, next) => {
       controller.update(req, res).catch(next);
+    },
+  );
+
+  router.delete(
+    '/:id',
+    authorize('ADMIN'),
+    validate({ params: teamIdParamsSchema }),
+    (req, res, next) => {
+      controller.delete(req, res).catch(next);
     },
   );
 

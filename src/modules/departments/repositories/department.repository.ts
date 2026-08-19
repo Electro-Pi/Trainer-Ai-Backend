@@ -37,4 +37,14 @@ export class DepartmentRepository extends BaseRepository<Department, DepartmentD
   async findByName(organizationId: string, name: string): Promise<Department | null> {
     return this.delegate.findFirst({ where: { organizationId, name } as never });
   }
+
+  /** Counts of what's still attached to this department — the delete guard's basis for "empty". */
+  async countDependents(id: string): Promise<{ teams: number; tracks: number; learners: number }> {
+    const [teams, tracks, learners] = await Promise.all([
+      prisma.team.count({ where: { departmentId: id } }),
+      prisma.track.count({ where: { departmentId: id } }),
+      prisma.learner.count({ where: { departmentId: id } }),
+    ]);
+    return { teams, tracks, learners };
+  }
 }

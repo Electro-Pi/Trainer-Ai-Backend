@@ -72,6 +72,13 @@ export class TrainingPlanController {
     res.status(200).json(await toResponseDto(plan));
   }
 
+  /** GET /learners/:id/active-plan — 200 with null body if the learner has no editable plan. */
+  async getActiveByLearner(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const plan = await plans.getActiveByLearner(id);
+    res.status(200).json(plan ? await toResponseDto(plan) : null);
+  }
+
   async update(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const dto = req.body as UpdateTrainingPlanDto;

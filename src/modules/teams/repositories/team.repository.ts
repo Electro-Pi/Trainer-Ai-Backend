@@ -43,4 +43,9 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
     });
     return row?.department.name ?? null;
   }
+
+  /** The delete guard's basis for "empty" — the only thing that ever references a team. */
+  async countLearners(teamId: string): Promise<number> {
+    return prisma.learner.count({ where: { teamId } });
+  }
 }

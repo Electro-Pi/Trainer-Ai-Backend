@@ -19,7 +19,9 @@ const controller = new DepartmentController();
  * `WS-02` — any signed-in portal role reads the department list (a
  * DEPARTMENT_MANAGER must pick one when creating a team; a CONTENT_CREATOR
  * may need one for track assignment); only ADMIN creates/renames/enables/
- * disables them, same read-broad/write-narrow split `tracks`/`skills` use.
+ * disables/deletes them, same read-broad/write-narrow split `tracks`/`skills`
+ * use. Delete only succeeds on an empty department (no teams/tracks/learners
+ * attached) — everything else goes through disable, per non-negotiable 17.
  */
 export function createDepartmentsRouter(): Router {
   const router = Router();
@@ -49,6 +51,15 @@ export function createDepartmentsRouter(): Router {
     validate({ params: departmentIdParamsSchema, body: updateDepartmentSchema }),
     (req, res, next) => {
       controller.update(req, res).catch(next);
+    },
+  );
+
+  router.delete(
+    '/:id',
+    authorize('ADMIN'),
+    validate({ params: departmentIdParamsSchema }),
+    (req, res, next) => {
+      controller.delete(req, res).catch(next);
     },
   );
 

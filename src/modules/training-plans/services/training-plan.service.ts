@@ -22,6 +22,9 @@ export interface ActingUser {
   role: string;
 }
 
+/** COMPLETED/CANCELLED are terminal — everything else can still be reopened and re-scheduled. */
+const EDITABLE_STATUSES = new Set(['DRAFT', 'CONFIRMED', 'ACTIVE']);
+
 /**
  * `P7-1`, `P7-3`, `P7-4` — plan CRUD, coverage validation, and the confirm
  * transition. Session generation (`suggest`) lives in `PlanBuilderService`;
@@ -92,10 +95,15 @@ export class TrainingPlanService {
     return plan;
   }
 
+  /** The plan "Edit Training Plan" reopens — null if the learner has never had one, or only terminal ones. */
+  async getActiveByLearner(learnerId: string): Promise<TrainingPlan | null> {
+    return this.plans.findActiveByLearner(learnerId);
+  }
+
   async update(actor: ActingUser, id: string, dto: UpdateTrainingPlanDto): Promise<TrainingPlan> {
     const plan = await this.getById(id);
-    if (plan.status !== 'DRAFT') {
-      throw new ConflictError('Only a DRAFT plan can be edited directly');
+    if (!EDITABLE_STATUSES.has(plan.status)) {
+      throw new ConflictError('A completed or cancelled plan can’t be edited');
     }
 
     const updated = await this.plans.update(plan.id, {
@@ -125,6 +133,15 @@ export class TrainingPlanService {
    * /sessions/:id` before ever confirming. Re-running `suggest` on the same
    * DRAFT plan replaces its previously-suggested sessions rather than
    * appending duplicates.
+   *
+   * Re-running it on an already-CONFIRMED/ACTIVE plan (editing a live plan)
+   * means some of those old sessions may already have a real Teams meeting
+   * out — those are cancelled properly through `SessionService.cancel`
+   * (Graph cleanup + reminder-job removal) before
+   * `replaceSuggestedSessions()`'s blind delete+recreate runs, so nothing
+   * gets orphaned on Microsoft's side. The plan drops back to DRAFT so
+   * `confirm()` re-enqueues fresh `meeting.create` jobs for the new sessions
+   * instead of leaving them unconfirmed forever.
    */
   async suggest(
     actor: ActingUser,
@@ -132,8 +149,19 @@ export class TrainingPlanService {
     sessionDurationMinutes?: number,
   ): Promise<TrainingPlan> {
     const plan = await this.getById(id);
+    if (!EDITABLE_STATUSES.has(plan.status)) {
+      throw new ConflictError('A completed or cancelled plan can’t be edited');
+    }
+
     if (plan.status !== 'DRAFT') {
-      throw new ConflictError('Only a DRAFT plan can be (re)suggested');
+      const existing = await this.scheduling.findSessionsByPlan(plan.id);
+      const cancellableStatuses = new Set(['SCHEDULED', 'INVITED', 'IN_PROGRESS']);
+      for (const session of existing) {
+        if (cancellableStatuses.has(session.status)) {
+          await this.sessionService.cancel(actor, session.id);
+        }
+      }
+      await this.plans.update(plan.id, { status: 'DRAFT', confirmedAt: null } as never);
     }
 
     const breakdown = await this.planBuilder.suggest({

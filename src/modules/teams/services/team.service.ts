@@ -1,4 +1,9 @@
-import { ForbiddenError, NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
 import { departmentRepository } from '@/modules/departments/departments.module.js';
@@ -148,7 +153,35 @@ export class TeamService {
     return updated;
   }
 
-  /** No delete route is exposed — deleting a team would orphan its learners (non-negotiable 17). Managers reassign or deactivate learners instead. */
+  /**
+   * Hard delete — deliberately narrower than non-negotiable 17's usual
+   * deactivate/archive rule, same exception `DepartmentService.delete` makes:
+   * a team with zero learners still on it has no history to lose, so
+   * removing the row outright is safe. Any learner still on the team blocks
+   * the delete instead of orphaning `Learner.teamId` (required, non-nullable).
+   */
+  async delete(actor: ActingUser, id: string): Promise<void> {
+    const before = await this.getById(id);
+    const learnerCount = await this.teams.countLearners(id);
+    if (learnerCount > 0) {
+      throw new ConflictError(
+        `Can’t delete “${before.name}” — it still has ${learnerCount} learner(s) on it. Move or deactivate them first.`,
+      );
+    }
+
+    await this.teams.delete(id);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'team.deleted',
+      entityType: 'Team',
+      entityId: id,
+      before: { name: before.name },
+    });
+  }
+
   async assertManages(actor: ActingUser, teamId: string): Promise<void> {
     if (actor.role === 'ADMIN') return;
     const team = await this.getById(teamId);

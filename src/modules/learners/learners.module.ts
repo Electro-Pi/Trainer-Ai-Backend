@@ -10,6 +10,7 @@ export type { LearnerOutcome, OutcomeStatus } from './repositories/learner-outco
 export type { LearnerAssignment } from './repositories/learner-assignment.repository.js';
 export type { LearnerExperience } from './repositories/learner-experience.repository.js';
 export type { Learner } from './repositories/learner.repository.js';
+export { learnerIdParamsSchema } from './validators/learner.validators.js';
 
 export const learnersRouter = createLearnersRouter();
 export const teamMembersRouter = createTeamMembersRouter();
