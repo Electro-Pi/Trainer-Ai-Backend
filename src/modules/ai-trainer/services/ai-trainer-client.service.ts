@@ -10,6 +10,8 @@ import type {
   AiTrainerErrorBody,
   GenerateSlidesRequest,
   GenerateSlidesResponse,
+  GenerateSlideWithAttachmentRequest,
+  GenerateSlideWithAttachmentResponse,
   SessionEvaluationResponse,
   SessionStatusResponse,
   SessionTranscriptResponse,
@@ -51,6 +53,66 @@ export class AiTrainerClientService {
 
   async generateSlides(input: GenerateSlidesRequest): Promise<GenerateSlidesResponse> {
     return this.request<GenerateSlidesResponse>('POST', '/slides', input, SLOW_TIMEOUT_MS);
+  }
+
+  /**
+   * `POST /slides/with-attachments` — one skill/session per call, unlike the
+   * batch `generateSlides` above. `multipart/form-data`, not JSON, so this
+   * bypasses `request()`/`getHeaders()` entirely and builds its own `fetch`
+   * call (the platform `FormData` sets its own `Content-Type` boundary
+   * header — passing one explicitly would break the multipart parse).
+   */
+  async generateSlideWithAttachment(
+    input: GenerateSlideWithAttachmentRequest,
+  ): Promise<GenerateSlideWithAttachmentResponse> {
+    const form = new FormData();
+    form.append('track_name', input.track_name);
+    if (input.track_description) form.append('track_description', input.track_description);
+    if (input.language) form.append('language', input.language);
+    form.append('skill_name', input.skill_name);
+    for (const outcome of input.outcomes) form.append('outcomes', outcome);
+    if (input.file) {
+      form.append(
+        'file',
+        new Blob([new Uint8Array(input.file.data)], { type: input.file.mimeType }),
+        input.file.filename,
+      );
+    }
+
+    const url = `${env.AI_TRAINER_HOST}/slides/with-attachments`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SLOW_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(url, { method: 'POST', signal: controller.signal, body: form });
+
+      if (!response.ok) {
+        const detail = await this.readErrorDetail(response);
+
+        if (response.status === 404) {
+          throw new NotFoundError(detail ?? 'Not found on the AI Trainer service');
+        }
+        if (response.status === 409) {
+          throw new ConflictError(detail ?? 'Conflict on the AI Trainer service');
+        }
+
+        logger.warn({ url, status: response.status, detail }, 'AI Trainer service request failed');
+        throw new ExternalServiceError(detail ?? `AI Trainer service returned ${response.status}`);
+      }
+
+      return (await response.json()) as GenerateSlideWithAttachmentResponse;
+    } catch (error) {
+      if (error instanceof NotFoundError || error instanceof ConflictError) {
+        throw error;
+      }
+      if (error instanceof ExternalServiceError) {
+        throw error;
+      }
+      logger.warn({ url, error }, 'AI Trainer service unreachable');
+      throw new ExternalServiceError('AI Trainer service unreachable', error);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async suggestSkills(input: SuggestSkillsRequest): Promise<SuggestSkillsResponse> {

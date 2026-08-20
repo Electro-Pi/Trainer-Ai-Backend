@@ -30,6 +30,33 @@ export interface GenerateSlidesResponse {
   skills: GenerateSlidesSkillResult[];
 }
 
+/**
+ * `POST /slides/with-attachments` — the `multipart/form-data` sibling of
+ * `POST /slides`, one skill (and therefore one session) per call. `file` is
+ * the raw bytes + filename/mimetype of an optional PDF/DOCX/PPTX reference
+ * document; omit it to generate from `outcomes` alone. Unlike
+ * `GenerateSlidesRequest`, there is no `skills[]` array — every field is its
+ * own multipart part.
+ */
+export interface GenerateSlideWithAttachmentRequest {
+  track_name: string;
+  track_description?: string | null;
+  language?: 'en-US' | 'ar-SA';
+  skill_name: string;
+  outcomes: string[];
+  file?: { data: Buffer; filename: string; mimeType: string } | null;
+}
+
+export interface GenerateSlideWithAttachmentResponse {
+  track_name: string;
+  skill_name: string;
+  slide_deck_id: string;
+  status: 'ready' | 'failed';
+  slide_count: number | null;
+  generation_error: string | null;
+  download_url: string | null;
+}
+
 export interface SuggestSkillsRequest {
   track_name: string;
   track_description?: string | null;

@@ -1,4 +1,5 @@
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
+import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { graphMeetingsService } from '@/integrations/microsoft/graph.meetings.js';
 import { logger } from '@/logger/logger.service.js';
@@ -6,10 +7,16 @@ import { ExternalSessionRepository } from '@/modules/ai-trainer/repositories/ext
 import { SlideDeckRepository } from '@/modules/ai-trainer/repositories/slide-deck.repository.js';
 import { AiTrainerClientService } from '@/modules/ai-trainer/services/ai-trainer-client.service.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
+import {
+  renderSessionConfirmationEmailHtml,
+  sessionConfirmationEmailSubject,
+} from '@/modules/notifications/templates/session-confirmation-email.template.js';
+import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
 import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
+import type { EmailService } from '@/shared-types.js';
 
 import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
@@ -77,6 +84,47 @@ export async function processCreateMeetingJob(
       joinUrl: meeting.joinWebUrl,
     });
 
+    const joinUrlForNotifications = updated.joinUrl ?? meeting.joinWebUrl;
+    const outcomeForNotifications = await outcomeRepository.findByIdScoped(
+      session.primaryOutcomeId,
+    );
+    const skillForNotifications = outcomeForNotifications?.skillId
+      ? await skillRepository.findByIdScoped(outcomeForNotifications.skillId)
+      : null;
+
+    // Branded confirmation email — the calendar event created above already
+    // makes Outlook send its own native invite (accept/decline), this is a
+    // second, MODRB-styled email confirming the same session. Best-effort:
+    // a delivery failure is logged, not thrown — the meeting and calendar
+    // invite are already real regardless of whether this extra email sends.
+    try {
+      const organization = await organizationRepository.findById(payload.organizationId);
+      const language = organization?.defaultLanguage === 'AR' ? 'AR' : 'EN';
+      const emailService = container.resolveEmail<EmailService>();
+      await emailService.send({
+        to: learner.email,
+        subject: sessionConfirmationEmailSubject(
+          skillForNotifications?.nameEn ?? 'your session',
+          language,
+        ),
+        html: renderSessionConfirmationEmailHtml({
+          learnerName: learner.displayName,
+          skillName: skillForNotifications?.nameEn ?? 'Training session',
+          outcomeTitle: outcomeForNotifications?.titleEn ?? '',
+          date: session.scheduledStart.toISOString().slice(0, 10),
+          time: `${session.scheduledStart.toISOString().slice(11, 16)} UTC`,
+          durationMinutes: session.durationMinutes ?? 45,
+          joinUrl: joinUrlForNotifications,
+          language,
+        }),
+      });
+    } catch (error) {
+      logger.error(
+        { sessionId: session.id, err: error },
+        'create-meeting: confirmation email failed to send',
+      );
+    }
+
     // `P8-10`, ARCHITECTURE §9.11 rule 6 — asks the AI Trainer service to join
     // the meeting via the same `POST /sessions/external` call the manual
     // ExternalSessionService.start() flow uses. Best-effort: a dispatch
@@ -86,12 +134,12 @@ export async function processCreateMeetingJob(
     // either way, and retrying the whole job would re-run the
     // (already-guarded, idempotent) steps above for nothing.
     try {
-      const outcome = await outcomeRepository.findByIdScoped(session.primaryOutcomeId);
+      const outcome = outcomeForNotifications;
       if (!outcome?.skillId) {
         throw new Error('Session outcome has no linked skill — cannot resolve a slide deck');
       }
 
-      const skill = await skillRepository.findByIdScoped(outcome.skillId);
+      const skill = skillForNotifications;
       if (!skill) {
         throw new Error('Skill not found for session outcome');
       }
@@ -103,7 +151,7 @@ export async function processCreateMeetingJob(
         );
       }
 
-      const joinUrl = updated.joinUrl ?? meeting.joinWebUrl;
+      const joinUrl = joinUrlForNotifications;
       const result = await aiTrainerClient.startExternalSession({
         user_id: learner.id,
         user_name: learner.displayName,

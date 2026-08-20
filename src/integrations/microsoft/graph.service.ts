@@ -135,27 +135,39 @@ export class RealGraphService implements GraphService {
     return result.value;
   }
 
-  /** `IV-01`, `IV-05` — lobby restricted to invited participants, agent joins as presenter. */
+  /**
+   * `IV-01`, `IV-05` — a calendar `event` with `isOnlineMeeting: true`
+   * rather than a bare `/me/onlineMeetings` object: creating a calendar
+   * event with `attendees` is what makes Outlook actually send each
+   * attendee a native meeting-invite email (accept/decline, added to their
+   * calendar) — `/onlineMeetings` alone never sends any email, it only
+   * provisions the Teams meeting itself. Graph still auto-provisions the
+   * Teams meeting (`onlineMeetingProvider: 'teamsForBusiness'`) and returns
+   * its `joinUrl` via `onlineMeeting.joinUrl`, so the join-link behavior
+   * callers depend on (`GraphMeeting.joinWebUrl`) is unchanged.
+   * Lobby/presenter restrictions (`IV-05`) aren't configurable through the
+   * `events` payload the way `/onlineMeetings` allowed — they default to
+   * the tenant's own Teams meeting policy for calendar-created meetings.
+   */
   async createMeeting(input: CreateMeetingInput, accessToken: string): Promise<GraphMeeting> {
-    const result = await this.request<{ id: string; joinWebUrl: string }>(
-      'POST',
-      '/me/onlineMeetings',
-      accessToken,
-      {
-        subject: input.subject,
-        startDateTime: input.startDateTime,
-        endDateTime: input.endDateTime,
-        lobbyBypassSettings: { scope: 'invited', isDialInBypassEnabled: false },
-        allowedPresenters: 'roleIsPresenter',
-        participants: {
-          attendees: input.attendeeEmails.map((email) => ({
-            upn: email,
-            role: 'attendee',
-          })),
-        },
-      },
-    );
-    return { id: result.id, joinWebUrl: result.joinWebUrl };
+    const result = await this.request<{
+      id: string;
+      onlineMeeting: { joinUrl: string } | null;
+    }>('POST', '/me/events', accessToken, {
+      subject: input.subject,
+      start: { dateTime: input.startDateTime, timeZone: 'UTC' },
+      end: { dateTime: input.endDateTime, timeZone: 'UTC' },
+      isOnlineMeeting: true,
+      onlineMeetingProvider: 'teamsForBusiness',
+      attendees: input.attendeeEmails.map((email) => ({
+        emailAddress: { address: email },
+        type: 'required',
+      })),
+    });
+    if (!result.onlineMeeting?.joinUrl) {
+      throw new ExternalServiceError('Graph event created without an online meeting join URL');
+    }
+    return { id: result.id, joinWebUrl: result.onlineMeeting.joinUrl };
   }
 
   /** `TP-06` — updates the meeting's time window on reschedule. */
@@ -164,17 +176,21 @@ export class RealGraphService implements GraphService {
     input: Pick<CreateMeetingInput, 'startDateTime' | 'endDateTime'>,
     accessToken: string,
   ): Promise<GraphMeeting> {
-    const result = await this.request<{ id: string; joinWebUrl: string }>(
-      'PATCH',
-      `/me/onlineMeetings/${meetingId}`,
-      accessToken,
-      { startDateTime: input.startDateTime, endDateTime: input.endDateTime },
-    );
-    return { id: result.id, joinWebUrl: result.joinWebUrl };
+    const result = await this.request<{
+      id: string;
+      onlineMeeting: { joinUrl: string } | null;
+    }>('PATCH', `/me/events/${meetingId}`, accessToken, {
+      start: { dateTime: input.startDateTime, timeZone: 'UTC' },
+      end: { dateTime: input.endDateTime, timeZone: 'UTC' },
+    });
+    if (!result.onlineMeeting?.joinUrl) {
+      throw new ExternalServiceError('Graph event updated without an online meeting join URL');
+    }
+    return { id: result.id, joinWebUrl: result.onlineMeeting.joinUrl };
   }
 
   async cancelMeeting(meetingId: string, accessToken: string): Promise<void> {
-    await this.request<void>('DELETE', `/me/onlineMeetings/${meetingId}`, accessToken);
+    await this.request<void>('DELETE', `/me/events/${meetingId}`, accessToken);
   }
 
   /** `RP-02` — sends from the caller's own mailbox via Graph `sendMail`. */
