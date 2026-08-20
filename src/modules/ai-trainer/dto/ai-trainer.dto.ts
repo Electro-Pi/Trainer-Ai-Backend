@@ -43,6 +43,7 @@ export interface SuggestDraftSkillOutcomesRequestDto {
 export interface SuggestedSkillDto {
   skillName: string;
   rationale: string;
+  outcomes: string[];
 }
 
 export interface SuggestTrackSkillsResponseDto {

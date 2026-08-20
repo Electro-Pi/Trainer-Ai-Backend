@@ -28,6 +28,17 @@ export const importLearnersCsvSchema = z.object({
   csv: z.string().trim().min(1).max(2_000_000),
 });
 
+/**
+ * Cross-tenant B2B guest invite — `entraObjectId` deliberately absent: it
+ * comes back from the Graph `/invitations` call itself, not the caller.
+ */
+export const inviteLearnerSchema = z.object({
+  email: emailSchema,
+  displayName: nameSchema.optional(),
+  jobTitle: jobFieldSchema.optional(),
+  department: jobFieldSchema.optional(),
+});
+
 export const updateLearnerSchema = z.object({
   jobTitle: jobFieldSchema.optional(),
   departmentId: cuidSchema.optional(),

@@ -1,9 +1,18 @@
-import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
+import {
+  ConflictError,
+  ExternalServiceError,
+  NotFoundError,
+} from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
+import { decrypt } from '@/common/utils/encryption.js';
+import { container } from '@/config/container.js';
+import { env } from '@/config/env.js';
+import { msalService } from '@/modules/auth/auth.module.js';
 import { departmentRepository } from '@/modules/departments/departments.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
+import { portalUserRepository } from '@/modules/users/users.module.js';
 
-import type { ImportLearnerDto } from '../dto/learner.dto.js';
+import type { ImportLearnerDto, InviteLearnerDto } from '../dto/learner.dto.js';
 import { LearnerRepository, type Learner } from '../repositories/learner.repository.js';
 
 export interface ActingUser {
@@ -18,9 +27,29 @@ export interface ImportOutcome {
 }
 
 /**
- * `TM-02` — imports a directory identity as a `Learner` row. **No account is
- * ever created** — this is the one place that boundary is structurally
- * true: `Learner` has no `passwordHash`/JWT path (AGENTS.md #1).
+ * `TM-01`/`TM-06` pattern (`directory.service.ts`) reused here — the calling
+ * PortalUser's own Entra sign-in already carries the Graph delegated scopes
+ * (`msal.service.ts`'s `SCOPES`), so both directory reads and guest invites
+ * are done on their behalf rather than a separate service-principal token.
+ */
+async function resolveAccessToken(callerId: string): Promise<string> {
+  const caller = await portalUserRepository.findByIdUnscoped(callerId);
+  if (!caller?.graphHomeAccountId || !caller.graphTokenCacheEncrypted) {
+    throw new ExternalServiceError(
+      'No Microsoft Graph session for this user — sign in via Entra ID first',
+    );
+  }
+
+  return msalService.acquireGraphTokenSilent(
+    caller.graphHomeAccountId,
+    decrypt(caller.graphTokenCacheEncrypted),
+  );
+}
+
+/**
+ * `TM-02` — imports a directory identity (or invited guest) as a `Learner`
+ * row. **No account is ever created** — this is the one place that boundary
+ * is structurally true: `Learner` has no `passwordHash`/JWT path (AGENTS.md #1).
  */
 export class LearnerImportService {
   private readonly learners = new LearnerRepository();
@@ -88,6 +117,56 @@ export class LearnerImportService {
     return this.importMany(actor, teamId, this.parseCsv(csv));
   }
 
+  /**
+   * Shared "resolve department + insert Learner row + audit log" logic
+   * behind both `importMany` (directory identity, `status` defaults to
+   * `ACTIVE`) and `inviteLearner` (cross-tenant guest, `status:
+   * 'PENDING_INVITE'`) — the one place a Learner insert payload is built, so
+   * the two paths can't drift apart on required fields.
+   */
+  private async createLearnerRow(
+    actor: ActingUser,
+    teamId: string,
+    entry: {
+      entraObjectId: string;
+      email: string;
+      displayName: string;
+      jobTitle?: string;
+      department?: string;
+      preferredLanguage?: 'EN' | 'AR';
+      status?: 'ACTIVE' | 'PENDING_INVITE';
+    },
+    auditAction: string,
+  ): Promise<Learner> {
+    const departmentId = await this.resolveDepartmentIdByName(
+      actor.organizationId,
+      entry.department,
+    );
+
+    const created = await this.learners.create({
+      teamId,
+      entraObjectId: entry.entraObjectId,
+      email: entry.email,
+      displayName: entry.displayName,
+      jobTitle: entry.jobTitle ?? null,
+      departmentId,
+      preferredLanguage: entry.preferredLanguage ?? 'EN',
+      ...(entry.status ? { status: entry.status } : {}),
+    } as never);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: auditAction,
+      entityType: 'Learner',
+      entityId: created.id,
+      after: { teamId, email: created.email },
+    });
+
+    return created;
+  }
+
   async importMany(
     actor: ActingUser,
     teamId: string,
@@ -108,34 +187,66 @@ export class LearnerImportService {
         continue;
       }
 
-      const departmentId = await this.resolveDepartmentIdByName(
-        actor.organizationId,
-        entry.department,
-      );
-
-      const created = await this.learners.create({
-        teamId,
-        entraObjectId: entry.entraObjectId,
-        email: entry.email,
-        displayName: entry.displayName,
-        jobTitle: entry.jobTitle ?? null,
-        departmentId,
-        preferredLanguage: entry.preferredLanguage ?? 'EN',
-      } as never);
-
-      await writeAuditLog({
-        organizationId: actor.organizationId,
-        actorId: actor.id,
-        actorType: 'USER',
-        action: 'learner.imported',
-        entityType: 'Learner',
-        entityId: created.id,
-        after: { teamId, email: created.email },
-      });
+      const created = await this.createLearnerRow(actor, teamId, entry, 'learner.imported');
 
       imported.push(created);
     }
 
     return { imported, skipped };
+  }
+
+  /**
+   * Cross-tenant B2B guest invite (`TM-02` extension) — the invitee's
+   * Microsoft account lives in a different Entra tenant, so it can never
+   * show up in `DirectoryService.searchUsers`'s own-tenant Graph query.
+   * `POST /invitations` (Graph, `User.Invite.All`) creates a guest shadow
+   * account in our tenant and returns its object id — that id becomes
+   * `Learner.entraObjectId`, so meeting creation (which invites by email,
+   * not object id — `graph.service.ts`'s `createMeeting`) needs no changes.
+   */
+  async inviteLearner(actor: ActingUser, teamId: string, dto: InviteLearnerDto): Promise<Learner> {
+    const team = await teamRepository.findByIdScoped(teamId);
+    if (!team) {
+      throw new NotFoundError('Team not found');
+    }
+
+    const accessToken = await resolveAccessToken(actor.id);
+
+    // No dedicated invite-redemption landing page exists yet — the app's own
+    // base URL is a reasonable fallback for `inviteRedirectUrl` (Graph
+    // requires *some* https redirect target) until one is built.
+    const redirectUrl = new URL('/', env.APP_URL).toString();
+
+    const invitation = await container.resolveGraph().inviteGuest(
+      {
+        email: dto.email,
+        redirectUrl,
+        ...(dto.displayName ? { displayName: dto.displayName } : {}),
+      },
+      accessToken,
+    );
+
+    const existing = await this.learners.findByEntraObjectId(invitation.invitedUserId);
+    if (existing) {
+      throw new ConflictError('This person has already been invited as a learner');
+    }
+
+    // Graph's `invitedUserDisplayName` is frequently null pre-redemption —
+    // fall back to what the manager typed, then to the email itself.
+    const displayName = dto.displayName || invitation.invitedUserDisplayName || dto.email;
+
+    return this.createLearnerRow(
+      actor,
+      teamId,
+      {
+        entraObjectId: invitation.invitedUserId,
+        email: dto.email,
+        displayName,
+        ...(dto.jobTitle ? { jobTitle: dto.jobTitle } : {}),
+        ...(dto.department ? { department: dto.department } : {}),
+        status: 'PENDING_INVITE',
+      },
+      'learner.invited',
+    );
   }
 }

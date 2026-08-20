@@ -4,9 +4,11 @@ import { logger } from '@/logger/logger.service.js';
 
 import type {
   CreateMeetingInput,
+  GraphGuestInvitation,
   GraphMeeting,
   GraphService,
   GraphUser,
+  InviteGuestInput,
   SendGraphMailInput,
 } from './graph.interfaces.js';
 
@@ -92,5 +94,16 @@ export class FakeGraphService implements GraphService {
       'FakeGraphService.sendMail — no real mail sent',
     );
     return Promise.resolve();
+  }
+
+  async inviteGuest(input: InviteGuestInput, _accessToken: string): Promise<GraphGuestInvitation> {
+    const id = randomUUID();
+    logger.info({ email: input.email }, 'FakeGraphService.inviteGuest — no real invite sent');
+    return Promise.resolve({
+      invitedUserId: `fake-guest-${id}`,
+      invitedUserDisplayName: input.displayName ?? null,
+      inviteRedeemUrl: `https://invitations.microsoft.com/redeem/fake-${id}`,
+      status: 'PendingAcceptance',
+    });
   }
 }

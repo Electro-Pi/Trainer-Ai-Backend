@@ -150,6 +150,7 @@ export class AiTrainerService {
     const suggestedSkills: SuggestedSkillDto[] = result.suggested_skills.map((s) => ({
       skillName: s.skill_name,
       rationale: s.rationale,
+      outcomes: s.outcomes,
     }));
 
     return { suggestedSkills };
@@ -203,6 +204,7 @@ export class AiTrainerService {
     const suggestedSkills: SuggestedSkillDto[] = result.suggested_skills.map((s) => ({
       skillName: s.skill_name,
       rationale: s.rationale,
+      outcomes: s.outcomes,
     }));
 
     return { suggestedSkills };

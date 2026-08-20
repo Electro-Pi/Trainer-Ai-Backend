@@ -129,6 +129,7 @@ enum LearnerStatus {
   ACTIVE
   INACTIVE
   REMOVED
+  PENDING_INVITE
 }
 
 enum SessionContentSource {

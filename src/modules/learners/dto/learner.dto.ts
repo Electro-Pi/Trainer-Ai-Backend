@@ -27,6 +27,18 @@ export interface ImportLearnersDto {
   learners: ImportLearnerDto[];
 }
 
+/**
+ * Cross-tenant B2B guest invite input — no `entraObjectId`, unlike
+ * `ImportLearnerDto`: the invitee isn't in our tenant yet, so Graph's
+ * `/invitations` call is what mints their (shadow-account) object id.
+ */
+export interface InviteLearnerDto {
+  email: string;
+  displayName?: string;
+  jobTitle?: string;
+  department?: string;
+}
+
 export interface UpdateLearnerDto {
   jobTitle?: string;
   departmentId?: string;

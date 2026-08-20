@@ -15,6 +15,7 @@ import {
   assignLearnerSchema,
   importLearnersCsvSchema,
   importLearnersSchema,
+  inviteLearnerSchema,
   learnerFilterSchema,
   learnerIdParamsSchema,
   learnerOutcomeFilterSchema,
@@ -172,6 +173,16 @@ export function createTeamMembersRouter(): Router {
     requireTeamAccess(resolveManagerIdByTeam),
     (req, res, next) => {
       memberController.importMembersCsv(req, res).catch(next);
+    },
+  );
+
+  router.post(
+    '/:id/members/invite',
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
+    validate({ params: teamIdParamsSchema, body: inviteLearnerSchema }),
+    requireTeamAccess(resolveManagerIdByTeam),
+    (req, res, next) => {
+      memberController.inviteMember(req, res).catch(next);
     },
   );
 

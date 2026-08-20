@@ -4,10 +4,12 @@ import { logger } from '@/logger/logger.service.js';
 
 import type {
   CreateMeetingInput,
+  GraphGuestInvitation,
   GraphMeeting,
   GraphService,
   GraphUser,
   GraphUserCollection,
+  InviteGuestInput,
   SendGraphMailInput,
 } from './graph.interfaces.js';
 
@@ -191,6 +193,28 @@ export class RealGraphService implements GraphService {
       },
       saveToSentItems: true,
     });
+  }
+
+  /** Cross-tenant B2B guest invite — `POST /invitations`, requires `User.Invite.All`. */
+  async inviteGuest(input: InviteGuestInput, accessToken: string): Promise<GraphGuestInvitation> {
+    const result = await this.request<{
+      inviteRedeemUrl: string;
+      invitedUserDisplayName: string | null;
+      status: string;
+      invitedUser: { id: string };
+    }>('POST', '/invitations', accessToken, {
+      invitedUserEmailAddress: input.email,
+      inviteRedirectUrl: input.redirectUrl,
+      sendInvitationMessage: true,
+      ...(input.displayName ? { invitedUserDisplayName: input.displayName } : {}),
+    });
+
+    return {
+      invitedUserId: result.invitedUser.id,
+      invitedUserDisplayName: result.invitedUserDisplayName,
+      inviteRedeemUrl: result.inviteRedeemUrl,
+      status: result.status,
+    };
   }
 }
 

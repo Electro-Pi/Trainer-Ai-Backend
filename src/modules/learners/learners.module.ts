@@ -120,3 +120,12 @@ openApiRegistry.registerPath({
   summary: 'Imports learners into a team from a CSV payload (`TM-02`)',
   responses: { 201: { description: 'Import result: imported + skipped' } },
 });
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/teams/{id}/members/invite',
+  tags: ['Teams'],
+  summary:
+    'Invites a cross-tenant guest by email as a learner (`TM-02` extension) — for people with no match in the manager’s own Microsoft directory',
+  responses: { 201: { description: 'The newly created, PENDING_INVITE learner' } },
+});

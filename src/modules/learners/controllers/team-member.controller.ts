@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { toCollectionResponse } from '@/common/interceptors/response-envelope.interceptor.js';
 import type { AuthContext } from '@/common/types/express.js';
 
-import type { ImportLearnersDto } from '../dto/learner.dto.js';
+import type { ImportLearnersDto, InviteLearnerDto } from '../dto/learner.dto.js';
 import { LearnerRepository } from '../repositories/learner.repository.js';
 import { LearnerImportService, type ActingUser } from '../services/learner-import.service.js';
 
@@ -27,6 +27,14 @@ export class TeamMemberController {
     const { id } = req.params as { id: string };
     const { csv } = req.body as { csv: string };
     const result = await importService.importFromCsv(toActingUser(req.auth!), id, csv);
+    res.status(201).json(result);
+  }
+
+  /** `TM-02` cross-tenant extension — invites a guest by email instead of importing an existing directory match. */
+  async inviteMember(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const dto = req.body as InviteLearnerDto;
+    const result = await importService.inviteLearner(toActingUser(req.auth!), id, dto);
     res.status(201).json(result);
   }
 

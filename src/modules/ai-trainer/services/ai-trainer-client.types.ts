@@ -38,6 +38,7 @@ export interface SuggestSkillsRequest {
 export interface SuggestedSkill {
   skill_name: string;
   rationale: string;
+  outcomes: string[];
 }
 
 export interface SuggestSkillsResponse {

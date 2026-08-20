@@ -19,6 +19,7 @@ const SCOPES = [
   'email',
   'offline_access',
   'User.Read.All',
+  'User.Invite.All',
   'Calendars.ReadWrite',
   'OnlineMeetings.ReadWrite',
   'Mail.Send',

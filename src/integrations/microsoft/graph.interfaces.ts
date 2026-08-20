@@ -34,6 +34,20 @@ export interface SendGraphMailInput {
   attachments?: { filename: string; contentType: string; contentBytes: string }[];
 }
 
+/** Cross-tenant B2B guest invite — the invitee's Microsoft account lives outside our tenant. */
+export interface InviteGuestInput {
+  email: string;
+  redirectUrl: string;
+  displayName?: string;
+}
+
+export interface GraphGuestInvitation {
+  invitedUserId: string;
+  invitedUserDisplayName: string | null;
+  inviteRedeemUrl: string;
+  status: string;
+}
+
 export interface GraphService {
   /** GET on an arbitrary Graph resource path (e.g. `/me`), token-cached, 429-retried. */
   get<T>(resourcePath: string, accessToken: string): Promise<T>;
@@ -62,4 +76,7 @@ export interface GraphService {
 
   /** `RP-02` — sends mail from the caller's own mailbox via Graph `sendMail`. */
   sendMail(input: SendGraphMailInput, accessToken: string): Promise<void>;
+
+  /** Cross-tenant B2B guest invite — `POST /invitations`, requires `User.Invite.All`. */
+  inviteGuest(input: InviteGuestInput, accessToken: string): Promise<GraphGuestInvitation>;
 }
