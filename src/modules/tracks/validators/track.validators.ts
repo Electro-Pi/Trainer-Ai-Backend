@@ -105,9 +105,7 @@ const createFullSkillSchema = z
     outcomes: z
       .array(createFullOutcomeSchema)
       .min(1, { error: 'Each skill needs at least one outcome' }),
-    content: z
-      .array(createFullContentSchema)
-      .min(1, { error: 'Each skill needs at least one content item' }),
+    content: z.array(createFullContentSchema),
   })
   .check((ctx) => {
     const { outcomes, content } = ctx.value;
