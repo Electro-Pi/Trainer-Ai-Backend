@@ -14,6 +14,10 @@ export const rescheduleSessionSchema = z
   .refine((value) => new Date(value.scheduledEnd) > new Date(value.scheduledStart), {
     error: 'scheduledEnd must be after scheduledStart',
     path: ['scheduledEnd'],
+  })
+  .refine((value) => new Date(value.scheduledStart) > new Date(), {
+    error: 'scheduledStart must be in the future',
+    path: ['scheduledStart'],
   });
 
 export const sessionListQuerySchema = z.object({
