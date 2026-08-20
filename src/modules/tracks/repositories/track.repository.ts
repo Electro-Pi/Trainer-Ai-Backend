@@ -289,6 +289,12 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
         });
 
         const skills: FullTrackResponseDto['levels'][number]['skills'] = [];
+        // `Outcome.order` is unique per (levelId, order), not per skill — a
+        // counter reset to 1 for every skill collided as soon as a level had
+        // more than one skill (both skills' first outcome fought over
+        // order:1 for the same levelId, P2002). Running across the whole
+        // level keeps every outcome's order unique within it.
+        let outcomeOrder = 0;
 
         for (const skillDto of levelDto.skills) {
           // Inlined (not extracted to a helper) so `tx`'s tenant-extended
@@ -317,7 +323,8 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           });
 
           const outcomes: Outcome[] = [];
-          for (const [outcomeIndex, outcomeDto] of skillDto.outcomes.entries()) {
+          for (const outcomeDto of skillDto.outcomes) {
+            outcomeOrder += 1;
             const outcome = await tx.outcome.create({
               data: {
                 levelId: level.id,
@@ -325,7 +332,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
                 titleEn: outcomeDto.titleEn,
                 titleAr: outcomeDto.titleAr,
                 targetSkills: [skillDto.nameEn],
-                order: outcomeIndex + 1,
+                order: outcomeOrder,
               },
             });
             outcomes.push(outcome);
