@@ -1,12 +1,18 @@
 type Language = 'EN' | 'AR';
+type SessionEmailKind = 'confirmed' | 'rescheduled';
 
 const COPY = {
   EN: {
-    subject: (skillName: string) => `Your training session is confirmed — ${skillName}`,
+    subject: (skillName: string, kind: SessionEmailKind) =>
+      kind === 'rescheduled'
+        ? `Your training session has a new time — ${skillName}`
+        : `Your training session is confirmed — ${skillName}`,
     preheader: (date: string, time: string) => `Confirmed for ${date} at ${time}.`,
     greeting: (learnerName: string) => `Hi ${learnerName},`,
-    body: (skillName: string, outcomeTitle: string) =>
-      `Your training session on <strong>${skillName}</strong> has been scheduled.<br/>Focus outcome: <strong>${outcomeTitle}</strong>.`,
+    body: (skillName: string, outcomeTitle: string, kind: SessionEmailKind) =>
+      kind === 'rescheduled'
+        ? `Your training session on <strong>${skillName}</strong> has been moved to a new time.<br/>Focus outcome: <strong>${outcomeTitle}</strong>.`
+        : `Your training session on <strong>${skillName}</strong> has been scheduled.<br/>Focus outcome: <strong>${outcomeTitle}</strong>.`,
     dateLabel: 'Date',
     timeLabel: 'Time',
     durationLabel: 'Duration',
@@ -14,22 +20,27 @@ const COPY = {
     cta: 'Join meeting',
     fallback: "If the button doesn't work, copy and paste this link into your browser:",
     calendarNote:
-      'A calendar invitation for this session has also been sent to your Outlook mailbox.',
+      'The calendar invitation for this session has also been updated in your Outlook mailbox.',
     signOff: 'This is an automated message from MODRB — please don’t reply to this email.',
   },
   AR: {
-    subject: (skillName: string) => `تم تأكيد جلستك التدريبية — ${skillName}`,
+    subject: (skillName: string, kind: SessionEmailKind) =>
+      kind === 'rescheduled'
+        ? `تم تحديد موعد جديد لجلستك التدريبية — ${skillName}`
+        : `تم تأكيد جلستك التدريبية — ${skillName}`,
     preheader: (date: string, time: string) => `تم التأكيد في ${date} الساعة ${time}.`,
     greeting: (learnerName: string) => `مرحباً ${learnerName}،`,
-    body: (skillName: string, outcomeTitle: string) =>
-      `تم جدولة جلستك التدريبية على <strong>${skillName}</strong>.<br/>الهدف من الجلسة: <strong>${outcomeTitle}</strong>.`,
+    body: (skillName: string, outcomeTitle: string, kind: SessionEmailKind) =>
+      kind === 'rescheduled'
+        ? `تم نقل جلستك التدريبية على <strong>${skillName}</strong> إلى موعد جديد.<br/>الهدف من الجلسة: <strong>${outcomeTitle}</strong>.`
+        : `تم جدولة جلستك التدريبية على <strong>${skillName}</strong>.<br/>الهدف من الجلسة: <strong>${outcomeTitle}</strong>.`,
     dateLabel: 'التاريخ',
     timeLabel: 'الوقت',
     durationLabel: 'المدة',
     minutes: (n: number) => `${n} دقيقة`,
     cta: 'الانضمام إلى الاجتماع',
     fallback: 'إذا لم يعمل الزر، انسخ الرابط التالي والصقه في متصفحك:',
-    calendarNote: 'تم أيضاً إرسال دعوة تقويم لهذه الجلسة إلى بريدك الإلكتروني على Outlook.',
+    calendarNote: 'تم أيضاً تحديث دعوة التقويم لهذه الجلسة في بريدك الإلكتروني على Outlook.',
     signOff: 'هذه رسالة آلية من منصة MODRB — يرجى عدم الرد على هذا البريد.',
   },
 } as const;
@@ -58,8 +69,10 @@ export function renderSessionConfirmationEmailHtml(params: {
   durationMinutes: number;
   joinUrl: string;
   language: Language;
+  kind?: SessionEmailKind;
 }): string {
   const t = COPY[params.language];
+  const kind = params.kind ?? 'confirmed';
   const dir = params.language === 'AR' ? 'rtl' : 'ltr';
   const align = dir === 'rtl' ? 'right' : 'left';
 
@@ -69,7 +82,7 @@ export function renderSessionConfirmationEmailHtml(params: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
-  <title>${t.subject(params.skillName)}</title>
+  <title>${t.subject(params.skillName, kind)}</title>
 </head>
 <body style="margin:0;padding:0;background:${BRAND.bg};font-family:${BRAND.font};">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${t.preheader(params.date, params.time)}</div>
@@ -85,7 +98,7 @@ export function renderSessionConfirmationEmailHtml(params: {
           <tr>
             <td style="padding:28px 36px 8px;text-align:${align};">
               <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.ink};">${t.greeting(params.learnerName)}</p>
-              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.ink};">${t.body(params.skillName, params.outcomeTitle)}</p>
+              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.ink};">${t.body(params.skillName, params.outcomeTitle, kind)}</p>
             </td>
           </tr>
           <tr>
@@ -142,6 +155,10 @@ export function renderSessionConfirmationEmailHtml(params: {
 </html>`;
 }
 
-export function sessionConfirmationEmailSubject(skillName: string, language: Language): string {
-  return COPY[language].subject(skillName);
+export function sessionConfirmationEmailSubject(
+  skillName: string,
+  language: Language,
+  kind: SessionEmailKind = 'confirmed',
+): string {
+  return COPY[language].subject(skillName, kind);
 }
