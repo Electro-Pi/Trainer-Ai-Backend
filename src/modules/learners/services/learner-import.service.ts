@@ -227,13 +227,48 @@ export class LearnerImportService {
     );
 
     const existing = await this.learners.findByEntraObjectId(invitation.invitedUserId);
-    if (existing) {
+    // A still-live row (PENDING_INVITE or ACTIVE) blocks a duplicate invite.
+    // An INACTIVE row means the manager cancelled a prior invite/membership
+    // (`deactivate` — non-negotiable 17, never hard-deleted) and is now
+    // re-inviting the same person: reactivate that row instead of throwing,
+    // so "cancel invite, then resend" is possible without piling up dead
+    // duplicate Learner rows for the same person.
+    if (existing && existing.status !== 'INACTIVE') {
       throw new ConflictError('This person has already been invited as a learner');
     }
 
     // Graph's `invitedUserDisplayName` is frequently null pre-redemption —
     // fall back to what the manager typed, then to the email itself.
     const displayName = dto.displayName || invitation.invitedUserDisplayName || dto.email;
+
+    if (existing) {
+      const departmentId = await this.resolveDepartmentIdByName(
+        actor.organizationId,
+        dto.department,
+      );
+      const reactivated = await this.learners.update(existing.id, {
+        teamId,
+        email: dto.email,
+        displayName,
+        jobTitle: dto.jobTitle ?? null,
+        departmentId,
+        status: 'PENDING_INVITE',
+        deactivatedAt: null,
+      } as never);
+
+      await writeAuditLog({
+        organizationId: actor.organizationId,
+        actorId: actor.id,
+        actorType: 'USER',
+        action: 'learner.reinvited',
+        entityType: 'Learner',
+        entityId: reactivated.id,
+        before: { status: existing.status },
+        after: { status: reactivated.status, teamId, email: reactivated.email },
+      });
+
+      return reactivated;
+    }
 
     return this.createLearnerRow(
       actor,
