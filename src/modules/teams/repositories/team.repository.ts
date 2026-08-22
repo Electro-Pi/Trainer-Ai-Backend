@@ -48,4 +48,24 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
   async countLearners(teamId: string): Promise<number> {
     return prisma.learner.count({ where: { teamId } });
   }
+
+  /** `TeamResponseDto.pendingManagerInvite` read-through — resolves the invite behind a team's `pendingManagerInviteId`, if any. */
+  async findPendingManagerInvite(teamId: string): Promise<{ id: string; email: string } | null> {
+    const row = await prisma.team.findFirst({
+      where: { id: teamId },
+      select: { pendingManagerInvite: { select: { id: true, email: true } } },
+    });
+    return row?.pendingManagerInvite ?? null;
+  }
+
+  /**
+   * Invite-accept resolution (`AuthService.signInWithMicrosoft`) — finds every
+   * team still waiting on this invite so it can fill in the real `managerId`
+   * once the invited manager signs in. `Team` is tenant-scoped (see
+   * `tenant.extension.ts`), so the caller must wrap this in `runWithTenant(invite.organizationId, ...)`
+   * — the invite is already known to belong to that org by this point.
+   */
+  async findByPendingManagerInvite(pendingManagerInviteId: string): Promise<Team[]> {
+    return this.delegate.findMany({ where: { pendingManagerInviteId } });
+  }
 }

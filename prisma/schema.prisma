@@ -268,8 +268,9 @@ model PortalInvite {
   acceptedUserId String?
   createdAt      DateTime           @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  invitedBy    PortalUser   @relation("InviteInvitedBy", fields: [invitedById], references: [id])
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  invitedBy        PortalUser   @relation("InviteInvitedBy", fields: [invitedById], references: [id])
+  pendingManagerOf Team?        @relation("TeamPendingManager")
 
   @@index([organizationId])
   @@index([email])
@@ -320,19 +321,25 @@ model PkceEntry {
 // ─────────────────────────────────────────────────────────────────────────
 
 model Team {
-  id             String   @id @default(cuid(2))
-  organizationId String
-  departmentId   String
-  managerId      String
-  name           String
-  description    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                     String   @id @default(cuid(2))
+  organizationId         String
+  departmentId           String
+  managerId              String?
+  /// Set when the team is created (or edited) with a manager who was just
+  /// invited rather than an existing `PortalUser` — `managerId` stays null
+  /// until `AuthService.signInWithMicrosoft` resolves the invite on accept,
+  /// at which point it fills in `managerId` and clears this field.
+  pendingManagerInviteId String?  @unique
+  name                   String
+  description            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  department   Department   @relation(fields: [departmentId], references: [id])
-  manager      PortalUser   @relation("TeamManager", fields: [managerId], references: [id])
-  learners     Learner[]
+  organization         Organization  @relation(fields: [organizationId], references: [id])
+  department           Department    @relation(fields: [departmentId], references: [id])
+  manager              PortalUser?   @relation("TeamManager", fields: [managerId], references: [id])
+  pendingManagerInvite PortalInvite? @relation("TeamPendingManager", fields: [pendingManagerInviteId], references: [id])
+  learners             Learner[]
 
   @@index([organizationId])
   @@index([departmentId])
@@ -487,23 +494,23 @@ model Level {
 }
 
 model Outcome {
-  id            String   @id @default(cuid(2))
-  levelId       String
+  id           String   @id @default(cuid(2))
+  levelId      String
   /// New 1:1 owner — an Outcome has exactly one Skill. Nullable through the
   /// migration window: existing rows are backfilled from `targetSkills[0]`
   /// by the skill-relations migration script; rows the script can't
   /// confidently resolve (0 or >1 entries in `targetSkills`) stay null for
   /// manual admin resolution and are surfaced in that script's report.
   /// Tighten to required once the report is clear (see BUILD_PLAN).
-  skillId       String?
-  titleEn       String
-  titleAr       String
+  skillId      String?
+  titleEn      String
+  titleAr      String
   /// @deprecated superseded by `skillId` — kept through the migration window.
-  targetSkills  String[]
-  order         Int
-  isEnabled     Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  targetSkills String[]
+  order        Int
+  isEnabled    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   level                Level                  @relation(fields: [levelId], references: [id])
   skill                Skill?                 @relation(fields: [skillId], references: [id])

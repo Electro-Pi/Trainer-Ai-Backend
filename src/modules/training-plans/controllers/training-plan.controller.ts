@@ -137,7 +137,9 @@ export class TrainingPlanController {
     if (!learner) throw new Error('Learner not found for plan');
 
     const team = await teamRepository.findByIdScoped(learner.teamId);
-    const manager = team ? await portalUserRepository.findByIdScoped(team.managerId) : null;
+    const manager = team?.managerId
+      ? await portalUserRepository.findByIdScoped(team.managerId)
+      : null;
 
     const recipientsByLanguage = new Map<'EN' | 'AR', PlanSummaryRecipient[]>();
     const addRecipient = (language: 'EN' | 'AR', recipient: PlanSummaryRecipient): void => {

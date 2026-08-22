@@ -109,7 +109,9 @@ export class ReportDataService {
     if (!team) throw new NotFoundError('Team not found');
     if (!organization) throw new NotFoundError('Organization not found');
 
-    const manager = await portalUserRepository.findByIdScoped(team.managerId);
+    const manager = team.managerId
+      ? await portalUserRepository.findByIdScoped(team.managerId)
+      : null;
     if (!manager) throw new NotFoundError('Manager not found');
 
     const outcomeIds = [...new Set(sessionOutcomes.map((so) => so.outcomeId))];

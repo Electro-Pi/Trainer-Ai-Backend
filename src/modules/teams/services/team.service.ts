@@ -7,6 +7,7 @@ import {
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
 import { departmentRepository } from '@/modules/departments/departments.module.js';
+import { portalInviteRepository } from '@/modules/invites/invites.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
 
 import type { CreateTeamDto, UpdateTeamDto } from '../dto/team.dto.js';
@@ -43,6 +44,11 @@ export class TeamService {
   /** `TeamResponseDto.departmentName` read-through — resolves the readable name behind a team's `departmentId`. */
   async getDepartmentName(teamId: string): Promise<string | null> {
     return this.teams.findDepartmentName(teamId);
+  }
+
+  /** `TeamResponseDto.pendingManagerInvite` read-through — resolves the invite behind a team's `pendingManagerInviteId`, if any. */
+  async getPendingManagerInvite(teamId: string): Promise<{ id: string; email: string } | null> {
+    return this.teams.findPendingManagerInvite(teamId);
   }
 
   /**
@@ -99,12 +105,49 @@ export class TeamService {
     return manager.id;
   }
 
+  /**
+   * A team can be created/edited pointing at a manager who was just invited
+   * rather than an existing `PortalUser` — `Team.managerId` stays null until
+   * `AuthService.signInWithMicrosoft` resolves the invite on accept (see
+   * `TeamRepository.findByPendingManagerInvite`). Validates the invite is
+   * still PENDING, targets `DEPARTMENT_MANAGER`, and belongs to the caller's
+   * org before it's written to `Team.pendingManagerInviteId`.
+   */
+  private async resolvePendingManagerInviteId(
+    actor: ActingUser,
+    requested: string,
+  ): Promise<string> {
+    const invite = await portalInviteRepository.findByIdScoped(requested);
+    if (
+      !invite ||
+      invite.organizationId !== actor.organizationId ||
+      invite.role !== 'DEPARTMENT_MANAGER' ||
+      invite.status !== 'PENDING'
+    ) {
+      throw new ValidationError([
+        {
+          path: 'pendingManagerInviteId',
+          code: 'invalid',
+          message:
+            'pendingManagerInviteId must reference a pending DEPARTMENT_MANAGER invite in this organization',
+        },
+      ]);
+    }
+    return invite.id;
+  }
+
   async create(actor: ActingUser, dto: CreateTeamDto): Promise<Team> {
-    const managerId = await this.resolveManagerId(actor, dto.managerId);
+    const managerId = dto.pendingManagerInviteId
+      ? null
+      : await this.resolveManagerId(actor, dto.managerId);
+    const pendingManagerInviteId = dto.pendingManagerInviteId
+      ? await this.resolvePendingManagerInviteId(actor, dto.pendingManagerInviteId)
+      : null;
     const departmentId = await this.resolveDepartmentId(actor, dto.departmentId);
 
     const created = await this.teams.create({
       managerId,
+      pendingManagerInviteId,
       departmentId,
       name: dto.name,
       description: dto.description ?? null,
@@ -117,7 +160,11 @@ export class TeamService {
       action: 'team.created',
       entityType: 'Team',
       entityId: created.id,
-      after: { name: created.name, managerId: created.managerId },
+      after: {
+        name: created.name,
+        managerId: created.managerId,
+        pendingManagerInviteId: created.pendingManagerInviteId,
+      },
     });
 
     return created;
@@ -127,6 +174,9 @@ export class TeamService {
     const before = await this.getById(id);
 
     const managerId = dto.managerId ? await this.resolveManagerId(actor, dto.managerId) : undefined;
+    const pendingManagerInviteId = dto.pendingManagerInviteId
+      ? await this.resolvePendingManagerInviteId(actor, dto.pendingManagerInviteId)
+      : undefined;
     const departmentId =
       dto.departmentId !== undefined
         ? await this.resolveDepartmentId(actor, dto.departmentId)
@@ -136,7 +186,9 @@ export class TeamService {
       ...(dto.name !== undefined ? { name: dto.name } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
       ...(departmentId !== undefined ? { departmentId } : {}),
-      ...(managerId !== undefined ? { managerId } : {}),
+      // Picking a real manager clears any stale pending invite, and vice versa.
+      ...(managerId !== undefined ? { managerId, pendingManagerInviteId: null } : {}),
+      ...(pendingManagerInviteId !== undefined ? { pendingManagerInviteId, managerId: null } : {}),
     } as never);
 
     await writeAuditLog({

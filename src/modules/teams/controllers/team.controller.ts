@@ -14,13 +14,17 @@ function toActingUser(auth: AuthContext): ActingUser {
 }
 
 async function toResponseDto(team: Team): Promise<TeamResponseDto> {
-  const departmentName = await service.getDepartmentName(team.id);
+  const [departmentName, pendingManagerInvite] = await Promise.all([
+    service.getDepartmentName(team.id),
+    team.managerId ? Promise.resolve(null) : service.getPendingManagerInvite(team.id),
+  ]);
   return {
     id: team.id,
     organizationId: team.organizationId,
     departmentId: team.departmentId,
     departmentName: departmentName ?? '',
     managerId: team.managerId,
+    pendingManagerInvite,
     name: team.name,
     description: team.description,
     createdAt: team.createdAt.toISOString(),

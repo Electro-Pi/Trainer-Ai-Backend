@@ -39,4 +39,14 @@ export class PortalInviteRepository extends BaseRepository<PortalInvite, PortalI
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  /**
+   * `BaseRepository.findById` uses `findUnique`, which the tenant extension
+   * cannot scope (see the extension's doc comment) — a request-supplied
+   * `id` (e.g. `Team.pendingManagerInviteId` on create) must resolve through
+   * this `findFirst` instead, same reasoning as `TeamRepository.findByIdScoped`.
+   */
+  async findByIdScoped(id: string): Promise<PortalInvite | null> {
+    return this.delegate.findFirst({ where: { id } });
+  }
 }

@@ -3,7 +3,8 @@ export interface TeamResponseDto {
   organizationId: string;
   departmentId: string;
   departmentName: string;
-  managerId: string;
+  managerId: string | null;
+  pendingManagerInvite: { id: string; email: string } | null;
   name: string;
   description: string | null;
   createdAt: string;
@@ -14,6 +15,7 @@ export interface CreateTeamDto {
   description?: string;
   departmentId: string;
   managerId?: string;
+  pendingManagerInviteId?: string;
 }
 
 export interface UpdateTeamDto {
@@ -21,6 +23,7 @@ export interface UpdateTeamDto {
   description?: string;
   departmentId?: string;
   managerId?: string;
+  pendingManagerInviteId?: string;
 }
 
 export interface TeamFilterDto {

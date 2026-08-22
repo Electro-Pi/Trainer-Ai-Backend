@@ -4,19 +4,31 @@ import { cuidSchema, nameSchema, paginationSchema } from '@/common/validators/pr
 
 const descriptionSchema = z.string().trim().max(2000);
 
-export const createTeamSchema = z.object({
-  name: nameSchema,
-  description: descriptionSchema.optional(),
-  departmentId: cuidSchema,
-  managerId: cuidSchema.optional(),
-});
+export const createTeamSchema = z
+  .object({
+    name: nameSchema,
+    description: descriptionSchema.optional(),
+    departmentId: cuidSchema,
+    managerId: cuidSchema.optional(),
+    pendingManagerInviteId: cuidSchema.optional(),
+  })
+  .refine((dto) => !(dto.managerId && dto.pendingManagerInviteId), {
+    message: 'Provide either managerId or pendingManagerInviteId, not both',
+    path: ['managerId'],
+  });
 
-export const updateTeamSchema = z.object({
-  name: nameSchema.optional(),
-  description: descriptionSchema.optional(),
-  departmentId: cuidSchema.optional(),
-  managerId: cuidSchema.optional(),
-});
+export const updateTeamSchema = z
+  .object({
+    name: nameSchema.optional(),
+    description: descriptionSchema.optional(),
+    departmentId: cuidSchema.optional(),
+    managerId: cuidSchema.optional(),
+    pendingManagerInviteId: cuidSchema.optional(),
+  })
+  .refine((dto) => !(dto.managerId && dto.pendingManagerInviteId), {
+    message: 'Provide either managerId or pendingManagerInviteId, not both',
+    path: ['managerId'],
+  });
 
 export const teamFilterSchema = paginationSchema;
 

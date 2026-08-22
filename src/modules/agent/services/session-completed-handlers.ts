@@ -39,7 +39,9 @@ export function registerSessionCompletedHandlers(): void {
       if (!learner) return;
 
       const team = await teamRepository.findByIdScoped(learner.teamId);
-      const manager = team ? await portalUserRepository.findByIdScoped(team.managerId) : null;
+      const manager = team?.managerId
+        ? await portalUserRepository.findByIdScoped(team.managerId)
+        : null;
 
       const recipientsByLanguage = new Map<'EN' | 'AR', ReportRecipient[]>();
       const addRecipient = (language: 'EN' | 'AR', recipient: ReportRecipient): void => {

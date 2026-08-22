@@ -2,6 +2,7 @@ import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { PageResult } from '@/common/repositories/base.repository.js';
 import { departmentRepository } from '@/modules/departments/departments.module.js';
+import { teamRepository } from '@/modules/teams/teams.module.js';
 
 import type {
   CreateFullTrackDto,
@@ -22,11 +23,18 @@ export interface ActingUser {
 export class TrackService {
   private readonly tracks = new TrackRepository();
 
-  async list(filter: TrackFilterDto): Promise<PageResult<Track>> {
+  /** §7.2: a DEPARTMENT_MANAGER's list is filtered to the department(s) of the team(s) they manage; ADMIN/CONTENT_CREATOR see every track in the org. */
+  async list(actor: ActingUser, filter: TrackFilterDto): Promise<PageResult<Track>> {
+    const departmentIds =
+      actor.role === 'DEPARTMENT_MANAGER' ? await this.resolveManagedDepartmentIds(actor) : null;
+
     return this.tracks.findMany({
       ...(filter.limit !== undefined ? { limit: filter.limit } : {}),
       ...(filter.cursor ? { cursor: filter.cursor } : {}),
-      ...(filter.isEnabled !== undefined ? { where: { isEnabled: filter.isEnabled } } : {}),
+      where: {
+        ...(filter.isEnabled !== undefined ? { isEnabled: filter.isEnabled } : {}),
+        ...(departmentIds ? { departmentId: { in: departmentIds } } : {}),
+      },
     });
   }
 
@@ -44,11 +52,28 @@ export class TrackService {
   }
 
   /**
+   * A DEPARTMENT_MANAGER has no `departmentId` field of their own — their
+   * department(s) are derived from the team(s) they manage (`Team.managerId`
+   * → `Team.departmentId`). A manager can end up owning teams across more
+   * than one department (no DB constraint ties one manager to one
+   * department), so this returns the full de-duplicated set rather than a
+   * single id.
+   */
+  private async resolveManagedDepartmentIds(actor: ActingUser): Promise<string[]> {
+    const teams = await teamRepository.findByManager(actor.id);
+    return [...new Set(teams.map((t) => t.departmentId))];
+  }
+
+  /**
    * Validates that `departmentId` names an active `Department` in the
    * caller's org before it's written to `Track.departmentId`. `Department`
    * isn't a tenant-scoped model on the Prisma extension (ARCHITECTURE §7.3),
    * so `organizationId` is filtered explicitly here — same reasoning
    * `OrganizationRepository`'s doc comment gives for its own unscoped reads.
+   *
+   * For a DEPARTMENT_MANAGER, org-membership alone isn't enough — the
+   * department must also be one they actually manage (§7.2), same ownership
+   * rule `TeamService.assertManages` enforces for teams.
    */
   private async resolveDepartmentId(actor: ActingUser, departmentId: string): Promise<string> {
     const department = await departmentRepository.findByIdScoped(
@@ -64,6 +89,22 @@ export class TrackService {
         },
       ]);
     }
+
+    if (actor.role === 'DEPARTMENT_MANAGER') {
+      const managedDepartmentIds = await this.resolveManagedDepartmentIds(actor);
+      if (!managedDepartmentIds.includes(department.id)) {
+        throw new ValidationError([
+          {
+            path: 'departmentId',
+            code: 'invalid',
+            message: managedDepartmentIds.length
+              ? 'departmentId must be a department you manage'
+              : 'You must manage a team before creating tracks',
+          },
+        ]);
+      }
+    }
+
     return department.id;
   }
 

@@ -5,6 +5,7 @@ import { verifyPassword } from '@/common/utils/password-hash.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { portalInviteRepository } from '@/modules/invites/invites.module.js';
 import { organizationRepository } from '@/modules/organizations/organizations.module.js';
+import { teamRepository } from '@/modules/teams/teams.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
 
 import type { EntraSignInResult } from './msal.interfaces.js';
@@ -104,13 +105,25 @@ export class AuthService {
     }
 
     if (invite && !existingUser) {
-      await runWithTenant(organizationId, () =>
-        portalInviteRepository.update(invite.id, {
+      await runWithTenant(organizationId, async () => {
+        await portalInviteRepository.update(invite.id, {
           status: 'ACCEPTED',
           acceptedAt: new Date(),
           acceptedUserId: user.id,
-        } as never),
-      );
+        } as never);
+
+        // Any team created with this invite still pending (see
+        // `TeamService.resolvePendingManagerInviteId`) now has a real manager.
+        const pendingTeams = await teamRepository.findByPendingManagerInvite(invite.id);
+        await Promise.all(
+          pendingTeams.map((team) =>
+            teamRepository.update(team.id, {
+              managerId: user.id,
+              pendingManagerInviteId: null,
+            } as never),
+          ),
+        );
+      });
     }
 
     await runWithTenant(organizationId, () =>

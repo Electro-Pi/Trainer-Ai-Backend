@@ -60,7 +60,9 @@ export class PlanSummaryDataService {
     const team = await teamRepository.findByIdScoped(learner.teamId);
     if (!team) throw new NotFoundError('Team not found');
 
-    const manager = await portalUserRepository.findByIdScoped(team.managerId);
+    const manager = team.managerId
+      ? await portalUserRepository.findByIdScoped(team.managerId)
+      : null;
     if (!manager) throw new NotFoundError('Manager not found');
 
     const assignment = await learnerAssignmentRepository.findById(plan.assignmentId);

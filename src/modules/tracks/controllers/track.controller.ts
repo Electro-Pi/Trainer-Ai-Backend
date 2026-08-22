@@ -44,7 +44,7 @@ async function toResponseDto(track: Track): Promise<TrackResponseDto> {
 export class TrackController {
   async list(req: Request, res: Response): Promise<void> {
     const filter = req.query as unknown as TrackFilterDto;
-    const page = await service.list(filter);
+    const page = await service.list(toActingUser(req.auth!), filter);
     const data = await Promise.all(page.data.map(toResponseDto));
     res.status(200).json(
       toCollectionResponse(data, {
