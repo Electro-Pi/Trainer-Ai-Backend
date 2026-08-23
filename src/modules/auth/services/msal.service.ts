@@ -94,6 +94,12 @@ export class RealMsalService implements IMsalService {
       state,
       codeChallenge: challenge,
       codeChallengeMethod: 'S256',
+      // Without this, Microsoft's SSO silently reuses whatever account is
+      // still signed into the browser (its own session, independent of this
+      // app's) — so signing out here and clicking "Sign in" again just
+      // re-authenticates the same account instead of letting the user pick
+      // a different one.
+      prompt: 'select_account',
     });
 
     return { url, state, codeVerifier: verifier };
