@@ -35,11 +35,8 @@ export async function processMeetingUpdateJob(
 ): Promise<void> {
   await runWithTenant(payload.organizationId, async () => {
     const session = await sessions.findByIdScoped(payload.sessionId);
-    if (!session?.graphEventId) {
-      logger.warn(
-        { sessionId: payload.sessionId },
-        'meeting-update: session or meeting not found, skipping',
-      );
+    if (!session) {
+      logger.warn({ sessionId: payload.sessionId }, 'meeting-update: session not found, skipping');
       return;
     }
 
@@ -49,20 +46,14 @@ export async function processMeetingUpdateJob(
       return;
     }
 
-    // Defense in depth: a session shouldn't have `graphEventId` set while its
-    // plan is still DRAFT (that's only stamped by `meeting.create`, itself
-    // only enqueued from `TrainingPlanService.confirm()`) — but if one ever
-    // does, notifying the learner about a plan the manager hasn't confirmed
-    // yet would be wrong regardless of how it got here.
-    if (plan.status === 'DRAFT') {
-      logger.info(
-        { sessionId: session.id, planId: plan.id },
-        'meeting-update: plan still DRAFT, skipping notification',
-      );
-      return;
-    }
-
     if (session.status === 'CANCELLED') {
+      if (!session.graphEventId) {
+        logger.info(
+          { sessionId: session.id },
+          'meeting-update: session cancelled with no meeting to cancel, skipping',
+        );
+        return;
+      }
       try {
         await graphMeetingsService.cancelMeeting(plan.createdById, session.graphEventId);
       } catch (error) {
@@ -87,52 +78,76 @@ export async function processMeetingUpdateJob(
     }
 
     const learner = await learnerRepository.findByIdScoped(session.learnerId);
+    const planCreatedById = plan.createdById;
+    const sessionId = session.id;
+    const sessionLearnerId = session.learnerId;
+    const scheduledStart = session.scheduledStart;
+    const scheduledEnd = session.scheduledEnd;
 
-    try {
-      await graphMeetingsService.updateMeeting(plan.createdById, session.graphEventId, {
-        startDateTime: session.scheduledStart.toISOString(),
-        endDateTime: session.scheduledEnd.toISOString(),
-      });
-    } catch (error) {
-      if (!(error instanceof GraphEventNotFoundError)) throw error;
-
-      // The event this session's `graphEventId` pointed at was deleted
-      // directly in Outlook (not through this app) — updating it is
-      // impossible, but the session still needs a real meeting at its new
-      // time. Recreate it exactly like `create-meeting.job.ts` does for a
-      // session with no meeting yet, then persist the fresh id/joinUrl so
-      // this session isn't left pointing at a dead reference again.
+    /**
+     * Recreates the Teams meeting from scratch at the session's (new)
+     * scheduled time — shared by the "never had a meeting yet" case (plan
+     * was still DRAFT at the time of an earlier reschedule, so
+     * `meeting.create` never ran) and the "event was deleted directly in
+     * Outlook" case below. Same call shape as `create-meeting.job.ts`.
+     */
+    async function recreateMeeting(): Promise<{ joinUrl: string }> {
       if (!learner) {
         logger.error(
-          { sessionId: session.id },
-          'meeting-update: event gone and learner not found, cannot recreate',
+          { sessionId },
+          'meeting-update: no meeting exists and learner not found, cannot create one',
         );
-        throw error;
+        throw new Error(`meeting-update: learner not found for session ${sessionId}`);
       }
-      logger.warn(
-        { sessionId: session.id, staleGraphEventId: session.graphEventId },
-        'meeting-update: event was deleted, recreating meeting at the new time',
-      );
-      const recreated = await graphMeetingsService.createMeeting(plan.createdById, {
+      const recreated = await graphMeetingsService.createMeeting(planCreatedById, {
         subject: `Training session — ${learner.displayName}`,
-        startDateTime: session.scheduledStart.toISOString(),
-        endDateTime: session.scheduledEnd.toISOString(),
+        startDateTime: scheduledStart.toISOString(),
+        endDateTime: scheduledEnd.toISOString(),
         attendeeEmails: [learner.email],
       });
-      await sessions.recordMeetingCreated(session.id, session.learnerId, {
+      await sessions.recordMeetingCreated(sessionId, sessionLearnerId, {
         graphEventId: recreated.id,
         joinUrl: recreated.joinWebUrl,
       });
-      session.graphEventId = recreated.id;
-      session.joinUrl = recreated.joinWebUrl;
       await writeAuditLog({
         organizationId: payload.organizationId,
         actorType: 'SYSTEM',
         action: 'session.meeting_recreated',
         entityType: 'Session',
-        entityId: session.id,
+        entityId: sessionId,
         after: { graphEventId: recreated.id },
       });
+      return { joinUrl: recreated.joinWebUrl };
+    }
+
+    const originalGraphEventId = session.graphEventId;
+    let currentJoinUrl = session.joinUrl;
+
+    if (!originalGraphEventId) {
+      logger.info(
+        { sessionId },
+        'meeting-update: session had no meeting yet, creating one at the new time',
+      );
+      ({ joinUrl: currentJoinUrl } = await recreateMeeting());
+    } else {
+      try {
+        await graphMeetingsService.updateMeeting(planCreatedById, originalGraphEventId, {
+          startDateTime: scheduledStart.toISOString(),
+          endDateTime: scheduledEnd.toISOString(),
+        });
+      } catch (error) {
+        if (!(error instanceof GraphEventNotFoundError)) throw error;
+
+        // The event this session's `graphEventId` pointed at was deleted
+        // directly in Outlook (not through this app) — updating it is
+        // impossible, but the session still needs a real meeting at its new
+        // time.
+        logger.warn(
+          { sessionId, staleGraphEventId: originalGraphEventId },
+          'meeting-update: event was deleted, recreating meeting at the new time',
+        );
+        ({ joinUrl: currentJoinUrl } = await recreateMeeting());
+      }
     }
 
     // Branded "your session moved" email — the calendar-event PATCH above
@@ -162,17 +177,14 @@ export async function processMeetingUpdateJob(
             outcomeTitle: outcome?.titleEn ?? '',
             ...formatLocalDateAndTime(session.scheduledStart),
             durationMinutes: session.durationMinutes ?? 45,
-            joinUrl: session.joinUrl ?? '',
+            joinUrl: currentJoinUrl ?? '',
             language,
             kind: 'rescheduled',
           }),
         });
       }
     } catch (error) {
-      logger.error(
-        { sessionId: session.id, err: error },
-        'meeting-update: reschedule email failed to send',
-      );
+      logger.error({ sessionId, err: error }, 'meeting-update: reschedule email failed to send');
     }
 
     // Re-dispatch the AI Trainer to the (possibly new) join link/time — a
@@ -188,7 +200,7 @@ export async function processMeetingUpdateJob(
         organizationId: payload.organizationId,
         session,
         learner,
-        joinUrl: session.joinUrl ?? '',
+        joinUrl: currentJoinUrl ?? '',
       });
     }
 

@@ -1,12 +1,22 @@
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
+import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { graphMeetingsService } from '@/integrations/microsoft/graph.meetings.js';
 import { GraphMeetingCreatedWithoutJoinUrlError } from '@/integrations/microsoft/graph.service.js';
 import { logger } from '@/logger/logger.service.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
+import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
+import {
+  renderSessionConfirmationEmailHtml,
+  sessionConfirmationEmailSubject,
+} from '@/modules/notifications/templates/session-confirmation-email.template.js';
+import { organizationRepository } from '@/modules/organizations/organizations.module.js';
+import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository.js';
+import { skillRepository } from '@/modules/skills/skills.module.js';
 import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
+import type { EmailService } from '@/shared-types.js';
 
 import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
@@ -128,12 +138,41 @@ export async function processCreateMeetingJob(
 
     const joinUrlForNotifications = updated.joinUrl ?? meeting.joinWebUrl;
 
-    // No per-session branded email here anymore — `TrainingPlanService.confirm()`
-    // now sends one combined email for every session in the plan the moment
-    // the manager confirms, instead of the learner getting a separate email
-    // per session as each one's Teams meeting finished creating. The native
-    // Outlook calendar invite for this specific session (from the Graph
-    // event created above) still arrives independently, per session.
+    // `TrainingPlanService.confirm()` sends one combined overview email the
+    // moment the manager confirms, but that fires before any of these
+    // `meeting.create` jobs run — no Teams meeting exists yet at that point,
+    // so that email can't carry a join link (see its own comment). This is
+    // the per-session follow-up once the meeting is real: same branded
+    // template as the reschedule email, with the actual "Join meeting" link.
+    // Best-effort — a delivery failure here shouldn't fail meeting creation,
+    // which already succeeded on Graph regardless.
+    try {
+      const outcome = await outcomeRepository.findByIdScoped(session.primaryOutcomeId);
+      const skill = outcome?.skillId ? await skillRepository.findByIdScoped(outcome.skillId) : null;
+      const organization = await organizationRepository.findById(payload.organizationId);
+      const language = organization?.defaultLanguage === 'AR' ? 'AR' : 'EN';
+
+      const emailService = container.resolveEmail<EmailService>();
+      await emailService.send({
+        to: learner.email,
+        subject: sessionConfirmationEmailSubject(skill?.nameEn ?? 'your session', language),
+        html: renderSessionConfirmationEmailHtml({
+          learnerName: learner.displayName,
+          skillName: skill?.nameEn ?? 'Training session',
+          outcomeTitle: outcome?.titleEn ?? '',
+          ...formatLocalDateAndTime(session.scheduledStart),
+          durationMinutes: session.durationMinutes ?? 45,
+          joinUrl: joinUrlForNotifications,
+          language,
+          kind: 'confirmed',
+        }),
+      });
+    } catch (error) {
+      logger.error(
+        { sessionId: session.id, err: error },
+        'create-meeting: session confirmation email failed to send',
+      );
+    }
 
     // `P8-10`, ARCHITECTURE §9.11 rule 6 — asks the AI Trainer service to join
     // the meeting via the same `POST /sessions/external` call the manual
