@@ -154,27 +154,57 @@ export class ExternalSessionService {
     await this.requireOwnedSession(id);
 
     const evaluation = await this.client.getSessionEvaluation(id);
-    return {
-      sessionId: evaluation.session_id,
-      overallScore: evaluation.overall_score,
-      passed: evaluation.passed,
-      summaryFeedback: evaluation.summary_feedback,
-      strengths: evaluation.strengths,
-      areasForImprovement: evaluation.areas_for_improvement,
-      questions: evaluation.questions.map((q) => ({
-        questionIndex: q.question_index,
-        questionText: q.question_text,
-        traineeAnswerText: q.trainee_answer_text,
-        isCorrect: q.is_correct,
-        aiFeedback: q.ai_feedback,
-        outcomeText: q.outcome_text,
-      })),
-      outcomeResults: evaluation.outcome_results.map((o) => ({
+    const mapOutcomeResults = (
+      results: {
+        outcome: string;
+        questions_asked: number;
+        questions_correct: number;
+        passed: boolean;
+      }[],
+    ) =>
+      results.map((o) => ({
         outcome: o.outcome,
         questionsAsked: o.questions_asked,
         questionsCorrect: o.questions_correct,
         passed: o.passed,
-      })),
+      }));
+
+    return {
+      sessionId: evaluation.session_id,
+      traineeView: {
+        overallScore: evaluation.trainee_view.overall_score,
+        passed: evaluation.trainee_view.passed,
+        summaryFeedback: evaluation.trainee_view.summary_feedback,
+        strengths: evaluation.trainee_view.strengths,
+        areasForImprovement: evaluation.trainee_view.areas_for_improvement,
+        questions: evaluation.trainee_view.questions.map((q) => ({
+          questionIndex: q.question_index,
+          questionText: q.question_text,
+          traineeAnswerText: q.trainee_answer_text,
+          isCorrect: q.is_correct,
+          aiFeedback: q.ai_feedback,
+          outcomeText: q.outcome_text,
+        })),
+        outcomeResults: mapOutcomeResults(evaluation.trainee_view.outcome_results),
+      },
+      managerView: evaluation.manager_view
+        ? {
+            overallScore: evaluation.manager_view.overall_score,
+            passed: evaluation.manager_view.passed,
+            readiness: evaluation.manager_view.readiness,
+            riskAreas: evaluation.manager_view.risk_areas,
+            outcomeCoverageComparison: evaluation.manager_view.outcome_coverage_comparison,
+            questions: evaluation.manager_view.questions.map((q) => ({
+              questionIndex: q.question_index,
+              questionText: q.question_text,
+              traineeAnswerText: q.trainee_answer_text,
+              isCorrect: q.is_correct,
+              managerFeedback: q.manager_feedback,
+              outcomeText: q.outcome_text,
+            })),
+            outcomeResults: mapOutcomeResults(evaluation.manager_view.outcome_results),
+          }
+        : null,
     };
   }
 

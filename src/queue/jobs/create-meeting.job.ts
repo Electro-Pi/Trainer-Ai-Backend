@@ -228,6 +228,7 @@ export async function processCreateMeetingJob(
         status: result.status,
         dispatchError: result.dispatch_error,
       } as never);
+      await sessions.recordExternalSessionId(session.id, result.id);
 
       if (result.dispatch_error) {
         throw new Error(result.dispatch_error);

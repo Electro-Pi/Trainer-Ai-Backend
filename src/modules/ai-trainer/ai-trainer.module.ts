@@ -6,11 +6,26 @@ import {
   createSkillAiTrainerRouter,
   createTrackAiTrainerRouter,
 } from './ai-trainer.routes.js';
+import { AiTrainerClientService } from './services/ai-trainer-client.service.js';
 
 export const trackAiTrainerRouter = createTrackAiTrainerRouter();
 export const skillAiTrainerRouter = createSkillAiTrainerRouter();
 export const externalSessionsRouter = createExternalSessionsRouter();
 export const draftAiTrainerRouter = createDraftAiTrainerRouter();
+
+export type {
+  SessionEvaluationManagerView,
+  SessionEvaluationTraineeView,
+  SessionTranscriptResponse,
+} from './services/ai-trainer-client.types.js';
+
+// Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `sessions`
+// and `reports` resolve a session's transcript/evaluation through this
+// instead of deep-importing `modules/ai-trainer/services/*`. `Session.id`
+// resolves to the AI Trainer's own id via `Session.externalSessionId`
+// (stamped by `queue/jobs/create-meeting.job.ts`) before either caller
+// reaches this client.
+export const aiTrainerClientService = new AiTrainerClientService();
 
 openApiRegistry.registerPath({
   method: 'post',

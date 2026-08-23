@@ -176,6 +176,20 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
     });
   }
 
+  /**
+   * Links this session to the AI Trainer microservice's own session id —
+   * stamped once `create-meeting.job.ts` successfully dispatches to
+   * `POST /sessions/external`. The only way `ReportDataService` can later
+   * resolve which `GET /sessions/{id}/evaluation` (or `/transcript`) payload
+   * belongs to this session; nothing else links the two systems' ids.
+   */
+  async recordExternalSessionId(sessionId: string, externalSessionId: string): Promise<void> {
+    await this.delegate.update({
+      where: { id: sessionId } as never,
+      data: { externalSessionId } as never,
+    });
+  }
+
   async recordMeetingCreated(
     sessionId: string,
     learnerId: string,

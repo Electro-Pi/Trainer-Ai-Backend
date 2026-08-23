@@ -27,9 +27,14 @@ export interface ReportRecipient {
  * inside the publishing request's `AsyncLocalStorage` frame.
  */
 export function registerSessionCompletedHandlers(): void {
-  // `RP-01`, `RP-02` — creates one `Report` row per distinct recipient
-  // language among {manager, learner} ("one session can produce two PDFs",
-  // ARCHITECTURE §9/P9's exit criterion) and enqueues generation for each.
+  // `RP-01`, `RP-02` — creates one `Report` row per recipient (learner,
+  // manager), each in that recipient's own language. Unlike the old
+  // group-by-language scheme, this is deliberately one row per *person*, not
+  // per language: the AI Trainer evaluation endpoint returns genuinely
+  // different content per role (`trainee_view` vs `manager_view` — different
+  // tone, and `manager_view` carries `readiness`/`risk_areas` the learner
+  // never sees), so a manager and learner who happen to share a language can
+  // no longer be handed the identical PDF the old grouping produced.
   eventBus.subscribe('session.completed', async (payload) => {
     await runWithTenant(payload.organizationId, async () => {
       const session = await sessionRepository.findByIdScoped(payload.sessionId);
@@ -43,28 +48,25 @@ export function registerSessionCompletedHandlers(): void {
         ? await portalUserRepository.findByIdScoped(team.managerId)
         : null;
 
-      const recipientsByLanguage = new Map<'EN' | 'AR', ReportRecipient[]>();
-      const addRecipient = (language: 'EN' | 'AR', recipient: ReportRecipient): void => {
-        const existing = recipientsByLanguage.get(language) ?? [];
-        existing.push(recipient);
-        recipientsByLanguage.set(language, existing);
-      };
-
-      addRecipient(learner.preferredLanguage, {
-        role: 'LEARNER',
-        email: learner.email,
-        name: learner.displayName,
-      });
+      const recipients: { language: 'EN' | 'AR'; recipient: ReportRecipient }[] = [
+        {
+          language: learner.preferredLanguage,
+          recipient: { role: 'LEARNER', email: learner.email, name: learner.displayName },
+        },
+      ];
       if (manager) {
-        addRecipient(manager.locale, {
-          role: 'DEPARTMENT_MANAGER',
-          portalUserId: manager.id,
-          email: manager.email,
-          name: manager.name,
+        recipients.push({
+          language: manager.locale,
+          recipient: {
+            role: 'DEPARTMENT_MANAGER',
+            portalUserId: manager.id,
+            email: manager.email,
+            name: manager.name,
+          },
         });
       }
 
-      for (const [language, recipients] of recipientsByLanguage) {
+      for (const { language, recipient } of recipients) {
         const report = await reportRepository.create({
           organizationId: payload.organizationId,
           sessionId: payload.sessionId,
@@ -72,7 +74,7 @@ export function registerSessionCompletedHandlers(): void {
           type: 'SESSION',
           language,
           status: 'PENDING',
-          recipients,
+          recipients: [recipient],
         } as never);
 
         await queueService.enqueue('report.generate', {

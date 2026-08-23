@@ -102,6 +102,12 @@ export class SessionController {
     res.status(200).json(toResponseDto(session));
   }
 
+  async getTranscript(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const transcript = await sessions.getTranscript(id);
+    res.status(200).json(transcript);
+  }
+
   async getInvitation(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const invitation = await sessions.getInvitation(id);

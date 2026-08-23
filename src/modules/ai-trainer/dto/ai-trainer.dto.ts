@@ -100,15 +100,6 @@ export interface ExternalSessionTranscriptResponseDto {
   turns: ExternalSessionTranscriptTurnDto[];
 }
 
-export interface ExternalSessionEvaluationQuestionDto {
-  questionIndex: number;
-  questionText: string;
-  traineeAnswerText: string;
-  isCorrect: boolean | null;
-  aiFeedback: string | null;
-  outcomeText: string | null;
-}
-
 export interface ExternalSessionOutcomeResultDto {
   outcome: string;
   questionsAsked: number;
@@ -116,13 +107,47 @@ export interface ExternalSessionOutcomeResultDto {
   passed: boolean;
 }
 
-export interface ExternalSessionEvaluationResponseDto {
-  sessionId: string;
+export interface ExternalSessionTraineeQuestionDto {
+  questionIndex: number;
+  questionText: string;
+  traineeAnswerText: string;
+  isCorrect: boolean;
+  aiFeedback: string;
+  outcomeText: string;
+}
+
+export interface ExternalSessionTraineeViewDto {
   overallScore: number;
   passed: boolean;
   summaryFeedback: string;
   strengths: string[];
   areasForImprovement: string[];
-  questions: ExternalSessionEvaluationQuestionDto[];
+  questions: ExternalSessionTraineeQuestionDto[];
   outcomeResults: ExternalSessionOutcomeResultDto[];
+}
+
+export interface ExternalSessionManagerQuestionDto {
+  questionIndex: number;
+  questionText: string;
+  traineeAnswerText: string;
+  isCorrect: boolean;
+  managerFeedback: string;
+  outcomeText: string;
+}
+
+export interface ExternalSessionManagerViewDto {
+  overallScore: number;
+  passed: boolean;
+  readiness: 'ready' | 'needs_practice' | 'not_ready';
+  riskAreas: string[];
+  outcomeCoverageComparison: string;
+  questions: ExternalSessionManagerQuestionDto[];
+  outcomeResults: ExternalSessionOutcomeResultDto[];
+}
+
+export interface ExternalSessionEvaluationResponseDto {
+  sessionId: string;
+  traineeView: ExternalSessionTraineeViewDto;
+  /** `null` when the evaluation predates the manager-evaluation feature. */
+  managerView: ExternalSessionManagerViewDto | null;
 }

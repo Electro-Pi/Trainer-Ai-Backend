@@ -88,11 +88,17 @@ async function renderReportHtml(report: {
   sessionId: string | null;
   planId: string | null;
   language: 'EN' | 'AR';
+  recipients: unknown;
 }): Promise<string> {
   if (report.type === 'SESSION') {
     if (!report.sessionId) throw new Error('SESSION report missing sessionId');
-    const data = await reportDataService.buildSessionReport(report.sessionId);
-    return renderSessionReportHtml(data, report.language);
+    // `session-completed-handlers.ts` creates one SESSION report per
+    // recipient (never mixed) — `recipients[0].role` is always present.
+    const recipients = report.recipients as { role: 'LEARNER' | 'DEPARTMENT_MANAGER' }[];
+    const recipientRole = recipients[0]?.role;
+    if (!recipientRole) throw new Error('SESSION report missing a recipient role');
+    const data = await reportDataService.buildSessionReport(report.sessionId, recipientRole);
+    return renderSessionReportHtml(data, report.language, recipientRole);
   }
 
   if (report.type === 'PLAN_SUMMARY') {

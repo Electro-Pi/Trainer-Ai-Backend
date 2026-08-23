@@ -1100,6 +1100,13 @@ model Session {
   graphEventId     String?
   joinUrl          String?
   joinToken        String          @unique
+  /// The AI Trainer microservice's own session id (`ExternalSession.id`),
+  /// stamped once `create-meeting.job.ts` successfully dispatches this
+  /// session to it. Nullable — dispatch is best-effort (a slide-deck/dispatch
+  /// failure leaves this session without one) and older sessions predate this
+  /// link entirely. The only way `ReportDataService` can resolve which
+  /// `GET /sessions/{id}/evaluation` payload belongs to this session.
+  externalSessionId String?        @unique
   startedAt        DateTime?
   endedAt          DateTime?
   cancelledAt      DateTime?

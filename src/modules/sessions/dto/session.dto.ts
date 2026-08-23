@@ -28,6 +28,19 @@ export interface CalendarQueryDto {
   to?: string;
 }
 
+export interface SessionTranscriptTurnDto {
+  turnIndex: number;
+  speaker: 'trainer_ai' | 'trainee';
+  text: string;
+  occurredAt: string;
+}
+
+export interface SessionTranscriptResponseDto {
+  sessionId: string;
+  status: string;
+  turns: SessionTranscriptTurnDto[];
+}
+
 export interface InvitationResponseDto {
   id: string;
   sessionId: string;

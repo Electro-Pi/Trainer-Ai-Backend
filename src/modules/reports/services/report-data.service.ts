@@ -1,4 +1,10 @@
 import { NotFoundError } from '@/common/exceptions/app-error.js';
+import { logger } from '@/logger/logger.service.js';
+import { aiTrainerClientService } from '@/modules/ai-trainer/ai-trainer.module.js';
+import type {
+  SessionEvaluationManagerView,
+  SessionEvaluationTraineeView,
+} from '@/modules/ai-trainer/ai-trainer.module.js';
 import {
   assessmentAnswerRepository,
   assessmentRepository,
@@ -61,6 +67,16 @@ export interface SessionReportData {
   learnerEmail: string;
   learnerLanguage: 'EN' | 'AR';
   managerLanguage: 'EN' | 'AR';
+  /**
+   * The AI Trainer's richer per-role evaluation, when `Session.externalSessionId`
+   * resolves and the call succeeds — `null` otherwise (dispatch never
+   * happened, the AI Trainer hasn't finished evaluating yet, or the call
+   * failed). The template falls back to `strengths`/`gaps`/`agentNotes`
+   * above when this is `null`, so a report is never blocked on it.
+   */
+  traineeEvaluation: SessionEvaluationTraineeView | null;
+  /** Only populated for a `DEPARTMENT_MANAGER` recipient's report — `null` for a learner's, and `null` when the AI Trainer hasn't backfilled a manager view for this evaluation. */
+  managerEvaluation: SessionEvaluationManagerView | null;
 }
 
 function resolveBranding(organization: {
@@ -84,7 +100,10 @@ function resolveBranding(organization: {
  * same reasoning `analytics` (P10) will follow.
  */
 export class ReportDataService {
-  async buildSessionReport(sessionId: string): Promise<SessionReportData> {
+  async buildSessionReport(
+    sessionId: string,
+    recipientRole: 'LEARNER' | 'DEPARTMENT_MANAGER',
+  ): Promise<SessionReportData> {
     const session = await sessionRepository.findByIdScoped(sessionId);
     if (!session) throw new NotFoundError('Session not found');
 
@@ -132,6 +151,29 @@ export class ReportDataService {
 
     const branding = resolveBranding(organization);
 
+    // Best-effort — the evaluation endpoint depends on the AI Trainer's own
+    // session record existing (`session.externalSessionId`) and having
+    // finished evaluating; either can legitimately not be true yet (or ever,
+    // for a session dispatch that failed). Any failure here falls back to
+    // `assessment.strengths`/`gaps`/`agentNotes` above rather than blocking
+    // report generation on a call this service doesn't control.
+    let traineeEvaluation: SessionEvaluationTraineeView | null = null;
+    let managerEvaluation: SessionEvaluationManagerView | null = null;
+    if (session.externalSessionId) {
+      try {
+        const evaluation = await aiTrainerClientService.getSessionEvaluation(
+          session.externalSessionId,
+        );
+        traineeEvaluation = evaluation.trainee_view;
+        managerEvaluation = evaluation.manager_view;
+      } catch (error) {
+        logger.warn(
+          { sessionId, externalSessionId: session.externalSessionId, err: error },
+          'buildSessionReport: evaluation fetch failed, falling back to assessment notes',
+        );
+      }
+    }
+
     return {
       organizationId: session.organizationId,
       branding,
@@ -171,6 +213,8 @@ export class ReportDataService {
       learnerEmail: learner.email,
       learnerLanguage: learner.preferredLanguage,
       managerLanguage: manager.locale,
+      traineeEvaluation,
+      managerEvaluation: recipientRole === 'DEPARTMENT_MANAGER' ? managerEvaluation : null,
     };
   }
 }

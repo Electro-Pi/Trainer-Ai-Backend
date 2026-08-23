@@ -69,6 +69,15 @@ export function createSessionsRouter(): Router {
   );
 
   router.get(
+    '/:id/transcript',
+    validate({ params: sessionIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdBySession),
+    (req, res, next) => {
+      controller.getTranscript(req, res).catch(next);
+    },
+  );
+
+  router.get(
     '/:id/invitation',
     validate({ params: sessionIdParamsSchema }),
     requireTeamAccess(resolveManagerIdBySession),

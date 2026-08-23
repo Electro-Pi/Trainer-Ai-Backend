@@ -1,6 +1,7 @@
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { container } from '@/config/container.js';
+import { aiTrainerClientService } from '@/modules/ai-trainer/ai-trainer.module.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
 import {
@@ -159,6 +160,33 @@ export class SessionService {
     });
 
     return cancelled;
+  }
+
+  /**
+   * Resolves this session's `externalSessionId` (stamped by
+   * `create-meeting.job.ts` when it dispatches to the AI Trainer service)
+   * and proxies to its `GET /sessions/{id}/transcript` — the manager-facing
+   * "view transcript" action on the Reports page. `Session.id` is what the
+   * portal actually has; the AI Trainer only understands its own id, so this
+   * indirection is required rather than exposing `/external-sessions/:id`
+   * directly (which would leak that id and require the frontend to know it).
+   */
+  async getTranscript(sessionId: string) {
+    const session = await this.getById(sessionId);
+    if (!session.externalSessionId) {
+      throw new NotFoundError('No transcript exists for this session yet');
+    }
+    const transcript = await aiTrainerClientService.getSessionTranscript(session.externalSessionId);
+    return {
+      sessionId: session.id,
+      status: transcript.status,
+      turns: transcript.turns.map((turn) => ({
+        turnIndex: turn.turn_index,
+        speaker: turn.speaker,
+        text: turn.text,
+        occurredAt: turn.occurred_at,
+      })),
+    };
   }
 
   async getInvitation(sessionId: string) {

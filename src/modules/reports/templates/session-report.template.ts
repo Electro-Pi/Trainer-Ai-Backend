@@ -27,6 +27,21 @@ const COPY = {
     gaps: 'Gaps',
     notes: 'Agent notes',
     questionsAnswered: 'Questions answered',
+    summary: 'Summary',
+    areasForImprovement: 'Areas for improvement',
+    questionBreakdown: 'Question breakdown',
+    yourAnswer: 'Your answer',
+    feedback: 'Feedback',
+    correct: 'Correct',
+    incorrect: 'Needs work',
+    readiness: 'Readiness',
+    readinessLevels: {
+      ready: 'Ready',
+      needs_practice: 'Needs practice',
+      not_ready: 'Not ready',
+    },
+    riskAreas: 'Risk areas',
+    outcomeCoverage: 'Outcome coverage',
     verdicts: {
       ACHIEVED: 'Achieved',
       PARTIALLY_ACHIEVED: 'Partially achieved',
@@ -57,6 +72,21 @@ const COPY = {
     gaps: 'نقاط الضعف',
     notes: 'ملاحظات المدرب الذكي',
     questionsAnswered: 'عدد الأسئلة المجابة',
+    summary: 'الملخص',
+    areasForImprovement: 'مجالات التحسين',
+    questionBreakdown: 'تفصيل الأسئلة',
+    yourAnswer: 'إجابتك',
+    feedback: 'الملاحظات',
+    correct: 'صحيحة',
+    incorrect: 'تحتاج تحسين',
+    readiness: 'مستوى الجاهزية',
+    readinessLevels: {
+      ready: 'جاهز',
+      needs_practice: 'يحتاج تدريب إضافي',
+      not_ready: 'غير جاهز',
+    },
+    riskAreas: 'مجالات الخطورة',
+    outcomeCoverage: 'تغطية المخرجات',
     verdicts: {
       ACHIEVED: 'محقَّق',
       PARTIALLY_ACHIEVED: 'محقَّق جزئياً',
@@ -168,11 +198,27 @@ function baseStyles(branding: SessionReportData['branding']): string {
     .badge-partial { color: var(--color-partial); background: var(--color-partial-bg); }
     .badge-not-achieved { color: var(--color-not-achieved); background: var(--color-not-achieved-bg); }
     .prose { white-space: pre-wrap; font-size: 10.5pt; }
+    .qa { padding: 10pt 0; border-bottom: 1px solid var(--color-border); }
+    .qa:last-child { border-bottom: none; }
+    .qa .q { font-size: 10.5pt; font-weight: 600; margin-block-end: 4pt; }
+    .qa .a { font-size: 10pt; color: var(--color-muted); margin-block-end: 4pt; }
+    .qa .fb { font-size: 10pt; }
+    ul.plain { margin: 0; padding-inline-start: 18pt; font-size: 10.5pt; }
+    ul.plain li { margin-block-end: 4pt; }
     .footer { margin-block-start: 24pt; padding-block-start: 8pt; border-top: 1px solid var(--color-border); font-size: 8pt; color: var(--color-muted); text-align: center; }
   `;
 }
 
-export function renderSessionReportHtml(data: SessionReportData, language: Language): string {
+function listOrDash(items: string[]): string {
+  if (items.length === 0) return '<div class="prose">—</div>';
+  return `<ul class="plain">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+}
+
+export function renderSessionReportHtml(
+  data: SessionReportData,
+  language: Language,
+  recipientRole: 'LEARNER' | 'DEPARTMENT_MANAGER',
+): string {
   const t = COPY[language];
   const dir = language === 'AR' ? 'rtl' : 'ltr';
 
@@ -198,6 +244,18 @@ export function renderSessionReportHtml(data: SessionReportData, language: Langu
       </tr>`,
     )
     .join('');
+
+  // Manager reports get `managerEvaluation` (readiness/risk-toned feedback,
+  // `readiness`/`risk_areas`) when the AI Trainer has one; learner reports
+  // get `traineeEvaluation` (coaching-toned). Either falls back to the plain
+  // `strengths`/`gaps`/`agentNotes` fields when the AI Trainer evaluation
+  // isn't available for this session yet.
+  const evaluationSectionsHtml =
+    recipientRole === 'DEPARTMENT_MANAGER' && data.managerEvaluation
+      ? renderManagerEvaluationSections(data.managerEvaluation, t, language)
+      : recipientRole === 'LEARNER' && data.traineeEvaluation
+        ? renderTraineeEvaluationSections(data.traineeEvaluation, t, language)
+        : renderPlainNotesSections(data, t);
 
   return `<!doctype html>
 <html lang="${language.toLowerCase()}" dir="${dir}">
@@ -245,6 +303,17 @@ export function renderSessionReportHtml(data: SessionReportData, language: Langu
     </table>
   </section>
 
+  ${evaluationSectionsHtml}
+
+  <div class="footer">${escapeHtml(data.branding.organizationName)} · ${t.title}</div>
+</body>
+</html>`;
+}
+
+type Copy = typeof COPY.EN | typeof COPY.AR;
+
+function renderPlainNotesSections(data: SessionReportData, t: Copy): string {
+  return `
   <section>
     <h2>${t.strengths}</h2>
     <div class="prose">${escapeHtml(data.strengths || '—')}</div>
@@ -259,9 +328,81 @@ export function renderSessionReportHtml(data: SessionReportData, language: Langu
     <h2>${t.notes}</h2>
     <div class="prose">${escapeHtml(data.agentNotes || '—')}</div>
     <div class="prose" style="margin-block-start: 6pt; color: var(--color-muted);">${t.questionsAnswered}: ${data.answerCount}</div>
+  </section>`;
+}
+
+function renderTraineeEvaluationSections(
+  evaluation: NonNullable<SessionReportData['traineeEvaluation']>,
+  t: Copy,
+  _language: Language,
+): string {
+  const questionRows = evaluation.questions
+    .map(
+      (q) => `
+      <div class="qa">
+        <div class="q">${escapeHtml(q.question_text)}</div>
+        <div class="a">${t.yourAnswer}: ${escapeHtml(q.trainee_answer_text)}</div>
+        <div class="fb"><span class="${q.is_correct ? 'badge badge-achieved' : 'badge badge-not-achieved'}">${q.is_correct ? t.correct : t.incorrect}</span> ${escapeHtml(q.ai_feedback)}</div>
+      </div>`,
+    )
+    .join('');
+
+  return `
+  <section>
+    <h2>${t.summary}</h2>
+    <div class="prose">${escapeHtml(evaluation.summary_feedback)}</div>
   </section>
 
-  <div class="footer">${escapeHtml(data.branding.organizationName)} · ${t.title}</div>
-</body>
-</html>`;
+  <section>
+    <h2>${t.strengths}</h2>
+    ${listOrDash(evaluation.strengths)}
+  </section>
+
+  <section>
+    <h2>${t.areasForImprovement}</h2>
+    ${listOrDash(evaluation.areas_for_improvement)}
+  </section>
+
+  <section>
+    <h2>${t.questionBreakdown}</h2>
+    ${questionRows || '<div class="prose">—</div>'}
+  </section>`;
+}
+
+function renderManagerEvaluationSections(
+  evaluation: NonNullable<SessionReportData['managerEvaluation']>,
+  t: Copy,
+  _language: Language,
+): string {
+  const questionRows = evaluation.questions
+    .map(
+      (q) => `
+      <div class="qa">
+        <div class="q">${escapeHtml(q.question_text)}</div>
+        <div class="a">${t.yourAnswer}: ${escapeHtml(q.trainee_answer_text)}</div>
+        <div class="fb"><span class="${q.is_correct ? 'badge badge-achieved' : 'badge badge-not-achieved'}">${q.is_correct ? t.correct : t.incorrect}</span> ${escapeHtml(q.manager_feedback)}</div>
+      </div>`,
+    )
+    .join('');
+
+  return `
+  <section>
+    <h2>${t.readiness}</h2>
+    <div class="prose">${t.readinessLevels[evaluation.readiness]}</div>
+  </section>
+
+  <section>
+    <h2>${t.riskAreas}</h2>
+    ${listOrDash(evaluation.risk_areas)}
+  </section>
+
+  <section>
+    <h2>${t.outcomeCoverage}</h2>
+    <div class="prose">${escapeHtml(evaluation.outcome_coverage_comparison)}</div>
+  </section>
+
+  <section>
+    <h2>${t.questionBreakdown}</h2>
+    ${questionRows || '<div class="prose">—</div>'}
+  </section>`;
 }

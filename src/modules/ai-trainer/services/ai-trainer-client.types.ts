@@ -132,15 +132,6 @@ export interface SessionTranscriptResponse {
   turns: SessionTranscriptTurn[];
 }
 
-export interface SessionEvaluationQuestion {
-  question_index: number;
-  question_text: string;
-  trainee_answer_text: string;
-  is_correct: boolean | null;
-  ai_feedback: string | null;
-  outcome_text: string | null;
-}
-
 export interface SessionEvaluationOutcomeResult {
   outcome: string;
   questions_asked: number;
@@ -148,15 +139,55 @@ export interface SessionEvaluationOutcomeResult {
   passed: boolean;
 }
 
-export interface SessionEvaluationResponse {
-  session_id: string;
+/** `trainee_view.questions[]` — coaching-toned feedback, via `ai_feedback`. */
+export interface SessionEvaluationTraineeQuestion {
+  question_index: number;
+  question_text: string;
+  trainee_answer_text: string;
+  is_correct: boolean;
+  ai_feedback: string;
+  outcome_text: string;
+}
+
+export interface SessionEvaluationTraineeView {
   overall_score: number;
   passed: boolean;
   summary_feedback: string;
   strengths: string[];
   areas_for_improvement: string[];
-  questions: SessionEvaluationQuestion[];
+  questions: SessionEvaluationTraineeQuestion[];
   outcome_results: SessionEvaluationOutcomeResult[];
+}
+
+/** `manager_view.questions[]` — same questions as `trainee_view`, but readiness/risk-toned feedback via `manager_feedback` instead of `ai_feedback`. */
+export interface SessionEvaluationManagerQuestion {
+  question_index: number;
+  question_text: string;
+  trainee_answer_text: string;
+  is_correct: boolean;
+  manager_feedback: string;
+  outcome_text: string;
+}
+
+export interface SessionEvaluationManagerView {
+  overall_score: number;
+  passed: boolean;
+  readiness: 'ready' | 'needs_practice' | 'not_ready';
+  risk_areas: string[];
+  outcome_coverage_comparison: string;
+  questions: SessionEvaluationManagerQuestion[];
+  outcome_results: SessionEvaluationOutcomeResult[];
+}
+
+/**
+ * `GET /sessions/{session_id}/evaluation`. `manager_view` is `null` when the
+ * evaluation predates the manager-evaluation feature (no backfill for older
+ * rows) — every consumer must handle that, not assume it's always present.
+ */
+export interface SessionEvaluationResponse {
+  session_id: string;
+  trainee_view: SessionEvaluationTraineeView;
+  manager_view: SessionEvaluationManagerView | null;
 }
 
 /** Shape of the AI Trainer service's error body — `{"detail": "..."}` on every non-2xx response. */
