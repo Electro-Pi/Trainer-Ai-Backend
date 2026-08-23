@@ -49,6 +49,24 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
     return prisma.learner.count({ where: { teamId } });
   }
 
+  /**
+   * `TeamResponseDto.memberCount` read-through, batched for `list()` — one
+   * grouped query for every team's roster size (ACTIVE + PENDING_INVITE)
+   * instead of one round trip per row. Queries `prisma.learner` directly
+   * (like `countLearners` above) rather than importing `learners.module.js`
+   * — `teams` sits on the back-edge of that module's route chain, so a
+   * cross-module import here would cycle (import-x/no-cycle).
+   */
+  async countMembersByTeams(teamIds: string[]): Promise<Map<string, number>> {
+    if (teamIds.length === 0) return new Map();
+    const grouped = await prisma.learner.groupBy({
+      by: ['teamId'],
+      where: { teamId: { in: teamIds }, status: { in: ['ACTIVE', 'PENDING_INVITE'] } },
+      _count: { _all: true },
+    });
+    return new Map(grouped.map((g) => [g.teamId, g._count._all]));
+  }
+
   /** `TeamResponseDto.pendingManagerInvite` read-through — resolves the invite behind a team's `pendingManagerInviteId`, if any. */
   async findPendingManagerInvite(teamId: string): Promise<{ id: string; email: string } | null> {
     const row = await prisma.team.findFirst({

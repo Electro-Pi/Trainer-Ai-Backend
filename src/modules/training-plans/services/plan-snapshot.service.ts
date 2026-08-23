@@ -81,7 +81,6 @@ export class PlanSnapshotService {
       nameAr: skill.nameAr,
       descriptionEn: skill.descriptionEn,
       descriptionAr: skill.descriptionAr,
-      category: skill.category,
       levels: skill.levels,
     }));
 
@@ -162,7 +161,6 @@ export class PlanSnapshotService {
       nameAr: string;
       descriptionEn: string;
       descriptionAr: string;
-      category: string;
       levels: string[];
     },
   ) {
@@ -191,7 +189,6 @@ export class PlanSnapshotService {
       nameAr: string;
       descriptionEn: string;
       descriptionAr: string;
-      category: string;
       levels: string[];
     }>,
   ) {

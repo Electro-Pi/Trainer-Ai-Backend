@@ -7,6 +7,7 @@ export interface TeamResponseDto {
   pendingManagerInvite: { id: string; email: string } | null;
   name: string;
   description: string | null;
+  memberCount: number;
   createdAt: string;
 }
 

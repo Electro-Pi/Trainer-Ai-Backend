@@ -70,7 +70,6 @@ export class SkillService {
       key: dto.key,
       nameEn: dto.nameEn,
       nameAr: dto.nameAr,
-      category: dto.category,
       descriptionEn: dto.descriptionEn,
       descriptionAr: dto.descriptionAr,
       levels: dto.levels,
@@ -111,7 +110,6 @@ export class SkillService {
     const updated = await this.skills.update(id, {
       ...(dto.nameEn !== undefined ? { nameEn: dto.nameEn } : {}),
       ...(dto.nameAr !== undefined ? { nameAr: dto.nameAr } : {}),
-      ...(dto.category !== undefined ? { category: dto.category } : {}),
       ...(dto.descriptionEn !== undefined ? { descriptionEn: dto.descriptionEn } : {}),
       ...(dto.descriptionAr !== undefined ? { descriptionAr: dto.descriptionAr } : {}),
       ...(dto.levels !== undefined ? { levels: dto.levels } : {}),

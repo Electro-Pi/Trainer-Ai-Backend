@@ -13,10 +13,11 @@ function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
-async function toResponseDto(team: Team): Promise<TeamResponseDto> {
-  const [departmentName, pendingManagerInvite] = await Promise.all([
+async function toResponseDto(team: Team, memberCount?: number): Promise<TeamResponseDto> {
+  const [departmentName, pendingManagerInvite, resolvedMemberCount] = await Promise.all([
     service.getDepartmentName(team.id),
     team.managerId ? Promise.resolve(null) : service.getPendingManagerInvite(team.id),
+    memberCount !== undefined ? Promise.resolve(memberCount) : service.getMemberCount(team.id),
   ]);
   return {
     id: team.id,
@@ -27,6 +28,7 @@ async function toResponseDto(team: Team): Promise<TeamResponseDto> {
     pendingManagerInvite,
     name: team.name,
     description: team.description,
+    memberCount: resolvedMemberCount,
     createdAt: team.createdAt.toISOString(),
   };
 }
@@ -35,7 +37,10 @@ export class TeamController {
   async list(req: Request, res: Response): Promise<void> {
     const { limit, cursor } = req.query as unknown as { limit: number; cursor?: string };
     const page = await service.list(toActingUser(req.auth!), limit, cursor);
-    const data = await Promise.all(page.data.map(toResponseDto));
+    const memberCounts = await service.getMemberCounts(page.data.map((t) => t.id));
+    const data = await Promise.all(
+      page.data.map((team) => toResponseDto(team, memberCounts.get(team.id) ?? 0)),
+    );
     res.status(200).json(
       toCollectionResponse(data, {
         nextCursor: page.nextCursor,

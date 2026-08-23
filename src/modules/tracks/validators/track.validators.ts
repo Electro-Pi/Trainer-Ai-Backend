@@ -54,7 +54,6 @@ export const duplicateTrackSchema = z.object({
 const levelKeySchema = z.enum(['beginner', 'intermediate', 'advanced', 'expert']);
 const contentTypeSchema = z.enum(['DOCUMENT', 'SLIDES', 'TEXT', 'LINK', 'IMAGE']);
 const languageSchema = z.enum(['EN', 'AR']);
-const categorySchema = z.string().trim().min(1).max(120);
 
 const createFullOutcomeSchema = z.object({
   titleEn: bilingualTextSchema,
@@ -98,7 +97,6 @@ const createFullSkillSchema = z
   .object({
     nameEn: bilingualTextSchema,
     nameAr: bilingualTextSchema,
-    category: categorySchema,
     descriptionEn: z.string().trim().min(1).max(4000),
     descriptionAr: z.string().trim().min(1).max(4000),
     assessmentEnabled: z.boolean().optional(),

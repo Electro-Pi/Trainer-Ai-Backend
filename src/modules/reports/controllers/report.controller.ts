@@ -8,13 +8,15 @@ import type { ReportResponseDto } from '../dto/report.dto.js';
 import type { Report } from '../repositories/report.repository.js';
 import { type ActingUser, ReportService } from '../services/report.service.js';
 
+type ReportLearnerAndScore = Awaited<ReturnType<ReportService['getLearnerAndScore']>>;
+
 const reports = new ReportService();
 
 function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
-function toResponseDto(report: Report): ReportResponseDto {
+function toResponseDto(report: Report, learnerAndScore: ReportLearnerAndScore): ReportResponseDto {
   return {
     id: report.id,
     sessionId: report.sessionId,
@@ -27,6 +29,9 @@ function toResponseDto(report: Report): ReportResponseDto {
     failureReason: report.failureReason,
     resendCount: report.resendCount,
     createdAt: report.createdAt.toISOString(),
+    learnerId: learnerAndScore.learnerId,
+    learnerName: learnerAndScore.learnerName,
+    score: learnerAndScore.score,
   };
 }
 
@@ -34,8 +39,13 @@ export class ReportController {
   async list(req: Request, res: Response): Promise<void> {
     const query = req.query as { sessionId?: string; planId?: string; status?: string };
     const results = await reports.list(query);
+    const data = await Promise.all(
+      results.map(async (report) =>
+        toResponseDto(report, await reports.getLearnerAndScore(report)),
+      ),
+    );
     res.status(200).json({
-      data: results.map(toResponseDto),
+      data,
       pageInfo: { nextCursor: null, hasNextPage: false },
     });
   }
@@ -51,12 +61,14 @@ export class ReportController {
       downloadUrl = await storage.getDownloadUrl(report.blobKey);
     }
 
-    res.status(200).json({ ...toResponseDto(report), downloadUrl });
+    const learnerAndScore = await reports.getLearnerAndScore(report);
+    res.status(200).json({ ...toResponseDto(report, learnerAndScore), downloadUrl });
   }
 
   async resend(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const report = await reports.resend(toActingUser(req.auth!), id);
-    res.status(200).json(toResponseDto(report));
+    const learnerAndScore = await reports.getLearnerAndScore(report);
+    res.status(200).json(toResponseDto(report, learnerAndScore));
   }
 }

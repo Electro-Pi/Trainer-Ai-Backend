@@ -77,4 +77,53 @@ export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
     });
     return rows.map((row) => row.blobKey).filter((key): key is string => key !== null);
   }
+
+  /**
+   * `ReportResponseDto.learnerId`/`learnerName`/`score` read-through — a
+   * `Report` doesn't carry these itself (RP-05: it only links to a `Session`
+   * or `TrainingPlan`), so they're resolved from whichever the report is
+   * for. SESSION reports use that one session's score; PLAN_SUMMARY reports
+   * average every scored session under the plan. Queries `prisma.session` /
+   * `prisma.trainingPlan` / `prisma.learner` directly instead of importing
+   * `sessions`/`training-plans`/`learners`' `*.module.js` — `reports` sits on
+   * the back-edge of `training-plans`' route chain (`createPlanSummaryReports`
+   * is called from `training-plan.controller.ts`), so a cross-module import
+   * back would cycle (import-x/no-cycle).
+   */
+  async findLearnerAndScore(
+    report: Report,
+  ): Promise<{ learnerId: string | null; learnerName: string | null; score: number | null }> {
+    if (report.sessionId) {
+      const session = await prisma.session.findFirst({
+        where: { id: report.sessionId },
+        select: { learnerId: true, score: true, learner: { select: { displayName: true } } },
+      });
+      if (!session) return { learnerId: null, learnerName: null, score: null };
+      return {
+        learnerId: session.learnerId,
+        learnerName: session.learner.displayName,
+        score: session.score,
+      };
+    }
+
+    if (report.planId) {
+      const plan = await prisma.trainingPlan.findFirst({
+        where: { id: report.planId },
+        select: { learnerId: true, learner: { select: { displayName: true } } },
+      });
+      if (!plan) return { learnerId: null, learnerName: null, score: null };
+      const sessions = await prisma.session.findMany({
+        where: { planId: report.planId },
+        select: { score: true },
+      });
+      const scored = sessions.map((s) => s.score).filter((s): s is number => s !== null);
+      const avgScore =
+        scored.length > 0
+          ? Math.round(scored.reduce((sum, s) => sum + s, 0) / scored.length)
+          : null;
+      return { learnerId: plan.learnerId, learnerName: plan.learner.displayName, score: avgScore };
+    }
+
+    return { learnerId: null, learnerName: null, score: null };
+  }
 }

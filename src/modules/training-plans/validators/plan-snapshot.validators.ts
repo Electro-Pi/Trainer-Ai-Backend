@@ -31,19 +31,11 @@ const skillDescriptionSchema = z
   .max(4000)
   .optional()
   .or(z.literal('').transform(() => undefined));
-const skillCategorySchema = z
-  .string()
-  .trim()
-  .max(200)
-  .optional()
-  .or(z.literal('').transform(() => undefined));
-
 export const addPlanSkillSnapshotSchema = z.object({
   nameEn: bilingualTextSchema,
   nameAr: bilingualTextSchema,
   descriptionEn: skillDescriptionSchema,
   descriptionAr: skillDescriptionSchema,
-  category: skillCategorySchema,
   levels: z.array(levelNameSchema).max(4),
 });
 
@@ -53,7 +45,6 @@ export const updatePlanSkillSnapshotSchema = z
     nameAr: bilingualTextSchema.optional(),
     descriptionEn: skillDescriptionSchema,
     descriptionAr: skillDescriptionSchema,
-    category: skillCategorySchema,
     levels: z.array(levelNameSchema).max(4).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { error: 'At least one field is required' });

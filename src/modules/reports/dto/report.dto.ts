@@ -10,4 +10,8 @@ export interface ReportResponseDto {
   failureReason: string | null;
   resendCount: number;
   createdAt: string;
+  learnerId: string | null;
+  learnerName: string | null;
+  /** SESSION: that session's score. PLAN_SUMMARY: average of the plan's scored sessions. `null` when nothing is scored yet. */
+  score: number | null;
 }

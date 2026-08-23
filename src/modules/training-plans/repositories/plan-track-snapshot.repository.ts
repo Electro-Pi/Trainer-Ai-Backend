@@ -88,7 +88,6 @@ export class PlanTrackSnapshotRepository {
       nameAr: string;
       descriptionEn: string;
       descriptionAr: string;
-      category: string;
       levels: string[];
     }[];
     outcomesBySkillId: Map<
@@ -136,7 +135,6 @@ export class PlanTrackSnapshotRepository {
             nameAr: trackSkill.nameAr,
             descriptionEn: trackSkill.descriptionEn,
             descriptionAr: trackSkill.descriptionAr,
-            category: trackSkill.category,
             levels: trackSkill.levels,
           },
         });
@@ -198,7 +196,6 @@ export class PlanTrackSnapshotRepository {
       nameAr: string;
       descriptionEn: string;
       descriptionAr: string;
-      category: string;
       levels: string[];
     },
   ): Promise<PlanSkillSnapshot> {
@@ -212,7 +209,6 @@ export class PlanTrackSnapshotRepository {
       nameAr: string;
       descriptionEn: string;
       descriptionAr: string;
-      category: string;
       levels: string[];
       isRemoved: boolean;
     }>,

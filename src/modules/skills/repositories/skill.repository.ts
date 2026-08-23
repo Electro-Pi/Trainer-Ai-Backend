@@ -49,7 +49,6 @@ export class SkillRepository extends BaseRepository<Skill, SkillDelegate> {
         key: newKey,
         nameEn: `${source.nameEn} (copy)`,
         nameAr: `${source.nameAr} (نسخة)`,
-        category: source.category,
         descriptionEn: source.descriptionEn,
         descriptionAr: source.descriptionAr,
         levelId: source.levelId,

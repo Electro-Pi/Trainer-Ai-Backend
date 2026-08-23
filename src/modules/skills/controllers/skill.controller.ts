@@ -26,7 +26,6 @@ function toResponseDto(skill: Skill): SkillResponseDto {
     key: skill.key,
     nameEn: skill.nameEn,
     nameAr: skill.nameAr,
-    category: skill.category,
     descriptionEn: skill.descriptionEn,
     descriptionAr: skill.descriptionAr,
     levels: skill.levels,

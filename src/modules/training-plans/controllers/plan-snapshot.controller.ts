@@ -103,7 +103,6 @@ async function toSkillDto(
     nameAr: skill.nameAr,
     descriptionEn: skill.descriptionEn,
     descriptionAr: skill.descriptionAr,
-    category: skill.category,
     levels: skill.levels,
     isRemoved: skill.isRemoved,
     outcomes: (skill.outcomes ?? []).map(toOutcomeDto),
@@ -146,7 +145,6 @@ export class PlanSnapshotController {
       nameAr: dto.nameAr,
       descriptionEn: dto.descriptionEn ?? '',
       descriptionAr: dto.descriptionAr ?? '',
-      category: dto.category ?? '',
       levels: dto.levels,
     });
     res.status(201).json(await toSkillDto(created));

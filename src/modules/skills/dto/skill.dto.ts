@@ -5,7 +5,6 @@ export interface SkillResponseDto {
   key: string;
   nameEn: string;
   nameAr: string;
-  category: string;
   descriptionEn: string;
   descriptionAr: string;
   levels: string[];
@@ -19,7 +18,6 @@ export interface CreateSkillDto {
   key: string;
   nameEn: string;
   nameAr: string;
-  category: string;
   descriptionEn: string;
   descriptionAr: string;
   levels: string[];
@@ -30,7 +28,6 @@ export interface CreateSkillDto {
 export interface UpdateSkillDto {
   nameEn?: string;
   nameAr?: string;
-  category?: string;
   descriptionEn?: string;
   descriptionAr?: string;
   levels?: string[];

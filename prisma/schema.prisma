@@ -444,7 +444,6 @@ model Skill {
   key               String
   nameEn            String
   nameAr            String
-  category          String
   descriptionEn     String
   descriptionAr     String
   /// Proficiency levels this skill applies at (Beginner/Intermediate/
@@ -958,7 +957,6 @@ model PlanSkillSnapshot {
   nameAr        String
   descriptionEn String   @default("")
   descriptionAr String   @default("")
-  category      String   @default("")
   /// Copy of `Skill.levels[]` at snapshot time — global to the skill, not
   /// per-track, matching the corrected master-catalogue model.
   levels        String[]

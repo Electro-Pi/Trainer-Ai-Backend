@@ -246,7 +246,9 @@ export class AiTrainerService {
       throw new NotFoundError('Skill not found');
     }
 
-    let trackName = skill.category;
+    // Falls back to the skill's own name when it has no resolvable track yet
+    // (matches `track_name`'s required-string contract on the AI client).
+    let trackName = skill.nameEn;
     let description = trackDescription;
     if (skill.levelId) {
       const level = await levelRepository.findById(skill.levelId);

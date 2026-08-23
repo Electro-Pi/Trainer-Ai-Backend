@@ -9,7 +9,6 @@ export const createSkillSchema = z.object({
   key: slugSchema,
   nameEn: bilingualTextSchema,
   nameAr: bilingualTextSchema,
-  category: z.string().trim().min(1).max(120),
   descriptionEn: z.string().trim().min(1).max(4000),
   descriptionAr: z.string().trim().min(1).max(4000),
   levels: z.array(levelNameSchema).max(4),
@@ -20,7 +19,6 @@ export const createSkillSchema = z.object({
 export const updateSkillSchema = z.object({
   nameEn: bilingualTextSchema.optional(),
   nameAr: bilingualTextSchema.optional(),
-  category: z.string().trim().min(1).max(120).optional(),
   descriptionEn: z.string().trim().min(1).max(4000).optional(),
   descriptionAr: z.string().trim().min(1).max(4000).optional(),
   levels: z.array(levelNameSchema).max(4).optional(),

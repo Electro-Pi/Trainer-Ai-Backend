@@ -42,6 +42,11 @@ export class ReportService {
     return report;
   }
 
+  /** `ReportResponseDto.learnerId`/`learnerName`/`score` read-through. */
+  async getLearnerAndScore(report: Report) {
+    return reportRepository.findLearnerAndScore(report);
+  }
+
   /** `RP-06` — a report must have already generated before it can be re-sent. */
   async resend(actor: ActingUser, id: string): Promise<Report> {
     const report = await this.getById(id);

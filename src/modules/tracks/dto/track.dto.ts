@@ -66,7 +66,6 @@ export interface CreateFullOutcomeDto {
 export interface CreateFullSkillDto {
   nameEn: string;
   nameAr: string;
-  category: string;
   descriptionEn: string;
   descriptionAr: string;
   assessmentEnabled?: boolean;
@@ -100,7 +99,6 @@ export interface FullTrackResponseDto {
       id: string;
       nameEn: string;
       nameAr: string;
-      category: string;
       outcomes: { id: string; titleEn: string; titleAr: string }[];
       content: { id: string; title: string; status: string }[];
     }[];

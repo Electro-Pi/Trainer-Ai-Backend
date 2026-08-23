@@ -51,6 +51,16 @@ export class TeamService {
     return this.teams.findPendingManagerInvite(teamId);
   }
 
+  /** `TeamResponseDto.memberCount` read-through for a single team. */
+  async getMemberCount(teamId: string): Promise<number> {
+    return (await this.teams.countMembersByTeams([teamId])).get(teamId) ?? 0;
+  }
+
+  /** Batched form for `list()` — one grouped query for every team's roster size instead of one round trip per row. */
+  async getMemberCounts(teamIds: string[]): Promise<Map<string, number>> {
+    return this.teams.countMembersByTeams(teamIds);
+  }
+
   /**
    * Validates that `departmentId` names an active `Department` in the
    * caller's org before it's written to `Team.departmentId`. `Department`

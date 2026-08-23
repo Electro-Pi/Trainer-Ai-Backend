@@ -22,7 +22,6 @@ export interface PlanSkillSnapshotResponseDto {
   nameAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  category: string;
   levels: string[];
   isRemoved: boolean;
   outcomes: PlanOutcomeSnapshotResponseDto[];
@@ -69,7 +68,6 @@ export interface AddPlanSkillSnapshotDto {
   nameAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  category: string;
   levels: string[];
 }
 
@@ -78,7 +76,6 @@ export interface UpdatePlanSkillSnapshotDto {
   nameAr?: string;
   descriptionEn?: string;
   descriptionAr?: string;
-  category?: string;
   levels?: string[];
 }
 

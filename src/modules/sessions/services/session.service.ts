@@ -85,12 +85,14 @@ export class SessionService {
       durationMinutes,
     } as never);
 
-    if (session.graphEventId) {
-      await queueService.enqueue('meeting.update', {
-        sessionId: session.id,
-        organizationId: actor.organizationId,
-      });
-    }
+    // Enqueued unconditionally: the job itself patches the real Teams
+    // meeting only when `graphEventId` exists, but the "your session moved"
+    // email fires either way — a rescheduled session should always notify
+    // the learner of the new time, meeting or not.
+    await queueService.enqueue('meeting.update', {
+      sessionId: session.id,
+      organizationId: actor.organizationId,
+    });
 
     await queueService.removeJob('session.reminder', `session-reminder-${session.id}`);
     const reminderDelayMs = scheduledStart.getTime() - REMINDER_LEAD_TIME_MS - Date.now();

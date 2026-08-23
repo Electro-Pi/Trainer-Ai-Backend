@@ -314,7 +314,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
               key: skillKey,
               nameEn: skillDto.nameEn,
               nameAr: skillDto.nameAr,
-              category: skillDto.category,
               descriptionEn: skillDto.descriptionEn,
               descriptionAr: skillDto.descriptionAr,
               levels: [template.nameEn],
@@ -368,7 +367,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
             id: skill.id,
             nameEn: skill.nameEn,
             nameAr: skill.nameAr,
-            category: skill.category,
             outcomes: outcomes.map((o) => ({ id: o.id, titleEn: o.titleEn, titleAr: o.titleAr })),
             content,
           });
