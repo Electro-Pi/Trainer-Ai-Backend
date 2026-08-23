@@ -40,13 +40,22 @@ export class LearnerRepository extends BaseRepository<Learner, LearnerDelegate> 
   /**
    * `Learner.departmentId` read-through for `LearnerResponseDto.departmentName`
    * — same join-for-a-name pattern as `TrackRepository.findDepartmentName`.
-   * `null` when the learner has no department set (the FK is optional).
+   * `Learner.departmentId` is independently nullable from `Learner.teamId`
+   * (a learner can join a team without ever getting their own department
+   * set explicitly), but `Team.departmentId` is required — every team
+   * belongs to exactly one department. Falling back to the learner's team's
+   * department means "—" only shows when neither the learner nor their team
+   * has one, rather than whenever the learner's own field happens to be
+   * unset despite already being on a team with a real department.
    */
   async findDepartmentName(learnerId: string): Promise<string | null> {
     const row = await prisma.learner.findFirst({
       where: { id: learnerId },
-      select: { department: { select: { name: true } } },
+      select: {
+        department: { select: { name: true } },
+        team: { select: { department: { select: { name: true } } } },
+      },
     });
-    return row?.department?.name ?? null;
+    return row?.department?.name ?? row?.team.department.name ?? null;
   }
 }
