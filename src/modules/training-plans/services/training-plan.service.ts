@@ -7,6 +7,7 @@ import {
   learnerRepository,
 } from '@/modules/learners/learners.module.js';
 import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
+import { writeNotification } from '@/modules/notifications/notifications.module.js';
 import {
   planConfirmationEmailSubject,
   renderPlanConfirmationEmailHtml,
@@ -79,6 +80,7 @@ export class TrainingPlanService {
       assignmentId: assignment.id,
       title: `Training plan — ${learner.displayName}`,
       trainingDays: dto.trainingDays,
+      language: dto.language ?? 'EN',
       startDate,
       endDate,
       createdById: actor.id,
@@ -122,6 +124,7 @@ export class TrainingPlanService {
       ...(dto.trainingDays !== undefined ? { trainingDays: dto.trainingDays } : {}),
       ...(dto.startDate !== undefined ? { startDate: new Date(dto.startDate) } : {}),
       ...(dto.endDate !== undefined ? { endDate: new Date(dto.endDate) } : {}),
+      ...(dto.language !== undefined ? { language: dto.language } : {}),
     } as never);
 
     await writeAuditLog({
@@ -284,6 +287,19 @@ export class TrainingPlanService {
       entityType: 'TrainingPlan',
       entityId: confirmed.id,
       after: { sessionCount: sessions.length },
+    });
+
+    const confirmingLearner = await learnerRepository.findByIdScoped(plan.learnerId);
+    await writeNotification({
+      organizationId: actor.organizationId,
+      recipientPortalUserId: plan.createdById,
+      type: 'PLAN_CONFIRMED',
+      entityType: 'TrainingPlan',
+      entityId: confirmed.id,
+      titleEn: `Training plan confirmed — ${confirmingLearner?.displayName ?? 'a learner'}`,
+      titleAr: `تم تأكيد الخطة التدريبية — ${confirmingLearner?.displayName ?? 'متدرب'}`,
+      bodyEn: `${sessions.length} session${sessions.length === 1 ? '' : 's'} scheduled.`,
+      bodyAr: `تم جدولة ${sessions.length} جلسة.`,
     });
 
     for (const session of sessions) {

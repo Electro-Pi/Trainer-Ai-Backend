@@ -90,6 +90,7 @@ export class AuthController {
       name: user.name,
       role: user.role,
       locale: user.locale,
+      managedDepartmentNames: user.managedDepartmentNames,
     };
     res.status(200).json(body);
   }

@@ -3,6 +3,7 @@ export interface CreateTrainingPlanDto {
   trainingDays: number;
   startDate: string;
   templateId?: string;
+  language?: 'EN' | 'AR';
 }
 
 export interface UpdateTrainingPlanDto {
@@ -10,6 +11,7 @@ export interface UpdateTrainingPlanDto {
   trainingDays?: number;
   startDate?: string;
   endDate?: string;
+  language?: 'EN' | 'AR';
 }
 
 export interface SuggestPlanDto {
@@ -33,6 +35,7 @@ export interface TrainingPlanResponseDto {
   assignmentId: string;
   title: string;
   trainingDays: number;
+  language: string;
   status: string;
   startDate: string;
   endDate: string;

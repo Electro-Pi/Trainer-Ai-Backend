@@ -16,4 +16,6 @@ export interface MeResponseDto {
   name: string;
   role: string;
   locale: string;
+  /** DEPARTMENT_MANAGER only — names of the department(s) behind the teams they manage. Empty for other roles or a manager with no team yet. */
+  managedDepartmentNames: string[];
 }

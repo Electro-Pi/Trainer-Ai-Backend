@@ -30,6 +30,7 @@ import { directoryRouter } from '@/modules/directory/directory.module.js';
 import { invitesRouter } from '@/modules/invites/invites.module.js';
 import { learnersRouter, teamMembersRouter } from '@/modules/learners/learners.module.js';
 import { levelsRouter, trackLevelsRouter } from '@/modules/levels/levels.module.js';
+import { notificationsRouter } from '@/modules/notifications/notifications.module.js';
 import { organizationsRouter } from '@/modules/organizations/organizations.module.js';
 import { levelOutcomesRouter, outcomesRouter } from '@/modules/outcomes/outcomes.module.js';
 import { publicRouter } from '@/modules/public/public.module.js';
@@ -103,6 +104,7 @@ export function createApp(): Express {
   v1.use('/webhooks', rsvpWebhookRouter);
   v1.use('/agent', agentRouter);
   v1.use('/reports', reportsRouter);
+  v1.use('/notifications', notificationsRouter);
   v1.use('/analytics', analyticsRouter);
   v1.use('/public', publicRouter);
   v1.use('/tracks/:trackId', trackAiTrainerRouter);

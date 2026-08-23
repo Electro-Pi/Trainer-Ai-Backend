@@ -4,6 +4,7 @@ import { encrypt } from '@/common/utils/encryption.js';
 import { verifyPassword } from '@/common/utils/password-hash.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { portalInviteRepository } from '@/modules/invites/invites.module.js';
+import { writeNotification } from '@/modules/notifications/notifications.module.js';
 import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
@@ -39,6 +40,8 @@ export interface AuthenticatedUser {
   name: string;
   role: string;
   locale: string;
+  /** DEPARTMENT_MANAGER only — populated by `getById` (backs `GET /auth/me`); empty on the sign-in paths, which don't need it. */
+  managedDepartmentNames: string[];
 }
 
 /**
@@ -141,6 +144,16 @@ export class AuthService {
             } as never),
           ),
         );
+
+        await writeNotification({
+          organizationId,
+          recipientPortalUserId: invite.invitedById,
+          type: 'INVITE_ACCEPTED',
+          entityType: 'PortalInvite',
+          entityId: invite.id,
+          titleEn: `${user.name} accepted their invite`,
+          titleAr: `قبِل ${user.name} الدعوة`,
+        });
       });
     }
 
@@ -301,7 +314,16 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedError('User no longer exists');
     }
-    return toAuthenticatedUser(user, user.organizationId);
+    const authenticated = toAuthenticatedUser(user, user.organizationId);
+    if (user.role !== 'DEPARTMENT_MANAGER') {
+      return authenticated;
+    }
+    const teams = await teamRepository.findByManager(user.id);
+    const names = await Promise.all(teams.map((t) => teamRepository.findDepartmentName(t.id)));
+    return {
+      ...authenticated,
+      managedDepartmentNames: Array.from(new Set(names.filter((n): n is string => Boolean(n)))),
+    };
   }
 }
 
@@ -323,5 +345,6 @@ function toAuthenticatedUser(
     name: user.name,
     role: user.role,
     locale: user.locale,
+    managedDepartmentNames: [],
   };
 }

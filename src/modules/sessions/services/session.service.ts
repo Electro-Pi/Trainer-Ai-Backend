@@ -5,6 +5,10 @@ import { aiTrainerClientService } from '@/modules/ai-trainer/ai-trainer.module.j
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
 import {
+  writeNotification,
+  type WriteNotificationEntry,
+} from '@/modules/notifications/notifications.module.js';
+import {
   renderSessionConfirmationEmailHtml,
   sessionConfirmationEmailSubject,
 } from '@/modules/notifications/templates/session-confirmation-email.template.js';
@@ -40,6 +44,24 @@ export class SessionService {
       throw new NotFoundError('Session not found');
     }
     return session;
+  }
+
+  /**
+   * Notifies the session's assigned learner's team manager — not the
+   * plan's `createdById`, to avoid a cross-module import back into
+   * `training-plans` (which already imports `SessionService`, and a
+   * `sessions -> training-plans` import back would create a module cycle).
+   */
+  private async notifySessionManager(
+    organizationId: string,
+    session: Session,
+    entry: Omit<WriteNotificationEntry, 'organizationId' | 'recipientPortalUserId'>,
+  ): Promise<void> {
+    const learner = await learnerRepository.findByIdScoped(session.learnerId);
+    if (!learner?.teamId) return;
+    const team = await teamRepository.findByIdScoped(learner.teamId);
+    if (!team?.managerId) return;
+    await writeNotification({ organizationId, recipientPortalUserId: team.managerId, ...entry });
   }
 
   async list(filters: {
@@ -134,6 +156,19 @@ export class SessionService {
       after: { scheduledStart, scheduledEnd },
     });
 
+    if (!dto.silent) {
+      const { date, time } = formatLocalDateAndTime(scheduledStart);
+      await this.notifySessionManager(actor.organizationId, updated, {
+        type: 'SESSION_RESCHEDULED',
+        entityType: 'Session',
+        entityId: session.id,
+        titleEn: 'Session rescheduled',
+        titleAr: 'تم تغيير موعد الجلسة',
+        bodyEn: `New time: ${date} ${time}`,
+        bodyAr: `الموعد الجديد: ${date} ${time}`,
+      });
+    }
+
     return updated;
   }
 
@@ -165,6 +200,14 @@ export class SessionService {
       action: 'session.cancelled',
       entityType: 'Session',
       entityId: cancelled.id,
+    });
+
+    await this.notifySessionManager(actor.organizationId, cancelled, {
+      type: 'SESSION_CANCELLED',
+      entityType: 'Session',
+      entityId: cancelled.id,
+      titleEn: 'Session cancelled',
+      titleAr: 'تم إلغاء الجلسة',
     });
 
     return cancelled;

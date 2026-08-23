@@ -40,6 +40,7 @@ async function toResponseDto(plan: TrainingPlan): Promise<TrainingPlanResponseDt
     assignmentId: plan.assignmentId,
     title: plan.title,
     trainingDays: plan.trainingDays,
+    language: plan.language,
     status: plan.status,
     startDate: plan.startDate.toISOString(),
     endDate: plan.endDate.toISOString(),

@@ -151,6 +151,16 @@ enum PortalInviteStatus {
   REVOKED
 }
 
+enum NotificationType {
+  SESSION_SCHEDULED
+  SESSION_RESCHEDULED
+  SESSION_CANCELLED
+  PLAN_CONFIRMED
+  INVITE_SENT
+  INVITE_ACCEPTED
+  REPORT_READY
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Tenancy root
 // ─────────────────────────────────────────────────────────────────────────
@@ -183,6 +193,7 @@ model Organization {
   portalInvites    PortalInvite[]
   slideDecks       SlideDeck[]
   externalSessions ExternalSession[]
+  notifications    Notification[]
 
   @@map("organizations")
 }
@@ -242,6 +253,7 @@ model PortalUser {
   plansCreated             TrainingPlan[]      @relation("PlanCreatedBy")
   planTemplatesCreated     PlanTemplate[]      @relation("PlanTemplateCreatedBy")
   invitesSent              PortalInvite[]      @relation("InviteInvitedBy")
+  notifications            Notification[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -896,6 +908,7 @@ model TrainingPlan {
   assignmentId   String
   title          String
   trainingDays   Int
+  language       Language   @default(EN)
   status         PlanStatus @default(DRAFT)
   startDate      DateTime
   endDate        DateTime
@@ -1295,4 +1308,28 @@ model AuditLog {
 
   @@index([organizationId, entityType, entityId, createdAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+/// In-app notification for a portal actor (manager/admin/content-creator).
+/// Learners have no portal login and are never a recipient here — they're
+/// notified exclusively through the existing Teams/email templates.
+model Notification {
+  id                     String            @id @default(cuid(2))
+  organizationId         String
+  recipientPortalUserId  String
+  type                   NotificationType
+  entityType             String
+  entityId               String
+  titleEn                String
+  titleAr                String
+  bodyEn                 String?
+  bodyAr                 String?
+  readAt                 DateTime?
+  createdAt              DateTime          @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  recipient    PortalUser   @relation(fields: [recipientPortalUserId], references: [id])
+
+  @@index([organizationId, recipientPortalUserId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
 }

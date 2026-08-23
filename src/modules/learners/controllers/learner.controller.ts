@@ -19,7 +19,7 @@ function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
-async function toResponseDto(learner: Learner): Promise<LearnerResponseDto> {
+export async function toResponseDto(learner: Learner): Promise<LearnerResponseDto> {
   const departmentName = await service.getDepartmentName(learner.id);
   return {
     id: learner.id,

@@ -3,6 +3,7 @@ import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { logger } from '@/logger/logger.service.js';
 import type { ReportRecipient } from '@/modules/agent/services/session-completed-handlers.js';
+import { writeNotification } from '@/modules/notifications/notifications.module.js';
 import {
   renderReportEmailHtml,
   reportEmailSubject,
@@ -85,6 +86,19 @@ export async function processSendReportJob(payload: QueuePayloads['report.send']
     }
 
     await reportRepository.markSent(report.id, recipients);
+
+    for (const recipient of recipients) {
+      if (recipient.role !== 'DEPARTMENT_MANAGER' || !recipient.portalUserId) continue;
+      await writeNotification({
+        organizationId: payload.organizationId,
+        recipientPortalUserId: recipient.portalUserId,
+        type: 'REPORT_READY',
+        entityType: 'Report',
+        entityId: report.id,
+        titleEn: 'Report ready',
+        titleAr: 'التقرير جاهز',
+      });
+    }
 
     await writeAuditLog({
       organizationId: payload.organizationId,

@@ -7,6 +7,8 @@ import type { ImportLearnersDto, InviteLearnerDto } from '../dto/learner.dto.js'
 import { LearnerRepository } from '../repositories/learner.repository.js';
 import { LearnerImportService, type ActingUser } from '../services/learner-import.service.js';
 
+import { toResponseDto } from './learner.controller.js';
+
 const importService = new LearnerImportService();
 const learners = new LearnerRepository();
 
@@ -45,8 +47,9 @@ export class TeamMemberController {
       ...(cursor ? { limit, cursor } : { limit }),
       where: { teamId: id },
     });
+    const data = await Promise.all(page.data.map(toResponseDto));
     res.status(200).json(
-      toCollectionResponse(page.data, {
+      toCollectionResponse(data, {
         nextCursor: page.nextCursor,
         hasNextPage: page.hasNextPage,
       }),

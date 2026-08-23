@@ -6,6 +6,8 @@ import {
   trainingDaysSchema,
 } from '@/common/validators/primitives.js';
 
+const languageSchema = z.enum(['EN', 'AR']);
+
 export const planIdParamsSchema = z.object({
   id: cuidSchema,
 });
@@ -15,6 +17,7 @@ export const createTrainingPlanSchema = z.object({
   trainingDays: trainingDaysSchema,
   startDate: z.iso.datetime(),
   templateId: cuidSchema.optional(),
+  language: languageSchema.optional(),
 });
 
 export const updateTrainingPlanSchema = z
@@ -23,6 +26,7 @@ export const updateTrainingPlanSchema = z
     trainingDays: trainingDaysSchema.optional(),
     startDate: z.iso.datetime().optional(),
     endDate: z.iso.datetime().optional(),
+    language: languageSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { error: 'At least one field is required' });
 
