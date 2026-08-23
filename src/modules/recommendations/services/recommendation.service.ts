@@ -321,10 +321,23 @@ export class RecommendationService {
     yearsOfExperience: number | null;
     excludeContentItemIds?: ReadonlySet<string>;
   }): Promise<{ items: RecommendationItemResult[]; coverageGaps: CoverageGap[] }> {
+    // `PlanOutcomeSnapshot.order` is only unique *within* its own skill (see
+    // `PlanBuilderService.generateFromSnapshotTree`'s matching comment) — a
+    // multi-skill plan needs its priority interleaved round-robin across
+    // skills here too, or `pickPrimaryOutcome`/`scoreAndRank` will always
+    // exhaust the first skill's outcomes before ever reaching a later one.
+    const skillCount = params.snapshotTree.skills.filter((skill) => !skill.isRemoved).length;
+    const bySkillCount = new Map<number, number>();
     const activeOutcomes = params.snapshotTree.skills
       .filter((skill) => !skill.isRemoved)
-      .flatMap((skill) => skill.outcomes)
-      .filter((outcome) => !outcome.isRemoved);
+      .flatMap((skill, skillIndex) => skill.outcomes.map((outcome) => ({ ...outcome, skillIndex })))
+      .filter((outcome) => !outcome.isRemoved)
+      .sort((a, b) => a.order - b.order)
+      .map((outcome) => {
+        const withinSkillRank = bySkillCount.get(outcome.skillIndex) ?? 0;
+        bySkillCount.set(outcome.skillIndex, withinSkillRank + 1);
+        return { ...outcome, order: withinSkillRank * skillCount + outcome.skillIndex };
+      });
 
     const outstandingOutcomeSnapshotIds = new Set(
       activeOutcomes.filter((outcome) => outcome.progress?.status !== 'ACHIEVED').map((o) => o.id),

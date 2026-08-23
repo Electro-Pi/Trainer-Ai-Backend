@@ -1,8 +1,18 @@
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
+import { container } from '@/config/container.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
+import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
+import {
+  renderSessionConfirmationEmailHtml,
+  sessionConfirmationEmailSubject,
+} from '@/modules/notifications/templates/session-confirmation-email.template.js';
+import { organizationRepository } from '@/modules/organizations/organizations.module.js';
+import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
+import { skillRepository } from '@/modules/skills/skills.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 import { queueService } from '@/queue/queue-instance.js';
+import type { EmailService } from '@/shared-types.js';
 
 import type { RescheduleSessionDto } from '../dto/session.dto.js';
 import { InvitationRepository } from '../repositories/invitation.repository.js';
@@ -160,9 +170,48 @@ export class SessionService {
     return invitation;
   }
 
-  /** `IV-02` resend — same Graph meeting, a fresh `sentAt` timestamp; the meeting invite itself lives on the Graph side, so this re-notifies without minting a new `joinToken` (`IV-04` — a token is never reissued outside a reschedule). */
+  /**
+   * `IV-02` resend — same Graph meeting, a fresh `sentAt` timestamp; the
+   * meeting invite itself lives on the Graph side, so this re-notifies
+   * without minting a new `joinToken` (`IV-04` — a token is never reissued
+   * outside a reschedule). Sends the branded confirmation email inline
+   * (not via the job queue) — unlike the create/reschedule paths, this is a
+   * manager clicking "Resend" and expecting it to happen now, not whenever a
+   * background worker gets to it. A delivery failure throws (surfaced to the
+   * manager as a real failure), since silently updating `sentAt` while no
+   * email actually went out is exactly the bug this replaces.
+   */
   async resendInvitation(actor: ActingUser, sessionId: string) {
     const invitation = await this.getInvitation(sessionId);
+    const session = await this.getById(sessionId);
+
+    if (!session.joinUrl) {
+      throw new ConflictError('This session has no meeting to resend an invitation for yet');
+    }
+
+    const learner = await learnerRepository.findByIdScoped(session.learnerId);
+    if (!learner) {
+      throw new NotFoundError('Learner not found');
+    }
+    const outcome = await outcomeRepository.findByIdScoped(session.primaryOutcomeId);
+    const skill = outcome?.skillId ? await skillRepository.findByIdScoped(outcome.skillId) : null;
+    const organization = await organizationRepository.findById(actor.organizationId);
+    const language = organization?.defaultLanguage === 'AR' ? 'AR' : 'EN';
+
+    const emailService = container.resolveEmail<EmailService>();
+    await emailService.send({
+      to: learner.email,
+      subject: sessionConfirmationEmailSubject(skill?.nameEn ?? 'your session', language),
+      html: renderSessionConfirmationEmailHtml({
+        learnerName: learner.displayName,
+        skillName: skill?.nameEn ?? 'Training session',
+        outcomeTitle: outcome?.titleEn ?? '',
+        ...formatLocalDateAndTime(session.scheduledStart),
+        durationMinutes: session.durationMinutes ?? 45,
+        joinUrl: session.joinUrl,
+        language,
+      }),
+    });
 
     const updated = await this.invitations.update(invitation.id, {
       sentAt: new Date(),

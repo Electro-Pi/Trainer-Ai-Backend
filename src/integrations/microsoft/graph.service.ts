@@ -23,6 +23,20 @@ async function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Thrown only by `createMeeting`'s join-URL poll giving up — carries the
+ * already-created event's id so `create-meeting.job.ts` can persist
+ * `graphEventId` on this failure too. Without it, the job has no way to
+ * learn the event exists, so its own retry (or pg-boss's automatic retry)
+ * calls `POST /me/events` again and creates a second calendar invite for
+ * the same session instead of recovering the first one.
+ */
+export class GraphMeetingCreatedWithoutJoinUrlError extends ExternalServiceError {
+  constructor(readonly eventId: string) {
+    super(`Graph event ${eventId} created without an online meeting join URL`);
+  }
+}
+
+/**
  * Thin fetch wrapper over Graph — auth (token acquisition/caching) lives in
  * `auth/services/msal.service.ts`; this class only issues authenticated
  * calls and retries on `429` per `Retry-After`, since Graph throttles
@@ -164,10 +178,50 @@ export class RealGraphService implements GraphService {
         type: 'required',
       })),
     });
-    if (!result.onlineMeeting?.joinUrl) {
-      throw new ExternalServiceError('Graph event created without an online meeting join URL');
+
+    // The calendar event (and its attendee invite email) is already real at
+    // this point — Graph sometimes finishes provisioning the Teams meeting
+    // itself a beat after the event write returns, so `onlineMeeting` can
+    // still be null here. Throwing here used to discard `result.id`
+    // entirely: the caller never learned this event existed, so a retry
+    // called `POST /me/events` again and created a second calendar invite
+    // for the same session. Poll the same event by id instead — idempotent,
+    // never creates anything — and only give up after a few short waits.
+    let joinUrl = result.onlineMeeting?.joinUrl ?? null;
+    for (let attempt = 0; !joinUrl && attempt < 3; attempt++) {
+      await sleep(1500);
+      const refreshed = await this.request<{ onlineMeeting: { joinUrl: string } | null }>(
+        'GET',
+        `/me/events/${result.id}?$select=onlineMeeting`,
+        accessToken,
+      );
+      joinUrl = refreshed.onlineMeeting?.joinUrl ?? null;
     }
-    return { id: result.id, joinWebUrl: result.onlineMeeting.joinUrl };
+
+    if (!joinUrl) {
+      logger.error(
+        { eventId: result.id },
+        'Graph event created but never got an online meeting join URL — event kept, not retried',
+      );
+      throw new GraphMeetingCreatedWithoutJoinUrlError(result.id);
+    }
+
+    return { id: result.id, joinWebUrl: joinUrl };
+  }
+
+  /**
+   * Recovery path for `GraphMeetingCreatedWithoutJoinUrlError` — re-checks
+   * an already-created event for its Teams `joinUrl` on a later job retry,
+   * a plain idempotent `GET` that never creates a new event the way calling
+   * `createMeeting` again would.
+   */
+  async getMeetingJoinUrl(eventId: string, accessToken: string): Promise<string | null> {
+    const result = await this.request<{ onlineMeeting: { joinUrl: string } | null }>(
+      'GET',
+      `/me/events/${eventId}?$select=onlineMeeting`,
+      accessToken,
+    );
+    return result.onlineMeeting?.joinUrl ?? null;
   }
 
   /** `TP-06` — updates the meeting's time window on reschedule. */

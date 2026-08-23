@@ -64,6 +64,9 @@ export interface GraphService {
   /** `IV-01` — creates a Teams online meeting with the lobby restricted to invited participants and the AI agent as presenter (`IV-05`). */
   createMeeting(input: CreateMeetingInput, accessToken: string): Promise<GraphMeeting>;
 
+  /** Recovery path when `createMeeting` created the event but its Teams `joinUrl` wasn't ready yet — re-checks the same event, never creates a new one. */
+  getMeetingJoinUrl(eventId: string, accessToken: string): Promise<string | null>;
+
   /** `TP-06` — updates an existing meeting's time window on reschedule. */
   updateMeeting(
     meetingId: string,

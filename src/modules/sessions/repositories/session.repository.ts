@@ -126,9 +126,24 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
     return this.delegate.findMany({ where: { planId }, orderBy: { scheduledStart: 'asc' } });
   }
 
-  /** Batched delete for replacing a DRAFT plan's suggested sessions — one query instead of one `delete()` per session. */
+  /**
+   * Batched delete for replacing a plan's suggested sessions — one query
+   * instead of one `delete()` per session.
+   *
+   * Excludes any session with a `graphEventId`: `TrainingPlanService.suggest`
+   * calls `SessionService.cancel` on those first, which only *enqueues* a
+   * `meeting.update` cancel job (Graph calls never happen inline on a
+   * request path, per `IV-01`) — it returns before that job actually runs.
+   * Deleting the row here immediately after would race the job's own
+   * `findByIdScoped` lookup: if the row is already gone by the time the
+   * worker picks up the job, it finds nothing and skips, and the real Teams
+   * meeting on Microsoft's side is never cancelled — orphaned forever, still
+   * showing on the learner's calendar. Leaving the (already `CANCELLED`)
+   * row in place costs nothing — it's just history once the meeting's
+   * actually cancelled — and lets that job find it.
+   */
   async deleteByPlan(planId: string): Promise<void> {
-    await prisma.session.deleteMany({ where: { planId } });
+    await prisma.session.deleteMany({ where: { planId, graphEventId: null } });
   }
 
   /** `findUnique` isn't tenant-scopable (MEMORY, findById cross-tenant leak trap) — use this for any request-supplied id. */
@@ -143,6 +158,24 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
    * `graphEventId` set but no `Invitation` (or vice versa) — a real Teams
    * meeting the portal doesn't know how to track RSVP/attendance for.
    */
+  /**
+   * Stamps just `graphEventId`, nothing else — for the case where Graph's
+   * calendar event was created but its Teams `joinUrl` never showed up
+   * (`GraphMeetingCreatedWithoutJoinUrlError`). Deliberately doesn't touch
+   * `status`/`joinUrl`/`Invitation` the way `recordMeetingCreated` does:
+   * the invite email/confirmation hasn't gone out yet, so this session isn't
+   * really `INVITED`. Its only job is making the event id visible so
+   * `create-meeting.job.ts`'s `if (session.graphEventId)` guard recognizes
+   * the event already exists on the next retry, instead of calling
+   * `POST /me/events` again and creating a duplicate.
+   */
+  async recordGraphEventOnly(sessionId: string, graphEventId: string): Promise<void> {
+    await this.delegate.update({
+      where: { id: sessionId } as never,
+      data: { graphEventId } as never,
+    });
+  }
+
   async recordMeetingCreated(
     sessionId: string,
     learnerId: string,

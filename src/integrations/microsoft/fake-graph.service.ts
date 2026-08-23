@@ -73,6 +73,10 @@ export class FakeGraphService implements GraphService {
     });
   }
 
+  async getMeetingJoinUrl(eventId: string, _accessToken: string): Promise<string | null> {
+    return Promise.resolve(`https://teams.microsoft.com/fake-meeting/${eventId}`);
+  }
+
   async updateMeeting(
     meetingId: string,
     _input: Pick<CreateMeetingInput, 'startDateTime' | 'endDateTime'>,

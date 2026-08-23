@@ -32,6 +32,12 @@ export class GraphMeetingsService {
     return container.resolveGraph().createMeeting(input, accessToken);
   }
 
+  /** Recovery path for `GraphMeetingCreatedWithoutJoinUrlError` — re-checks an already-created event, never creates a new one. */
+  async getMeetingJoinUrl(organizerId: string, eventId: string): Promise<string | null> {
+    const accessToken = await resolveAccessToken(organizerId);
+    return container.resolveGraph().getMeetingJoinUrl(eventId, accessToken);
+  }
+
   async updateMeeting(
     organizerId: string,
     meetingId: string,

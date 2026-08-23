@@ -153,28 +153,45 @@ export class PlanBuilderService {
     // against under today's schema, so it's excluded here — it still shows
     // in the plan's snapshot editor/review, it just can't drive a session's
     // primaryOutcomeId until Session/SessionOutcome gain snapshot-aware FKs.
+    // `PlanOutcomeSnapshot.order` is only unique *within* its own skill (the
+    // wizard's snapshot editor numbers each skill's outcomes 1, 2, 3...
+    // independently — see `planSnapshot.slice.ts`'s `addDraftOutcome`), so
+    // every skill's outcomes collide on priority 1, 2, 3... A raw sort by
+    // `outcome.order` alone leaves ties broken by array order, which is
+    // skill-by-skill (`flatMap`) — so with a multi-skill plan, the first
+    // skill's outcomes always fill every session slot before a later
+    // skill's outcome is ever reached, no matter how few training days there
+    // are. Interleaving skills round-robin here (skill index as the primary
+    // sort key, in-skill order as the tiebreak) makes `trainingDays` sessions
+    // sample across every chosen skill instead of exhausting the first one.
     const activeOutcomes = snapshotTree.skills
       .filter((skill) => !skill.isRemoved)
-      .flatMap((skill) => skill.outcomes)
-      .filter((outcome) => !outcome.isRemoved && outcome.sourceOutcomeId);
+      .flatMap((skill, skillIndex) => skill.outcomes.map((outcome) => ({ ...outcome, skillIndex })))
+      .filter((outcome) => !outcome.isRemoved && outcome.sourceOutcomeId)
+      .sort((a, b) => a.order - b.order);
 
-    const requiredOutcomes: LearnerOutcome[] = activeOutcomes.map(
-      (outcome) =>
-        ({
-          id: outcome.progress?.id ?? outcome.id,
-          learnerId,
-          outcomeId: outcome.sourceOutcomeId as string,
-          assignmentId: '',
-          status: outcome.progress?.status ?? 'NOT_STARTED',
-          priority: outcome.order,
-          isCustom: false,
-          attemptCount: outcome.progress?.attemptCount ?? 0,
-          lastScore: outcome.progress?.lastScore ?? null,
-          achievedAt: outcome.progress?.achievedAt ?? null,
-          createdAt: outcome.createdAt,
-          updatedAt: outcome.createdAt,
-        }) as unknown as LearnerOutcome,
-    );
+    const bySkillCount = new Map<number, number>();
+    const requiredOutcomes: LearnerOutcome[] = activeOutcomes.map((outcome) => {
+      const withinSkillRank = bySkillCount.get(outcome.skillIndex) ?? 0;
+      bySkillCount.set(outcome.skillIndex, withinSkillRank + 1);
+      return {
+        id: outcome.progress?.id ?? outcome.id,
+        learnerId,
+        outcomeId: outcome.sourceOutcomeId as string,
+        assignmentId: '',
+        status: outcome.progress?.status ?? 'NOT_STARTED',
+        // Round-robin priority: rank 0 of every skill sorts before rank 1 of
+        // any skill, etc. — `withinSkillRank * skillCount + skillIndex`
+        // interleaves skills instead of exhausting one before the next.
+        priority: withinSkillRank * snapshotTree.skills.length + outcome.skillIndex,
+        isCustom: false,
+        attemptCount: outcome.progress?.attemptCount ?? 0,
+        lastScore: outcome.progress?.lastScore ?? null,
+        achievedAt: outcome.progress?.achievedAt ?? null,
+        createdAt: outcome.createdAt,
+        updatedAt: outcome.createdAt,
+      } as unknown as LearnerOutcome;
+    });
 
     const { items } = await this.recommendations.generateFromSnapshot({
       snapshotTree,
