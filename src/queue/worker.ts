@@ -19,6 +19,16 @@ import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
 const connection = createQueueConnection();
 const queueService = createQueueService(connection);
 
+// pg-boss is a plain `EventEmitter` — Node's default behavior for an
+// `error` event with no listener is to throw and crash the whole process
+// (`ERR_UNHANDLED_ERROR`). A transient dropped DB connection ("Connection
+// terminated unexpectedly") is exactly the kind of blip a worker needs to
+// ride out, not die from — without this listener, one bad connection kills
+// every queue this process owns until something manually restarts it.
+connection.on('error', (err: unknown) => {
+  logger.error({ err }, 'pg-boss connection error — worker staying up');
+});
+
 type Processor<K extends QueueName> = (payload: QueuePayloads[K]) => Promise<void>;
 
 /**
