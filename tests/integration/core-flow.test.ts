@@ -300,31 +300,42 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     expect(learnerOutcome.status).toBe('ACHIEVED');
     expect(learnerOutcome.achievedAt).not.toBeNull();
 
-    // ── session.completed handlers fired: a PENDING Report row exists (P8-8b) ──
+    // ── session.completed handlers fired: one PENDING Report row per
+    // recipient (learner + manager), not one shared row (P8-8b) ──
     await new Promise((resolve) => setTimeout(resolve, 200));
-    const pendingReport = await runWithTenant(org.id, () =>
-      prisma.report.findFirstOrThrow({ where: { sessionId: sessionAfterMeeting.id } }),
+    const pendingReports = await runWithTenant(org.id, () =>
+      prisma.report.findMany({ where: { sessionId: sessionAfterMeeting.id } }),
     );
-    expect(pendingReport.status).toBe('PENDING');
+    expect(pendingReports).toHaveLength(2);
+    for (const report of pendingReports) {
+      expect(report.status).toBe('PENDING');
+    }
 
-    // ── Report generation + send (P9) — invoke the real processors directly ──
-    await processGenerateReportJob({ reportId: pendingReport.id, organizationId: org.id });
-    await processSendReportJob({ reportId: pendingReport.id, organizationId: org.id });
+    // ── Report generation + send (P9) — invoke the real processors directly, once per recipient's report ──
+    for (const report of pendingReports) {
+      await processGenerateReportJob({ reportId: report.id, organizationId: org.id });
+      await processSendReportJob({ reportId: report.id, organizationId: org.id });
+    }
 
-    const sentReport = await runWithTenant(org.id, () =>
-      prisma.report.findFirstOrThrow({ where: { id: pendingReport.id } }),
+    const sentReports = await runWithTenant(org.id, () =>
+      prisma.report.findMany({ where: { sessionId: sessionAfterMeeting.id } }),
     );
-    expect(sentReport.status).toBe('SENT');
-    expect(sentReport.blobKey).toBeTruthy();
+    expect(sentReports).toHaveLength(2);
+    for (const report of sentReports) {
+      expect(report.status).toBe('SENT');
+      expect(report.blobKey).toBeTruthy();
+    }
 
-    // ── Report visible via the manager-facing API (PF-05's drill-down target) ──
+    // ── Reports visible via the manager-facing API (PF-05's drill-down target) ──
     const reportsListRes = await request(app)
       .get('/api/v1/reports')
       .query({ sessionId: sessionAfterMeeting.id })
       .set('Authorization', managerAuth);
     expect(reportsListRes.status).toBe(200);
-    expect(reportsListRes.body.data).toHaveLength(1);
-    expect(reportsListRes.body.data[0].status).toBe('SENT');
+    expect(reportsListRes.body.data).toHaveLength(2);
+    for (const report of reportsListRes.body.data) {
+      expect(report.status).toBe('SENT');
+    }
 
     void manager;
   });

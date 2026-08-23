@@ -2,6 +2,7 @@ import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { graphMeetingsService } from '@/integrations/microsoft/graph.meetings.js';
+import { GraphEventNotFoundError } from '@/integrations/microsoft/graph.service.js';
 import { logger } from '@/logger/logger.service.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
@@ -17,6 +18,8 @@ import { trainingPlanRepository } from '@/modules/training-plans/training-plans.
 import type { EmailService } from '@/shared-types.js';
 
 import type { QueuePayloads } from '../queues.js';
+
+import { dispatchToAiTrainer } from './dispatch-ai-trainer.js';
 
 const sessions = new SessionRepository();
 
@@ -47,7 +50,18 @@ export async function processMeetingUpdateJob(
     }
 
     if (session.status === 'CANCELLED') {
-      await graphMeetingsService.cancelMeeting(plan.createdById, session.graphEventId);
+      try {
+        await graphMeetingsService.cancelMeeting(plan.createdById, session.graphEventId);
+      } catch (error) {
+        // Already gone (deleted directly in Outlook) — nothing left to
+        // cancel, which is the outcome we wanted anyway. Only a real
+        // transient Graph failure should still fail this job.
+        if (!(error instanceof GraphEventNotFoundError)) throw error;
+        logger.info(
+          { sessionId: session.id },
+          'meeting-update: event already gone, treating cancel as satisfied',
+        );
+      }
       await writeAuditLog({
         organizationId: payload.organizationId,
         actorType: 'SYSTEM',
@@ -59,10 +73,54 @@ export async function processMeetingUpdateJob(
       return;
     }
 
-    await graphMeetingsService.updateMeeting(plan.createdById, session.graphEventId, {
-      startDateTime: session.scheduledStart.toISOString(),
-      endDateTime: session.scheduledEnd.toISOString(),
-    });
+    const learner = await learnerRepository.findByIdScoped(session.learnerId);
+
+    try {
+      await graphMeetingsService.updateMeeting(plan.createdById, session.graphEventId, {
+        startDateTime: session.scheduledStart.toISOString(),
+        endDateTime: session.scheduledEnd.toISOString(),
+      });
+    } catch (error) {
+      if (!(error instanceof GraphEventNotFoundError)) throw error;
+
+      // The event this session's `graphEventId` pointed at was deleted
+      // directly in Outlook (not through this app) — updating it is
+      // impossible, but the session still needs a real meeting at its new
+      // time. Recreate it exactly like `create-meeting.job.ts` does for a
+      // session with no meeting yet, then persist the fresh id/joinUrl so
+      // this session isn't left pointing at a dead reference again.
+      if (!learner) {
+        logger.error(
+          { sessionId: session.id },
+          'meeting-update: event gone and learner not found, cannot recreate',
+        );
+        throw error;
+      }
+      logger.warn(
+        { sessionId: session.id, staleGraphEventId: session.graphEventId },
+        'meeting-update: event was deleted, recreating meeting at the new time',
+      );
+      const recreated = await graphMeetingsService.createMeeting(plan.createdById, {
+        subject: `Training session — ${learner.displayName}`,
+        startDateTime: session.scheduledStart.toISOString(),
+        endDateTime: session.scheduledEnd.toISOString(),
+        attendeeEmails: [learner.email],
+      });
+      await sessions.recordMeetingCreated(session.id, session.learnerId, {
+        graphEventId: recreated.id,
+        joinUrl: recreated.joinWebUrl,
+      });
+      session.graphEventId = recreated.id;
+      session.joinUrl = recreated.joinWebUrl;
+      await writeAuditLog({
+        organizationId: payload.organizationId,
+        actorType: 'SYSTEM',
+        action: 'session.meeting_recreated',
+        entityType: 'Session',
+        entityId: session.id,
+        after: { graphEventId: recreated.id },
+      });
+    }
 
     // Branded "your session moved" email — the calendar-event PATCH above
     // already makes Outlook send its own native update notification, this
@@ -71,7 +129,6 @@ export async function processMeetingUpdateJob(
     // delivery failure is logged, not thrown — the meeting update is
     // already real on Graph either way.
     try {
-      const learner = await learnerRepository.findByIdScoped(session.learnerId);
       const outcome = await outcomeRepository.findByIdScoped(session.primaryOutcomeId);
       const skill = outcome?.skillId ? await skillRepository.findByIdScoped(outcome.skillId) : null;
       const organization = await organizationRepository.findById(payload.organizationId);
@@ -103,6 +160,23 @@ export async function processMeetingUpdateJob(
         { sessionId: session.id, err: error },
         'meeting-update: reschedule email failed to send',
       );
+    }
+
+    // Re-dispatch the AI Trainer to the (possibly new) join link/time — a
+    // session already dispatched once was only ever told about its
+    // *original* meeting; without this, a reschedule silently leaves the
+    // agent working from a stale reference it can never learn has changed
+    // (see `dispatch-ai-trainer.ts`'s doc comment). Always re-dispatches on
+    // a successful reschedule, even if the Graph event itself was merely
+    // updated in place (same event id, new time) — the AI Trainer has no
+    // "update" endpoint, only "start a new session".
+    if (learner) {
+      await dispatchToAiTrainer({
+        organizationId: payload.organizationId,
+        session,
+        learner,
+        joinUrl: session.joinUrl ?? '',
+      });
     }
 
     await writeAuditLog({

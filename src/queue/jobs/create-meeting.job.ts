@@ -4,9 +4,6 @@ import { runWithTenant } from '@/database/tenant-context.js';
 import { graphMeetingsService } from '@/integrations/microsoft/graph.meetings.js';
 import { GraphMeetingCreatedWithoutJoinUrlError } from '@/integrations/microsoft/graph.service.js';
 import { logger } from '@/logger/logger.service.js';
-import { ExternalSessionRepository } from '@/modules/ai-trainer/repositories/external-session.repository.js';
-import { SlideDeckRepository } from '@/modules/ai-trainer/repositories/slide-deck.repository.js';
-import { AiTrainerClientService } from '@/modules/ai-trainer/services/ai-trainer-client.service.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
 import {
@@ -24,10 +21,9 @@ import type { EmailService } from '@/shared-types.js';
 import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
 
+import { dispatchToAiTrainer } from './dispatch-ai-trainer.js';
+
 const sessions = new SessionRepository();
-const slideDecks = new SlideDeckRepository();
-const externalSessions = new ExternalSessionRepository();
-const aiTrainerClient = new AiTrainerClientService();
 const REMINDER_LEAD_TIME_MS = 60 * 60_000;
 
 /**
@@ -182,71 +178,16 @@ export async function processCreateMeetingJob(
 
     // `P8-10`, ARCHITECTURE §9.11 rule 6 — asks the AI Trainer service to join
     // the meeting via the same `POST /sessions/external` call the manual
-    // ExternalSessionService.start() flow uses. Best-effort: a dispatch
-    // failure marks the session and notifies the manager rather than
-    // silently producing a no-show, but does not fail this job or undo the
-    // meeting/invitation already created — the meeting is real on Graph
-    // either way, and retrying the whole job would re-run the
-    // (already-guarded, idempotent) steps above for nothing.
-    try {
-      const outcome = outcomeForNotifications;
-      if (!outcome?.skillId) {
-        throw new Error('Session outcome has no linked skill — cannot resolve a slide deck');
-      }
-
-      const skill = skillForNotifications;
-      if (!skill) {
-        throw new Error('Skill not found for session outcome');
-      }
-
-      const slideDeck = await slideDecks.findBySkillId(outcome.skillId);
-      if (!slideDeck || slideDeck.status !== 'ready') {
-        throw new Error(
-          `No ready slide deck for skill ${outcome.skillId} (status: ${slideDeck?.status ?? 'missing'})`,
-        );
-      }
-
-      const joinUrl = joinUrlForNotifications;
-      const result = await aiTrainerClient.startExternalSession({
-        user_id: learner.id,
-        user_name: learner.displayName,
-        user_role: learner.jobTitle ?? 'Learner',
-        user_email: learner.email,
-        slide_deck_id: slideDeck.aiDeckId,
-        skill_name: skill.nameEn,
-        meeting_url: joinUrl,
-      });
-
-      await externalSessions.create({
-        id: result.id,
-        organizationId: payload.organizationId,
-        learnerId: learner.id,
-        slideDeckId: slideDeck.id,
-        skillName: skill.nameEn,
-        userRole: learner.jobTitle ?? 'Learner',
-        meetingUrl: joinUrl,
-        status: result.status,
-        dispatchError: result.dispatch_error,
-      } as never);
-      await sessions.recordExternalSessionId(session.id, result.id);
-
-      if (result.dispatch_error) {
-        throw new Error(result.dispatch_error);
-      }
-    } catch (error) {
-      logger.error(
-        { sessionId: session.id, err: error },
-        'create-meeting: AI Trainer dispatch failed, notifying manager',
-      );
-      await writeAuditLog({
-        organizationId: payload.organizationId,
-        actorType: 'SYSTEM',
-        action: 'session.dispatch_failed',
-        entityType: 'Session',
-        entityId: session.id,
-        after: { reason: error instanceof Error ? error.message : 'unknown' },
-      });
-    }
+    // `ExternalSessionService.start()` flow uses. Shared with
+    // `meeting-update.job.ts`'s reschedule re-dispatch — see
+    // `dispatch-ai-trainer.ts`'s own doc comment for why a reschedule needs
+    // this too, not just first creation.
+    await dispatchToAiTrainer({
+      organizationId: payload.organizationId,
+      session,
+      learner,
+      joinUrl: joinUrlForNotifications,
+    });
 
     const reminderDelayMs = session.scheduledStart.getTime() - REMINDER_LEAD_TIME_MS - Date.now();
     if (reminderDelayMs > 0) {

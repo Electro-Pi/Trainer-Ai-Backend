@@ -37,6 +37,21 @@ export class GraphMeetingCreatedWithoutJoinUrlError extends ExternalServiceError
 }
 
 /**
+ * Thrown when Graph 404s on a request against an event id we already hold —
+ * distinct from a generic `ExternalServiceError` so `updateMeeting`'s caller
+ * (`meeting-update.job.ts`) can tell "the meeting was deleted out from under
+ * us" (someone removed the calendar event directly in Outlook — the
+ * `graphEventId` this session still has is now stale) apart from a real
+ * transient Graph failure, and recover instead of failing forever on every
+ * retry.
+ */
+export class GraphEventNotFoundError extends ExternalServiceError {
+  constructor(readonly eventId: string) {
+    super(`Graph event ${eventId} no longer exists`);
+  }
+}
+
+/**
  * Thin fetch wrapper over Graph — auth (token acquisition/caching) lives in
  * `auth/services/msal.service.ts`; this class only issues authenticated
  * calls and retries on `429` per `Retry-After`, since Graph throttles
@@ -230,13 +245,38 @@ export class RealGraphService implements GraphService {
     input: Pick<CreateMeetingInput, 'startDateTime' | 'endDateTime'>,
     accessToken: string,
   ): Promise<GraphMeeting> {
-    const result = await this.request<{
+    const url = `${GRAPH_BASE_URL}/me/events/${meetingId}`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        start: { dateTime: input.startDateTime, timeZone: 'UTC' },
+        end: { dateTime: input.endDateTime, timeZone: 'UTC' },
+      }),
+    });
+
+    // A plain `this.request()` call here would report any non-2xx as an
+    // undifferentiated `ExternalServiceError` — the caller has no way to
+    // tell "event deleted from Outlook, stop retrying and recover" apart
+    // from a transient Graph hiccup worth retrying as-is. This one call is
+    // duplicated outside `request()`'s retry loop specifically so the 404
+    // case can be told apart before falling through to the generic path.
+    if (response.status === 404) {
+      logger.error({ meetingId }, 'Graph event not found — likely deleted directly in Outlook');
+      throw new GraphEventNotFoundError(meetingId);
+    }
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      logger.error({ url, status: response.status, errorBody }, 'Microsoft Graph request failed');
+      throw new ExternalServiceError(
+        `Microsoft Graph request failed: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const result = (await response.json()) as {
       id: string;
       onlineMeeting: { joinUrl: string } | null;
-    }>('PATCH', `/me/events/${meetingId}`, accessToken, {
-      start: { dateTime: input.startDateTime, timeZone: 'UTC' },
-      end: { dateTime: input.endDateTime, timeZone: 'UTC' },
-    });
+    };
     if (!result.onlineMeeting?.joinUrl) {
       throw new ExternalServiceError('Graph event updated without an online meeting join URL');
     }
