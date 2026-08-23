@@ -43,15 +43,40 @@ export class PerformanceService {
       analyticsRepository.latestPlansForLearners(learnerIds),
     ]);
 
-    // `plans` is ordered `createdAt desc` — the first row seen per learner is their latest.
-    const latestPlanStatusByLearner = new Map<string, LearnerPerformanceRow['planStatus']>();
+    // A learner can have more than one `TrainingPlan` row — a stale/orphaned
+    // DRAFT left behind by an abandoned wizard session (`ensurePlanCreated`
+    // inserts unconditionally, no upsert-by-learner) alongside the plan that
+    // actually got confirmed. Picking "most recent by createdAt" alone can
+    // surface the wrong one when rows share a createdAt (bulk-seeded demo
+    // data) or when an old draft is newer than a plan confirmed earlier the
+    // same session — so status precedence wins first, and createdAt only
+    // breaks ties within the same status.
+    const PLAN_STATUS_RANK: Record<string, number> = {
+      ACTIVE: 5,
+      CONFIRMED: 4,
+      COMPLETED: 3,
+      DRAFT: 2,
+      CANCELLED: 1,
+    };
+    const bestPlanByLearner = new Map<string, (typeof plans)[number]>();
     for (const plan of plans) {
-      if (!latestPlanStatusByLearner.has(plan.learnerId)) {
-        latestPlanStatusByLearner.set(
-          plan.learnerId,
-          plan.status as LearnerPerformanceRow['planStatus'],
-        );
+      const current = bestPlanByLearner.get(plan.learnerId);
+      if (!current) {
+        bestPlanByLearner.set(plan.learnerId, plan);
+        continue;
       }
+      const currentRank = PLAN_STATUS_RANK[current.status] ?? 0;
+      const planRank = PLAN_STATUS_RANK[plan.status] ?? 0;
+      if (
+        planRank > currentRank ||
+        (planRank === currentRank && plan.createdAt > current.createdAt)
+      ) {
+        bestPlanByLearner.set(plan.learnerId, plan);
+      }
+    }
+    const latestPlanStatusByLearner = new Map<string, LearnerPerformanceRow['planStatus']>();
+    for (const [learnerId, plan] of bestPlanByLearner) {
+      latestPlanStatusByLearner.set(learnerId, plan.status as LearnerPerformanceRow['planStatus']);
     }
 
     const assignmentByLearner = new Map(assignments.map((a) => [a.learnerId, a]));

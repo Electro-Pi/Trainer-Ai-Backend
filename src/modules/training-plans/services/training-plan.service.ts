@@ -1,12 +1,23 @@
 import { ConflictError, NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
+import { container } from '@/config/container.js';
+import { logger } from '@/logger/logger.service.js';
 import {
   learnerAssignmentRepository,
   learnerRepository,
 } from '@/modules/learners/learners.module.js';
+import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
+import {
+  planConfirmationEmailSubject,
+  renderPlanConfirmationEmailHtml,
+  type PlanConfirmationSessionRow,
+} from '@/modules/notifications/templates/plan-confirmation-email.template.js';
+import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { SessionService } from '@/modules/sessions/sessions.module.js';
+import { skillRepository } from '@/modules/skills/skills.module.js';
 import { queueService } from '@/queue/queue-instance.js';
+import type { EmailService } from '@/shared-types.js';
 
 import type { CreateTrainingPlanDto, UpdateTrainingPlanDto } from '../dto/training-plan.dto.js';
 import { PlanTemplateRepository } from '../repositories/plan-template.repository.js';
@@ -270,6 +281,55 @@ export class TrainingPlanService {
         'meeting.create',
         { sessionId: session.id, organizationId: actor.organizationId },
         { jobId: `meeting-create-${session.id}` },
+      );
+    }
+
+    // One branded email for the whole plan, sent right away — previously
+    // each session's own `meeting.create` job sent its own "session
+    // confirmed" email once its Teams meeting finished creating, which for
+    // a multi-session plan meant the learner got a separate email per
+    // session instead of one overview. `meeting.create` still creates each
+    // session's real Teams meeting/calendar invite; it just no longer
+    // double-announces it by email. Best-effort: a delivery failure here
+    // must not undo the confirm — sessions are already real regardless.
+    try {
+      const learner = await learnerRepository.findByIdScoped(plan.learnerId);
+      if (learner) {
+        const orderedSessions = [...sessions].sort(
+          (a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime(),
+        );
+        const rows: PlanConfirmationSessionRow[] = await Promise.all(
+          orderedSessions.map(async (session) => {
+            const outcome = await outcomeRepository.findByIdScoped(session.primaryOutcomeId);
+            const skill = outcome?.skillId
+              ? await skillRepository.findByIdScoped(outcome.skillId)
+              : null;
+            return {
+              skillName: skill?.nameEn ?? 'Training session',
+              outcomeTitle: outcome?.titleEn ?? '',
+              ...formatLocalDateAndTime(session.scheduledStart),
+              durationMinutes: session.durationMinutes ?? 45,
+            };
+          }),
+        );
+
+        const organization = await organizationRepository.findById(actor.organizationId);
+        const language = organization?.defaultLanguage === 'AR' ? 'AR' : 'EN';
+        const emailService = container.resolveEmail<EmailService>();
+        await emailService.send({
+          to: learner.email,
+          subject: planConfirmationEmailSubject(language),
+          html: renderPlanConfirmationEmailHtml({
+            learnerName: learner.displayName,
+            sessions: rows,
+            language,
+          }),
+        });
+      }
+    } catch (error) {
+      logger.error(
+        { planId: confirmed.id, err: error },
+        'training-plan.confirm: plan confirmation email failed to send',
       );
     }
 

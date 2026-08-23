@@ -96,10 +96,14 @@ export class SessionService {
       durationMinutes,
     } as never);
 
-    // Enqueued unconditionally: the job itself patches the real Teams
-    // meeting only when `graphEventId` exists, but the "your session moved"
-    // email fires either way — a rescheduled session should always notify
-    // the learner of the new time, meeting or not.
+    // Enqueued unconditionally, same as before — the job itself
+    // (`meeting-update.job.ts`) now skips notifying while the parent plan is
+    // still DRAFT. That check couldn't live here: `SessionService` sits
+    // inside `sessions.module.js`, which `training-plans` already depends on
+    // (`session-scheduling.service.js` imports `Session` from it), so
+    // reaching back into `training-plans.module.js` from here would create
+    // an import cycle. The job runs outside that module graph, so it can
+    // safely read plan status.
     await queueService.enqueue('meeting.update', {
       sessionId: session.id,
       organizationId: actor.organizationId,

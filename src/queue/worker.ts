@@ -29,6 +29,21 @@ connection.on('error', (err: unknown) => {
   logger.error({ err }, 'pg-boss connection error — worker staying up');
 });
 
+// Belt-and-suspenders on top of the listener above: pg-boss's internal
+// poll loop (`Navigator#onPoll`) can reject a promise from a path that
+// reaches Node's process-level crash guard before — or instead of —
+// emitting through the `PgBoss` instance's own `error` event (observed in
+// practice: a dropped connection during a poll cycle crashed the process
+// with `connection.on('error', ...)` already attached). A long-running
+// worker should never die from a transient DB hiccup on any code path,
+// so this catches whatever the targeted listener above doesn't.
+process.on('uncaughtException', (err: unknown) => {
+  logger.error({ err }, 'worker: uncaught exception — staying up');
+});
+process.on('unhandledRejection', (err: unknown) => {
+  logger.error({ err }, 'worker: unhandled rejection — staying up');
+});
+
 type Processor<K extends QueueName> = (payload: QueuePayloads[K]) => Promise<void>;
 
 /**

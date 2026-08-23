@@ -1,22 +1,12 @@
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
-import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { graphMeetingsService } from '@/integrations/microsoft/graph.meetings.js';
 import { GraphMeetingCreatedWithoutJoinUrlError } from '@/integrations/microsoft/graph.service.js';
 import { logger } from '@/logger/logger.service.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
-import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
-import {
-  renderSessionConfirmationEmailHtml,
-  sessionConfirmationEmailSubject,
-} from '@/modules/notifications/templates/session-confirmation-email.template.js';
-import { organizationRepository } from '@/modules/organizations/organizations.module.js';
-import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository.js';
-import { skillRepository } from '@/modules/skills/skills.module.js';
 import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
-import type { EmailService } from '@/shared-types.js';
 
 import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
@@ -137,44 +127,13 @@ export async function processCreateMeetingJob(
     });
 
     const joinUrlForNotifications = updated.joinUrl ?? meeting.joinWebUrl;
-    const outcomeForNotifications = await outcomeRepository.findByIdScoped(
-      session.primaryOutcomeId,
-    );
-    const skillForNotifications = outcomeForNotifications?.skillId
-      ? await skillRepository.findByIdScoped(outcomeForNotifications.skillId)
-      : null;
 
-    // Branded confirmation email — the calendar event created above already
-    // makes Outlook send its own native invite (accept/decline), this is a
-    // second, MODRB-styled email confirming the same session. Best-effort:
-    // a delivery failure is logged, not thrown — the meeting and calendar
-    // invite are already real regardless of whether this extra email sends.
-    try {
-      const organization = await organizationRepository.findById(payload.organizationId);
-      const language = organization?.defaultLanguage === 'AR' ? 'AR' : 'EN';
-      const emailService = container.resolveEmail<EmailService>();
-      await emailService.send({
-        to: learner.email,
-        subject: sessionConfirmationEmailSubject(
-          skillForNotifications?.nameEn ?? 'your session',
-          language,
-        ),
-        html: renderSessionConfirmationEmailHtml({
-          learnerName: learner.displayName,
-          skillName: skillForNotifications?.nameEn ?? 'Training session',
-          outcomeTitle: outcomeForNotifications?.titleEn ?? '',
-          ...formatLocalDateAndTime(session.scheduledStart),
-          durationMinutes: session.durationMinutes ?? 45,
-          joinUrl: joinUrlForNotifications,
-          language,
-        }),
-      });
-    } catch (error) {
-      logger.error(
-        { sessionId: session.id, err: error },
-        'create-meeting: confirmation email failed to send',
-      );
-    }
+    // No per-session branded email here anymore — `TrainingPlanService.confirm()`
+    // now sends one combined email for every session in the plan the moment
+    // the manager confirms, instead of the learner getting a separate email
+    // per session as each one's Teams meeting finished creating. The native
+    // Outlook calendar invite for this specific session (from the Graph
+    // event created above) still arrives independently, per session.
 
     // `P8-10`, ARCHITECTURE §9.11 rule 6 — asks the AI Trainer service to join
     // the meeting via the same `POST /sessions/external` call the manual

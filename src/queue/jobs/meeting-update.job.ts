@@ -49,6 +49,19 @@ export async function processMeetingUpdateJob(
       return;
     }
 
+    // Defense in depth: a session shouldn't have `graphEventId` set while its
+    // plan is still DRAFT (that's only stamped by `meeting.create`, itself
+    // only enqueued from `TrainingPlanService.confirm()`) — but if one ever
+    // does, notifying the learner about a plan the manager hasn't confirmed
+    // yet would be wrong regardless of how it got here.
+    if (plan.status === 'DRAFT') {
+      logger.info(
+        { sessionId: session.id, planId: plan.id },
+        'meeting-update: plan still DRAFT, skipping notification',
+      );
+      return;
+    }
+
     if (session.status === 'CANCELLED') {
       try {
         await graphMeetingsService.cancelMeeting(plan.createdById, session.graphEventId);
