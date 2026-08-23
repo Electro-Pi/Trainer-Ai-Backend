@@ -7,7 +7,7 @@ import type {
   MeResponseDto,
   TokenResponseDto,
 } from '../dto/token-response.dto.js';
-import { AuthService } from '../services/auth.service.js';
+import { AuthService, type DemoRole } from '../services/auth.service.js';
 import { createMsalService } from '../services/msal.service.js';
 import { PkceStoreService } from '../services/pkce-store.service.js';
 
@@ -58,6 +58,13 @@ export class AuthController {
   async passwordLogin(req: Request, res: Response): Promise<void> {
     const { email, password } = req.body as { email: string; password: string };
     const { tokens } = await authService.signInWithPassword(email, password);
+    res.status(200).json(toTokenResponse(tokens));
+  }
+
+  /** Demo-only fast login — see `AuthService.signInAsDemoAccount`'s doc comment for the full removal list if this feature is ever taken out. */
+  async demoLogin(req: Request, res: Response): Promise<void> {
+    const { role } = req.body as { role: DemoRole };
+    const { tokens } = await authService.signInAsDemoAccount(role);
     res.status(200).json(toTokenResponse(tokens));
   }
 

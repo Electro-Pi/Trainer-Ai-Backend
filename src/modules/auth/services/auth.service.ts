@@ -14,6 +14,24 @@ import { TokenService, type TokenPair } from './token.service.js';
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 
+// Demo-login feature — fixed to these 3 specific pre-existing accounts, one
+// per role, at the user's explicit request (not "any user with this role",
+// these exact 3). To remove the whole demo-login feature, also revert:
+// - this file's `signInAsDemoAccount()` method + `DemoRole`/`DEMO_ACCOUNT_IDS`
+// - src/modules/auth/controllers/auth.controller.ts's `demoLogin()` handler
+// - src/modules/auth/auth.routes.ts's `POST /demo-login` route
+// - Trainer-Ai/lib/api/auth.ts's `demoLogin()` client function
+// - Trainer-Ai/lib/portal/store/slices/auth.slice.ts's `demoSignIn` action
+// - Trainer-Ai/lib/portal/viewmodels/auth-screens.vm.ts's onDemoSignIn* handlers
+// - Trainer-Ai/components/portal/screens/SignIn.tsx's "Demo login" button block
+// - Trainer-Ai/components/portal/PortalHost.tsx's onDemoSignIn* prop wiring
+export type DemoRole = 'ADMIN' | 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR';
+const DEMO_ACCOUNT_IDS: Record<DemoRole, string> = {
+  ADMIN: 'rlp40lbu70pan7d7evte1fhf',
+  DEPARTMENT_MANAGER: 'cu69xxy8z56hkj8j2p17vlhg',
+  CONTENT_CREATOR: 'pswmbb0kdzu4tw5qel74o0er',
+};
+
 export interface AuthenticatedUser {
   id: string;
   organizationId: string;
@@ -208,6 +226,45 @@ export class AuthService {
         actorId: user.id,
         actorType: 'USER',
         action: 'auth.signin.password',
+        entityType: 'PortalUser',
+        entityId: user.id,
+      }),
+    );
+
+    const tokens = await this.tokens.issueTokenPair(user.id, {
+      sub: user.id,
+      orgId: user.organizationId,
+      role: user.role,
+      locale: user.locale,
+    });
+
+    return { user: toAuthenticatedUser(user, user.organizationId), tokens };
+  }
+
+  /**
+   * Demo-only fast login — no password, mints a real token pair (refresh
+   * token included, so the session keeps itself alive via the normal
+   * refresh flow same as any other login, unlike a hand-issued short-lived
+   * access token) for one of 3 fixed pre-existing accounts. Scoped to
+   * exactly these 3 user ids so it can never be used to sign in as an
+   * arbitrary account — there is no email/password/Entra check here at all,
+   * this bypasses those deliberately.
+   */
+  async signInAsDemoAccount(
+    role: DemoRole,
+  ): Promise<{ user: AuthenticatedUser; tokens: TokenPair }> {
+    const userId = DEMO_ACCOUNT_IDS[role];
+    const user = await portalUserRepository.findByIdUnscoped(userId);
+    if (!user || !user.isActive) {
+      throw new UnauthorizedError('Demo account unavailable');
+    }
+
+    await runWithTenant(user.organizationId, () =>
+      writeAuditLog({
+        organizationId: user.organizationId,
+        actorId: user.id,
+        actorType: 'USER',
+        action: 'auth.signin.demo',
         entityType: 'PortalUser',
         entityId: user.id,
       }),

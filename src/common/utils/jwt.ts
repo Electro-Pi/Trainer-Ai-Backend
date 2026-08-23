@@ -37,13 +37,16 @@ async function getPublicKey(): Promise<CryptoKey> {
   return cachedPublicKey;
 }
 
-export async function signAccessToken(claims: JwtAccessClaims): Promise<string> {
+export async function signAccessToken(
+  claims: JwtAccessClaims,
+  expiresIn?: string,
+): Promise<string> {
   const key = await getPrivateKey();
   return new SignJWT({ orgId: claims.orgId, role: claims.role, locale: claims.locale })
     .setProtectedHeader({ alg: JWT_ACCESS_TOKEN_ALGORITHM })
     .setSubject(claims.sub)
     .setIssuedAt()
-    .setExpirationTime(env.JWT_ACCESS_TTL)
+    .setExpirationTime(expiresIn ?? env.JWT_ACCESS_TTL)
     .sign(key);
 }
 

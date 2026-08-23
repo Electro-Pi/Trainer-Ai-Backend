@@ -10,6 +10,7 @@ import {
   microsoftCallbackQuerySchema,
   passwordLoginSchema,
   refreshTokenSchema,
+  demoLoginSchema,
 } from './validators/auth.validators.js';
 
 const controller = new AuthController();
@@ -33,6 +34,11 @@ export function createAuthRouter(): Router {
 
   router.post('/login', validate({ body: passwordLoginSchema }), (req, res, next) => {
     controller.passwordLogin(req, res).catch(next);
+  });
+
+  // Demo-login feature — see `AuthService.signInAsDemoAccount`'s doc comment for the full removal list.
+  router.post('/demo-login', validate({ body: demoLoginSchema }), (req, res, next) => {
+    controller.demoLogin(req, res).catch(next);
   });
 
   router.post('/refresh', validate({ body: refreshTokenSchema }), (req, res, next) => {

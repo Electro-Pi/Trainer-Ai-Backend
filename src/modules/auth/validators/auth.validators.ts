@@ -15,3 +15,8 @@ export const passwordLoginSchema = z.object({
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1),
 });
+
+/** Demo-login feature — see `AuthService.signInAsDemoAccount`'s doc comment for the full removal list. */
+export const demoLoginSchema = z.object({
+  role: z.enum(['ADMIN', 'DEPARTMENT_MANAGER', 'CONTENT_CREATOR']),
+});
