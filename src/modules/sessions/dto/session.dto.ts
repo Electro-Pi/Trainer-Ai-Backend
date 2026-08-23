@@ -19,6 +19,13 @@ export interface SessionResponseDto {
 export interface RescheduleSessionDto {
   scheduledStart: string;
   scheduledEnd: string;
+  /** True while the plan wizard is still adjusting a session's proposed time
+   *  before the manager has confirmed anything — skips the "your session
+   *  moved" notification (and, once a meeting exists, the real Teams patch)
+   *  entirely, regardless of the parent plan's status. Defaults to false so
+   *  every other caller (Sessions/Calendar screens rescheduling a live
+   *  session) keeps notifying as before. */
+  silent?: boolean;
 }
 
 export interface CalendarQueryDto {

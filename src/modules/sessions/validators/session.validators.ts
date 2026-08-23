@@ -10,6 +10,7 @@ export const rescheduleSessionSchema = z
   .object({
     scheduledStart: z.iso.datetime(),
     scheduledEnd: z.iso.datetime(),
+    silent: z.boolean().optional(),
   })
   .refine((value) => new Date(value.scheduledEnd) > new Date(value.scheduledStart), {
     error: 'scheduledEnd must be after scheduledStart',

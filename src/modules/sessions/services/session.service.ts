@@ -96,18 +96,22 @@ export class SessionService {
       durationMinutes,
     } as never);
 
-    // Enqueued unconditionally, same as before — the job itself
-    // (`meeting-update.job.ts`) now skips notifying while the parent plan is
-    // still DRAFT. That check couldn't live here: `SessionService` sits
-    // inside `sessions.module.js`, which `training-plans` already depends on
-    // (`session-scheduling.service.js` imports `Session` from it), so
-    // reaching back into `training-plans.module.js` from here would create
-    // an import cycle. The job runs outside that module graph, so it can
-    // safely read plan status.
-    await queueService.enqueue('meeting.update', {
-      sessionId: session.id,
-      organizationId: actor.organizationId,
-    });
+    // `silent` (the plan wizard's own per-pick calls, before or during a
+    // re-edit of an already-confirmed plan) skips notifying entirely,
+    // regardless of the parent plan's current status — status alone can't be
+    // trusted here: editing an existing plan re-runs `suggest()`, which
+    // drops it back to DRAFT, but a session picked over the following few
+    // steps can still race a confirm from another tab, or the manager can be
+    // editing a plan that's genuinely still CONFIRMED at the moment a
+    // picker fires. Every other caller (Sessions/Calendar screens
+    // rescheduling a live session) omits `silent` and keeps notifying as
+    // before.
+    if (!dto.silent) {
+      await queueService.enqueue('meeting.update', {
+        sessionId: session.id,
+        organizationId: actor.organizationId,
+      });
+    }
 
     await queueService.removeJob('session.reminder', `session-reminder-${session.id}`);
     const reminderDelayMs = scheduledStart.getTime() - REMINDER_LEAD_TIME_MS - Date.now();

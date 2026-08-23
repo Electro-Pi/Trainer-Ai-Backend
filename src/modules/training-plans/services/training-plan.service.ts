@@ -164,14 +164,24 @@ export class TrainingPlanService {
       throw new ConflictError('A completed or cancelled plan can’t be edited');
     }
 
-    if (plan.status !== 'DRAFT') {
-      const existing = await this.scheduling.findSessionsByPlan(plan.id);
-      const cancellableStatuses = new Set(['SCHEDULED', 'INVITED', 'IN_PROGRESS']);
-      for (const session of existing) {
-        if (cancellableStatuses.has(session.status)) {
-          await this.sessionService.cancel(actor, session.id);
-        }
+    // Cancel any existing live session regardless of the PLAN's current
+    // status, not just when it's non-DRAFT: a session can carry a real
+    // `graphEventId` (and so survive `replaceSuggestedSessions()`'s
+    // `deleteByPlan`, which deliberately skips those) even while its plan
+    // reads DRAFT — e.g. a plan a previous `suggest()` call already dropped
+    // back to DRAFT earlier in the same edit session, but whose sessions
+    // still carry meetings from before that. Gating this on plan status
+    // alone left those old sessions never cancelled and never deleted,
+    // sitting alongside the freshly-generated ones — the plan ends up with
+    // duplicate sessions for the same outcome, one stale.
+    const existing = await this.scheduling.findSessionsByPlan(plan.id);
+    const cancellableStatuses = new Set(['SCHEDULED', 'INVITED', 'IN_PROGRESS']);
+    for (const session of existing) {
+      if (cancellableStatuses.has(session.status)) {
+        await this.sessionService.cancel(actor, session.id);
       }
+    }
+    if (plan.status !== 'DRAFT') {
       await this.plans.update(plan.id, { status: 'DRAFT', confirmedAt: null } as never);
     }
 
@@ -294,8 +304,14 @@ export class TrainingPlanService {
     // must not undo the confirm — sessions are already real regardless.
     try {
       const learner = await learnerRepository.findByIdScoped(plan.learnerId);
-      if (learner) {
-        const orderedSessions = [...sessions].sort(
+      // A picker slipping into the past while the manager was still working
+      // through the wizard (a session left over from an earlier suggest pass,
+      // or simply time elapsing during a long edit) shouldn't appear in the
+      // "here's what's coming up" summary the learner reads right after
+      // confirming — only sessions still ahead of them belong in it.
+      const upcomingSessions = sessions.filter((session) => session.scheduledStart > new Date());
+      if (learner && upcomingSessions.length > 0) {
+        const orderedSessions = [...upcomingSessions].sort(
           (a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime(),
         );
         const rows: PlanConfirmationSessionRow[] = await Promise.all(

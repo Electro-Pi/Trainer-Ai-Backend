@@ -5,30 +5,26 @@ const COPY = {
     subject: () => 'Your training plan is confirmed',
     preheader: (count: number) => `${count} session${count === 1 ? '' : 's'} scheduled.`,
     greeting: (learnerName: string) => `Hi ${learnerName},`,
-    body: () =>
-      'Your training plan has been scheduled. Here’s every session — each also has its own calendar invite in your Outlook mailbox.',
+    body: () => 'Your training plan has been scheduled. Here’s what’s coming up:',
     sessionLabel: (n: number) => `Session ${n}`,
     dateLabel: 'Date',
     timeLabel: 'Time',
     durationLabel: 'Duration',
-    minutes: (n: number) => `${n} minutes`,
-    calendarNote:
-      'Calendar invitations for every session above have also been sent to your Outlook mailbox.',
+    minutes: (n: number) => `${n} min`,
+    calendarNote: 'Each session above also has its own calendar invite in your Outlook mailbox.',
     signOff: 'This is an automated message from MODRB — please don’t reply to this email.',
   },
   AR: {
     subject: () => 'تم تأكيد خطتك التدريبية',
     preheader: (count: number) => `تم جدولة ${count} جلسة.`,
     greeting: (learnerName: string) => `مرحباً ${learnerName}،`,
-    body: () =>
-      'تم جدولة خطتك التدريبية. فيما يلي جميع الجلسات — كل جلسة لها أيضاً دعوة تقويم خاصة بها في بريدك على Outlook.',
+    body: () => 'تم جدولة خطتك التدريبية. إليك الجلسات القادمة:',
     sessionLabel: (n: number) => `الجلسة ${n}`,
     dateLabel: 'التاريخ',
     timeLabel: 'الوقت',
     durationLabel: 'المدة',
     minutes: (n: number) => `${n} دقيقة`,
-    calendarNote:
-      'تم أيضاً إرسال دعوات التقويم لجميع الجلسات أعلاه إلى بريدك الإلكتروني على Outlook.',
+    calendarNote: 'كل جلسة أعلاه لها أيضاً دعوة تقويم خاصة بها في بريدك الإلكتروني على Outlook.',
     signOff: 'هذه رسالة آلية من منصة MODRB — يرجى عدم الرد على هذا البريد.',
   },
 } as const;
@@ -63,21 +59,31 @@ export function renderPlanConfirmationEmailHtml(params: {
   const t = COPY[params.language];
   const dir = params.language === 'AR' ? 'rtl' : 'ltr';
   const align = dir === 'rtl' ? 'right' : 'left';
+  const badgeMargin = dir === 'rtl' ? 'margin-left' : 'margin-right';
 
   const sessionRows = params.sessions
     .map(
       (s, i) => `
                 <tr>
-                  <td style="padding:16px 0;border-top:1px solid ${BRAND.line};">
+                  <td style="padding:${i === 0 ? '4' : '18'}px 0 18px;${i === params.sessions.length - 1 ? '' : `border-bottom:1px solid ${BRAND.line};`}">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td style="padding:0 0 6px;font-size:13px;font-weight:700;color:${BRAND.ink};">${t.sessionLabel(i + 1)} — ${s.skillName}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:0 0 8px;font-size:12.5px;color:${BRAND.ink2};">${s.outcomeTitle}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:2px 0;font-size:13px;color:${BRAND.primary700};"><strong>${t.dateLabel}:</strong> ${s.date} &nbsp;·&nbsp; <strong>${t.timeLabel}:</strong> ${s.time} &nbsp;·&nbsp; <strong>${t.durationLabel}:</strong> ${t.minutes(s.durationMinutes)}</td>
+                        <td width="34" valign="top" style="${badgeMargin}:12px;">
+                          <table role="presentation" width="26" height="26" cellpadding="0" cellspacing="0" style="width:26px;height:26px;background:${BRAND.primaryTint};border:1px solid ${BRAND.line};border-radius:7px;">
+                            <tr><td align="center" style="font-size:12px;font-weight:700;color:${BRAND.primary700};">${i + 1}</td></tr>
+                          </table>
+                        </td>
+                        <td valign="top">
+                          <p style="margin:0 0 3px;font-size:13.5px;font-weight:700;color:${BRAND.ink};">${s.skillName}</p>
+                          <p style="margin:0 0 10px;font-size:12.5px;line-height:1.5;color:${BRAND.ink2};">${s.outcomeTitle}</p>
+                          <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND.primaryTint};border-radius:8px;">
+                            <tr>
+                              <td style="padding:8px 12px;font-size:12.5px;color:${BRAND.primary700};white-space:nowrap;">
+                                <strong>${s.date}</strong> &nbsp;·&nbsp; <strong>${s.time}</strong> &nbsp;·&nbsp; ${t.minutes(s.durationMinutes)}
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
                       </tr>
                     </table>
                   </td>
@@ -105,20 +111,20 @@ export function renderPlanConfirmationEmailHtml(params: {
             </td>
           </tr>
           <tr>
-            <td style="padding:28px 36px 8px;text-align:${align};">
+            <td style="padding:28px 36px 4px;text-align:${align};">
               <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${BRAND.ink};">${t.greeting(params.learnerName)}</p>
-              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:${BRAND.ink};">${t.body()}</p>
+              <p style="margin:0 0 4px;font-size:15px;line-height:1.6;color:${BRAND.ink};">${t.body()}</p>
             </td>
           </tr>
           <tr>
-            <td style="padding:0 36px 8px;text-align:${align};">
+            <td style="padding:8px 36px 4px;text-align:${align};">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 ${sessionRows}
               </table>
             </td>
           </tr>
           <tr>
-            <td style="padding:20px 36px;background:${BRAND.primaryTint};text-align:${align};margin-top:12px;">
+            <td style="padding:20px 36px;background:${BRAND.primaryTint};text-align:${align};">
               <p style="margin:0;font-size:12px;line-height:1.6;color:${BRAND.primary700};">${t.calendarNote}</p>
             </td>
           </tr>

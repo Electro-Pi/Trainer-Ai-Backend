@@ -122,8 +122,20 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
     return rows[0] ?? null;
   }
 
+  /**
+   * Excludes CANCELLED — a reschedule inside `suggest()`'s replace flow (or a
+   * plan-edit `suggest()` re-run) cancels the old row rather than deleting
+   * it, so a plan can accumulate CANCELLED ghosts at the same `sequence` as
+   * the session that superseded them. Every caller (wizard session list,
+   * coverage, confirm, cancel, report summary) wants the plan's live
+   * sessions, never those ghosts — a caller that genuinely needs full
+   * history should query status-unfiltered explicitly instead.
+   */
   async findByPlan(planId: string): Promise<Session[]> {
-    return this.delegate.findMany({ where: { planId }, orderBy: { scheduledStart: 'asc' } });
+    return this.delegate.findMany({
+      where: { planId, status: { not: 'CANCELLED' } },
+      orderBy: { scheduledStart: 'asc' },
+    });
   }
 
   /**
