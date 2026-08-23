@@ -236,7 +236,7 @@ export class TrackService {
           path: 'id',
           code: 'has_children',
           message:
-            'This track has levels, content, or plan templates attached and can’t be deleted. Archive it instead.',
+            'This track has levels, content, plan templates, or learner plans attached and can’t be deleted. Archive it instead.',
         },
       ]);
     }

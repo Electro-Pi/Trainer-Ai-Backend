@@ -77,6 +77,7 @@ export async function seedDemo(organizationId: string): Promise<void> {
     const learnerSara = await upsertLearner({
       organizationId,
       teamId: team.id,
+      departmentId: salesTrack.departmentId,
       entraObjectId: 'demo-learner-sara',
       email: 'sara@demo.electropi.ai',
       displayName: 'Sara Ahmed',
@@ -85,6 +86,7 @@ export async function seedDemo(organizationId: string): Promise<void> {
     const learnerYoussef = await upsertLearner({
       organizationId,
       teamId: team.id,
+      departmentId: salesTrack.departmentId,
       entraObjectId: 'demo-learner-youssef',
       email: 'youssef@demo.electropi.ai',
       displayName: 'Youssef Adel',
@@ -335,6 +337,7 @@ async function upsertByUniqueName<T>(
 async function upsertLearner(input: {
   organizationId: string;
   teamId: string;
+  departmentId: string;
   entraObjectId: string;
   email: string;
   displayName: string;
@@ -348,7 +351,11 @@ async function upsertLearner(input: {
       },
     },
     create: input,
-    update: { displayName: input.displayName, jobTitle: input.jobTitle },
+    update: {
+      displayName: input.displayName,
+      jobTitle: input.jobTitle,
+      departmentId: input.departmentId,
+    },
   });
 }
 
