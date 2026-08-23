@@ -24,5 +24,7 @@ echo "⏳ Building..."
 echo "⏳ Restarting service..."
 sudo /usr/bin/systemctl restart trainer-ai-backend.service
 
+echo "⏳ Restarting queue worker..."
+sudo /usr/bin/systemctl restart trainer-ai-worker.service
+
 echo "✅ Deployment complete"
-#test
