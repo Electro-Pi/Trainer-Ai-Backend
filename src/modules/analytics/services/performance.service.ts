@@ -183,6 +183,7 @@ export class PerformanceService {
         averageScore: t.averageScore,
         outcomeAchievementRate: t.outcomeAchievementRate,
       })),
+      learners: perTeam.flatMap((t) => t.learners),
     };
   }
 }

@@ -36,6 +36,10 @@ export interface OrganizationPerformanceResponseDto {
     averageScore: number | null;
     outcomeAchievementRate: number | null;
   }[];
+  /** Every learner across every team in the org, flattened — lets an ADMIN's
+   *  org-wide views (e.g. a team member's profile) resolve a learner's plan
+   *  status without knowing in advance which team owns them. */
+  learners: LearnerPerformanceRow[];
 }
 
 export interface SkillCoverageRow {
