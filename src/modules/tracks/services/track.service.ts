@@ -223,25 +223,32 @@ export class TrackService {
   }
 
   /**
-   * Hard delete — only permitted while the track is still empty (no levels,
-   * no content, no plan templates). Anything with real training data
-   * attached must be archived (`setEnabled(false)`) instead, never deleted.
+   * Hard delete — permitted for any track with no real learner plan
+   * attached (`hasLearnerPlan`: no `LearnerAssignment`, no saved
+   * `PlanTemplate`). Unlike the old empty-only rule, this cascades away the
+   * track's own levels/skills/outcomes/content along with it — safe because
+   * `hasLearnerPlan` returning false guarantees nothing with real learner
+   * history (`Session`/`Assessment`/`Recommendation`/`LearnerOutcome`) can
+   * reference any of it; every one of those requires a `LearnerAssignment`
+   * to exist first (see `TrackRepository.deleteDeep`'s own doc comment). A
+   * track with a real learner plan or a saved template still must be
+   * archived (`setEnabled(false)`), never deleted.
    */
   async delete(actor: ActingUser, id: string): Promise<void> {
     const track = await this.getById(id);
 
-    if (await this.tracks.hasChildren(id)) {
+    if (await this.tracks.hasLearnerPlan(id)) {
       throw new ValidationError([
         {
           path: 'id',
-          code: 'has_children',
+          code: 'has_learner_plan',
           message:
-            'This track has levels, content, plan templates, or learner plans attached and can’t be deleted. Archive it instead.',
+            'This track has a learner plan or a saved template attached and can’t be deleted. Archive it instead.',
         },
       ]);
     }
 
-    await this.tracks.delete(id);
+    await this.tracks.deleteDeep(id);
 
     await writeAuditLog({
       organizationId: actor.organizationId,

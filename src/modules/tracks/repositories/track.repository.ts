@@ -176,22 +176,112 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
   }
 
   /**
-   * A track can only be hard-deleted while it's still empty — no `Level` has
-   * ever been added, no `ContentItem`/`PlanTemplate` references it directly,
-   * and no `LearnerAssignment` (i.e. no learner plan) has ever used it.
-   * Once any of those exist, deleting the track would either orphan real
-   * training data or hit the FK constraint (neither relation cascades —
-   * deletion is deliberately not modeled beyond this empty case, per the
-   * deactivate/archive-not-delete convention for populated records).
+   * The one hard, un-cascadable block on deleting a track: a real learner
+   * plan (`LearnerAssignment`) or a saved-as-template plan structure
+   * (`PlanTemplate`) referencing it. Both are deliberate artifacts (a real
+   * learner's training history, or a manager's explicit "save as template"
+   * action) — never silently destroyed, archive instead. Levels/skills/
+   * outcomes/content on the track are NOT checked here — see `deleteDeep`,
+   * which cascades those away as long as this check passes, since none of
+   * them can have real learner data attached without a `LearnerAssignment`
+   * existing first (every session/assessment/recommendation chain requires
+   * one).
    */
-  async hasChildren(id: string): Promise<boolean> {
-    const [levelCount, contentCount, templateCount, assignmentCount] = await Promise.all([
-      prisma.level.count({ where: { trackId: id } }),
-      prisma.contentItem.count({ where: { trackId: id } }),
-      prisma.planTemplate.count({ where: { trackId: id } }),
+  async hasLearnerPlan(id: string): Promise<boolean> {
+    const [assignmentCount, templateCount] = await Promise.all([
       prisma.learnerAssignment.count({ where: { trackId: id } }),
+      prisma.planTemplate.count({ where: { trackId: id } }),
     ]);
-    return levelCount > 0 || contentCount > 0 || templateCount > 0 || assignmentCount > 0;
+    return assignmentCount > 0 || templateCount > 0;
+  }
+
+  /**
+   * Cascade-deletes a track that has no learner plan attached
+   * (`hasLearnerPlan` already checked by the caller) — every level, skill,
+   * outcome, and content item it owns, plus everything hanging directly off
+   * those (rubrics/question banks, slide decks, content chunks/media,
+   * prerequisites, effectiveness rows), then the track itself. Safe to wipe
+   * because `hasLearnerPlan` returning false guarantees no `Session`/
+   * `Assessment`/`LearnerOutcome`/`Recommendation` can reference any of this
+   * — every one of those requires a `LearnerAssignment` (directly or via
+   * `TrainingPlan.assignmentId`) to exist first.
+   *
+   * One `prisma.$transaction` so a failure partway never leaves the track
+   * half-deleted. Deletes children before parents throughout (FK order).
+   */
+  async deleteDeep(id: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      const levels = await tx.level.findMany({ where: { trackId: id }, select: { id: true } });
+      const levelIds = levels.map((l) => l.id);
+
+      const skills = await tx.skill.findMany({
+        where: { levelId: { in: levelIds } },
+        select: { id: true },
+      });
+      const skillIds = skills.map((s) => s.id);
+
+      const outcomes = await tx.outcome.findMany({
+        where: { levelId: { in: levelIds } },
+        select: { id: true },
+      });
+      const outcomeIds = outcomes.map((o) => o.id);
+
+      const contentItems = await tx.contentItem.findMany({
+        where: { trackId: id },
+        select: { id: true },
+      });
+      const contentItemIds = contentItems.map((c) => c.id);
+
+      const mediaAssets = await tx.mediaAsset.findMany({
+        where: { contentItemId: { in: contentItemIds } },
+        select: { id: true },
+      });
+      const mediaAssetIds = mediaAssets.map((m) => m.id);
+
+      const rubrics = await tx.rubric.findMany({
+        where: { outcomeId: { in: outcomeIds } },
+        select: { id: true },
+      });
+      const rubricIds = rubrics.map((r) => r.id);
+
+      const questionBanks = await tx.questionBank.findMany({
+        where: { outcomeId: { in: outcomeIds } },
+        select: { id: true },
+      });
+      const questionBankIds = questionBanks.map((q) => q.id);
+
+      // Content-side leaves first.
+      await tx.contentChunk.deleteMany({ where: { contentItemId: { in: contentItemIds } } });
+      await tx.mediaAsset.deleteMany({ where: { id: { in: mediaAssetIds } } });
+      await tx.contentEffectiveness.deleteMany({
+        where: { contentItemId: { in: contentItemIds } },
+      });
+      await tx.contentPrerequisite.deleteMany({
+        where: {
+          OR: [
+            { contentItemId: { in: contentItemIds } },
+            { prerequisiteContentId: { in: contentItemIds } },
+            { prerequisiteOutcomeId: { in: outcomeIds } },
+          ],
+        },
+      });
+      await tx.contentOutcome.deleteMany({ where: { contentItemId: { in: contentItemIds } } });
+      await tx.contentItem.deleteMany({ where: { id: { in: contentItemIds } } });
+
+      // Outcome-side leaves.
+      await tx.question.deleteMany({ where: { questionBankId: { in: questionBankIds } } });
+      await tx.questionBank.deleteMany({ where: { id: { in: questionBankIds } } });
+      await tx.rubricCriterion.deleteMany({ where: { rubricId: { in: rubricIds } } });
+      await tx.rubric.deleteMany({ where: { id: { in: rubricIds } } });
+
+      // Skill-side leaves.
+      await tx.slideDeck.deleteMany({ where: { skillId: { in: skillIds } } });
+
+      await tx.outcome.deleteMany({ where: { id: { in: outcomeIds } } });
+      await tx.skill.deleteMany({ where: { id: { in: skillIds } } });
+      await tx.level.deleteMany({ where: { id: { in: levelIds } } });
+      await tx.track.delete({ where: { id } });
+    });
   }
 
   /**
