@@ -19,7 +19,7 @@ type DepartmentDelegate = typeof prisma.department;
  */
 export class DepartmentRepository extends BaseRepository<Department, DepartmentDelegate> {
   constructor() {
-    super(prisma.department, 'name');
+    super(prisma.department, 'nameEn');
   }
 
   async findManyInOrganization(organizationId: string, limit: number, cursor?: string) {
@@ -34,8 +34,8 @@ export class DepartmentRepository extends BaseRepository<Department, DepartmentD
     return this.delegate.findFirst({ where: { id, organizationId } as never });
   }
 
-  async findByName(organizationId: string, name: string): Promise<Department | null> {
-    return this.delegate.findFirst({ where: { organizationId, name } as never });
+  async findByNameEn(organizationId: string, nameEn: string): Promise<Department | null> {
+    return this.delegate.findFirst({ where: { organizationId, nameEn } as never });
   }
 
   /** Counts of what's still attached to this department — the delete guard's basis for "empty". */

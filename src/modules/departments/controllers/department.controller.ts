@@ -21,7 +21,8 @@ function toResponseDto(department: Department): DepartmentResponseDto {
   return {
     id: department.id,
     organizationId: department.organizationId,
-    name: department.name,
+    nameEn: department.nameEn,
+    nameAr: department.nameAr,
     isEnabled: department.isEnabled,
     createdAt: department.createdAt.toISOString(),
     updatedAt: department.updatedAt.toISOString(),

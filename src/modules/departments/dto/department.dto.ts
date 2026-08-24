@@ -1,18 +1,22 @@
 export interface DepartmentResponseDto {
   id: string;
   organizationId: string;
-  name: string;
+  nameEn: string;
+  nameAr: string;
   isEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateDepartmentDto {
-  name: string;
+  nameEn: string;
+  nameAr: string;
+  isEnabled?: boolean;
 }
 
 export interface UpdateDepartmentDto {
-  name?: string;
+  nameEn?: string;
+  nameAr?: string;
   isEnabled?: boolean;
 }
 

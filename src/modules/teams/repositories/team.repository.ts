@@ -39,9 +39,9 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
   async findDepartmentName(teamId: string): Promise<string | null> {
     const row = await prisma.team.findFirst({
       where: { id: teamId },
-      select: { department: { select: { name: true } } },
+      select: { department: { select: { nameEn: true } } },
     });
-    return row?.department.name ?? null;
+    return row?.department.nameEn ?? null;
   }
 
   /** The delete guard's basis for "empty" — the only thing that ever references a team. */

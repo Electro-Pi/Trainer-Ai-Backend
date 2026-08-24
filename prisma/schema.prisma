@@ -207,7 +207,8 @@ model Organization {
 model Department {
   id             String   @id @default(cuid(2))
   organizationId String
-  name           String
+  nameEn         String
+  nameAr         String
   isEnabled      Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -217,7 +218,7 @@ model Department {
   tracks       Track[]
   learners     Learner[]
 
-  @@unique([organizationId, name])
+  @@unique([organizationId, nameEn])
   @@index([organizationId])
   @@map("departments")
 }

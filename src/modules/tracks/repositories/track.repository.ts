@@ -54,9 +54,9 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
   async findDepartmentName(trackId: string): Promise<string | null> {
     const row = await prisma.track.findFirst({
       where: { id: trackId },
-      select: { department: { select: { name: true } } },
+      select: { department: { select: { nameEn: true } } },
     });
-    return row?.department.name ?? null;
+    return row?.department.nameEn ?? null;
   }
 
   async findManyByTrack(where: Prisma.TrackWhereInput): Promise<Track[]> {
@@ -304,7 +304,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
   async findPublicByKey(): Promise<(Track & { departmentName: string })[]> {
     return prisma.$queryRaw<(Track & { departmentName: string })[]>`
       SELECT * FROM (
-        SELECT DISTINCT ON (t."key") t.*, d."name" AS "departmentName"
+        SELECT DISTINCT ON (t."key") t.*, d."nameEn" AS "departmentName"
         FROM "tracks" t
         JOIN "departments" d ON d."id" = t."departmentId"
         WHERE t."isEnabled" = true
@@ -476,7 +476,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
 
       const departmentRow = await tx.department.findFirst({
         where: { id: track.departmentId },
-        select: { name: true },
+        select: { nameEn: true },
       });
 
       return {
@@ -489,7 +489,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           descriptionEn: track.descriptionEn,
           descriptionAr: track.descriptionAr,
           departmentId: track.departmentId,
-          departmentName: departmentRow?.name ?? '',
+          departmentName: departmentRow?.nameEn ?? '',
           targetSkills: track.targetSkills,
           trainingForm: track.trainingForm,
           impactIndicators: track.impactIndicators,

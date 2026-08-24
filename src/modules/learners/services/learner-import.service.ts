@@ -71,10 +71,14 @@ export class LearnerImportService {
   ): Promise<string | null> {
     if (!name) return null;
 
-    const existing = await departmentRepository.findByName(organizationId, name);
+    const existing = await departmentRepository.findByNameEn(organizationId, name);
     if (existing) return existing.id;
 
-    const created = await departmentRepository.create({ organizationId, name } as never);
+    const created = await departmentRepository.create({
+      organizationId,
+      nameEn: name,
+      nameAr: name,
+    } as never);
     return created.id;
   }
 

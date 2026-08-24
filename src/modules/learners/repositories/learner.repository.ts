@@ -52,10 +52,10 @@ export class LearnerRepository extends BaseRepository<Learner, LearnerDelegate> 
     const row = await prisma.learner.findFirst({
       where: { id: learnerId },
       select: {
-        department: { select: { name: true } },
-        team: { select: { department: { select: { name: true } } } },
+        department: { select: { nameEn: true } },
+        team: { select: { department: { select: { nameEn: true } } } },
       },
     });
-    return row?.department?.name ?? row?.team.department.name ?? null;
+    return row?.department?.nameEn ?? row?.team.department.nameEn ?? null;
   }
 }

@@ -32,16 +32,22 @@ export class DepartmentService {
   }
 
   async create(actor: ActingUser, dto: CreateDepartmentDto): Promise<Department> {
-    const existing = await this.departments.findByName(actor.organizationId, dto.name);
+    const existing = await this.departments.findByNameEn(actor.organizationId, dto.nameEn);
     if (existing) {
       throw new ValidationError([
-        { path: 'name', code: 'duplicate', message: 'A department with this name already exists' },
+        {
+          path: 'nameEn',
+          code: 'duplicate',
+          message: 'A department with this name already exists',
+        },
       ]);
     }
 
     const created = await this.departments.create({
       organizationId: actor.organizationId,
-      name: dto.name,
+      nameEn: dto.nameEn,
+      nameAr: dto.nameAr,
+      ...(dto.isEnabled !== undefined ? { isEnabled: dto.isEnabled } : {}),
     } as never);
 
     await writeAuditLog({
@@ -51,7 +57,7 @@ export class DepartmentService {
       action: 'department.created',
       entityType: 'Department',
       entityId: created.id,
-      after: { name: created.name },
+      after: { nameEn: created.nameEn, nameAr: created.nameAr, isEnabled: created.isEnabled },
     });
 
     return created;
@@ -60,12 +66,12 @@ export class DepartmentService {
   async update(actor: ActingUser, id: string, dto: UpdateDepartmentDto): Promise<Department> {
     const before = await this.getById(actor, id);
 
-    if (dto.name !== undefined && dto.name !== before.name) {
-      const existing = await this.departments.findByName(actor.organizationId, dto.name);
+    if (dto.nameEn !== undefined && dto.nameEn !== before.nameEn) {
+      const existing = await this.departments.findByNameEn(actor.organizationId, dto.nameEn);
       if (existing) {
         throw new ValidationError([
           {
-            path: 'name',
+            path: 'nameEn',
             code: 'duplicate',
             message: 'A department with this name already exists',
           },
@@ -74,7 +80,8 @@ export class DepartmentService {
     }
 
     const updated = await this.departments.update(id, {
-      ...(dto.name !== undefined ? { name: dto.name } : {}),
+      ...(dto.nameEn !== undefined ? { nameEn: dto.nameEn } : {}),
+      ...(dto.nameAr !== undefined ? { nameAr: dto.nameAr } : {}),
       ...(dto.isEnabled !== undefined ? { isEnabled: dto.isEnabled } : {}),
     } as never);
 
@@ -85,8 +92,8 @@ export class DepartmentService {
       action: 'department.updated',
       entityType: 'Department',
       entityId: id,
-      before: { name: before.name, isEnabled: before.isEnabled },
-      after: { name: updated.name, isEnabled: updated.isEnabled },
+      before: { nameEn: before.nameEn, nameAr: before.nameAr, isEnabled: before.isEnabled },
+      after: { nameEn: updated.nameEn, nameAr: updated.nameAr, isEnabled: updated.isEnabled },
     });
 
     return updated;
@@ -108,7 +115,7 @@ export class DepartmentService {
     const total = dependents.teams + dependents.tracks + dependents.learners;
     if (total > 0) {
       throw new ConflictError(
-        `Can’t delete “${before.name}” — it still has ${dependents.teams} team(s), ${dependents.tracks} track(s) and ${dependents.learners} learner(s) assigned. Move or remove them first.`,
+        `Can’t delete “${before.nameEn}” — it still has ${dependents.teams} team(s), ${dependents.tracks} track(s) and ${dependents.learners} learner(s) assigned. Move or remove them first.`,
       );
     }
 
@@ -121,7 +128,7 @@ export class DepartmentService {
       action: 'department.deleted',
       entityType: 'Department',
       entityId: id,
-      before: { name: before.name },
+      before: { nameEn: before.nameEn, nameAr: before.nameAr },
     });
   }
 }

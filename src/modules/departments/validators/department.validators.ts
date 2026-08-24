@@ -3,11 +3,14 @@ import { z } from 'zod';
 import { cuidSchema, nameSchema, paginationSchema } from '@/common/validators/primitives.js';
 
 export const createDepartmentSchema = z.object({
-  name: nameSchema,
+  nameEn: nameSchema,
+  nameAr: nameSchema,
+  isEnabled: z.boolean().optional(),
 });
 
 export const updateDepartmentSchema = z.object({
-  name: nameSchema.optional(),
+  nameEn: nameSchema.optional(),
+  nameAr: nameSchema.optional(),
   isEnabled: z.boolean().optional(),
 });
 

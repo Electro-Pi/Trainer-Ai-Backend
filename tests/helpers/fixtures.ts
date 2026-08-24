@@ -97,8 +97,9 @@ export async function grantFakeGraphSession(organizationId: string, userId: stri
  * `createTestOrganization`.
  */
 export async function createDepartment(organizationId: string, name = 'Sales') {
+  const nameEn = `${name} ${randomUUID()}`;
   return prisma.department.create({
-    data: { organizationId, name: `${name} ${randomUUID()}` },
+    data: { organizationId, nameEn, nameAr: nameEn },
   });
 }
 

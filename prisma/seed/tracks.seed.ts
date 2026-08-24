@@ -442,11 +442,11 @@ export const TRACKS: TrackSeed[] = [
   },
 ];
 
-/** Idempotent — upserts by `(organizationId, name)`, safe to re-run (P1-8). */
+/** Idempotent — upserts by `(organizationId, nameEn)`, safe to re-run (P1-8). */
 async function upsertDepartment(organizationId: string, name: string): Promise<string> {
   const department = await prisma.department.upsert({
-    where: { organizationId_name: { organizationId, name } },
-    create: { organizationId, name },
+    where: { organizationId_nameEn: { organizationId, nameEn: name } },
+    create: { organizationId, nameEn: name, nameAr: name },
     update: {},
   });
   return department.id;
