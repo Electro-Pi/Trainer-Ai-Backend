@@ -38,22 +38,21 @@ npm run seed
 
 ```bash
 npm install
-npm run dev          # API, tsx watch
-npm run dev:worker    # worker process, separate terminal
+npm run dev          # API + queue worker, tsx watch
 ```
 
 Requires a running Postgres (with the `vector` extension) and Redis reachable at the URLs in `.env`.
 
 ### Common commands
 
-| Command                              | Does                                              |
-| ------------------------------------ | ------------------------------------------------- |
-| `npm run dev` / `npm run dev:worker` | API / worker, watch mode                          |
-| `npm run build`                      | Compile to `dist/`                                |
-| `npm run typecheck`                  | `tsc --noEmit`                                    |
-| `npm run lint` / `npm run lint:fix`  | ESLint (architecture-enforcing rules — see below) |
-| `npm run test`                       | Vitest (Testcontainers-backed Postgres + Redis)   |
-| `npm run seed`                       | Idempotent demo data                              |
+| Command                             | Does                                              |
+| ----------------------------------- | ------------------------------------------------- |
+| `npm run dev`                       | API + queue worker, watch mode                    |
+| `npm run build`                     | Compile to `dist/`                                |
+| `npm run typecheck`                 | `tsc --noEmit`                                    |
+| `npm run lint` / `npm run lint:fix` | ESLint (architecture-enforcing rules — see below) |
+| `npm run test`                      | Vitest (Testcontainers-backed Postgres + Redis)   |
+| `npm run seed`                      | Idempotent demo data                              |
 
 ---
 
@@ -69,7 +68,7 @@ Full detail lives in [`context/ARCHITECTURE.md`](context/ARCHITECTURE.md); decis
 
 **The differentiator — a deterministic recommendation engine, not an LLM ranker.** Six pure-function signals (outcome relevance, priority, level fit, question-level gap, effectiveness, semantic similarity via pgvector) combine by fixed weights into a `signalBreakdown` that's inspectable, unit-testable, and fast enough for the < 2s in-session remediation path. Every recommendation writes `PROPOSED` only — nothing reaches a learner's plan without manager confirmation.
 
-**Everything slow or external goes through a queue job** (pg-boss, on the same Postgres database — no separate broker), never inline in a request — upload → scan → OCR → embed is a queue pipeline from day one; meetings, reports, emails, the nightly effectiveness recompute and the retention sweep (`cleanup.job`) are all jobs. `src/queue/worker.ts` is a separate process.
+**Everything slow or external goes through a queue job** (pg-boss, on the same Postgres database — no separate broker), never inline in a request — upload → scan → OCR → embed is a queue pipeline from day one; meetings, reports, emails, the nightly effectiveness recompute and the retention sweep (`cleanup.job`) are all jobs. `src/queue/start-worker.ts` registers the processors and cron schedules; `src/index.ts` starts them in-process alongside the API server.
 
 **Every external dependency has a fake, and the fake is the dev/test default** — see below.
 

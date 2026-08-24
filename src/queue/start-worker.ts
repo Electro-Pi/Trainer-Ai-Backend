@@ -1,6 +1,5 @@
-import type { Job } from 'pg-boss';
+import type { Job, PgBoss } from 'pg-boss';
 
-import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
 
 import { processCleanupJob } from './jobs/cleanup.job.js';
@@ -13,36 +12,8 @@ import { processScanMediaJob } from './jobs/scan-media.job.js';
 import { processSendInviteJob } from './jobs/send-invite.job.js';
 import { processSendReminderJob } from './jobs/send-reminder.job.js';
 import { processSendReportJob } from './jobs/send-report.job.js';
-import { createQueueConnection, createQueueService } from './queue.service.js';
+import type { QueueService } from './queue.service.js';
 import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
-
-const connection = createQueueConnection();
-const queueService = createQueueService(connection);
-
-// pg-boss is a plain `EventEmitter` — Node's default behavior for an
-// `error` event with no listener is to throw and crash the whole process
-// (`ERR_UNHANDLED_ERROR`). A transient dropped DB connection ("Connection
-// terminated unexpectedly") is exactly the kind of blip a worker needs to
-// ride out, not die from — without this listener, one bad connection kills
-// every queue this process owns until something manually restarts it.
-connection.on('error', (err: unknown) => {
-  logger.error({ err }, 'pg-boss connection error — worker staying up');
-});
-
-// Belt-and-suspenders on top of the listener above: pg-boss's internal
-// poll loop (`Navigator#onPoll`) can reject a promise from a path that
-// reaches Node's process-level crash guard before — or instead of —
-// emitting through the `PgBoss` instance's own `error` event (observed in
-// practice: a dropped connection during a poll cycle crashed the process
-// with `connection.on('error', ...)` already attached). A long-running
-// worker should never die from a transient DB hiccup on any code path,
-// so this catches whatever the targeted listener above doesn't.
-process.on('uncaughtException', (err: unknown) => {
-  logger.error({ err }, 'worker: uncaught exception — staying up');
-});
-process.on('unhandledRejection', (err: unknown) => {
-  logger.error({ err }, 'worker: unhandled rejection — staying up');
-});
 
 type Processor<K extends QueueName> = (payload: QueuePayloads[K]) => Promise<void>;
 
@@ -65,7 +36,24 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'invite.send': processSendInviteJob,
 };
 
-async function main(): Promise<void> {
+/**
+ * Registers every job processor plus the nightly/periodic cron schedules on
+ * the given pg-boss connection. Shared by `index.ts` (API process, since the
+ * worker now runs in-process rather than as its own `worker.js` deployment)
+ * — same processors, same cron patterns, same crash-resilience listeners as
+ * the old standalone worker.
+ */
+export async function startWorker(connection: PgBoss, queueService: QueueService): Promise<void> {
+  // pg-boss is a plain `EventEmitter` — Node's default behavior for an
+  // `error` event with no listener is to throw and crash the whole process
+  // (`ERR_UNHANDLED_ERROR`). A transient dropped DB connection ("Connection
+  // terminated unexpectedly") is exactly the kind of blip a worker needs to
+  // ride out, not die from — without this listener, one bad connection kills
+  // every queue this process owns until something manually restarts it.
+  connection.on('error', (err: unknown) => {
+    logger.error({ err }, 'pg-boss connection error — worker staying up');
+  });
+
   await queueService.ensureAllQueues();
 
   for (const name of QUEUE_NAMES) {
@@ -86,8 +74,8 @@ async function main(): Promise<void> {
   }
 
   // Nightly cron registration (§10.1, `RC-13`) — `schedule` upserts by queue
-  // name, so re-running this on every worker boot updates the pattern in
-  // place rather than accumulating duplicate schedules.
+  // name, so re-running this on every boot updates the pattern in place
+  // rather than accumulating duplicate schedules.
   await queueService
     .scheduleCron('effectiveness.recompute', {}, '0 2 * * *')
     .catch((err: unknown) => {
@@ -102,19 +90,5 @@ async function main(): Promise<void> {
     logger.error({ err }, 'Failed to register health.alert cron schedule');
   });
 
-  logger.info({ queues: QUEUE_NAMES, env: env.NODE_ENV }, 'Worker process started');
+  logger.info({ queues: QUEUE_NAMES }, 'Queue worker started');
 }
-
-void main().catch((err: unknown) => {
-  logger.error({ err }, 'Worker failed to start');
-  process.exit(1);
-});
-
-async function shutdown(signal: string): Promise<void> {
-  logger.info({ signal }, 'Worker shutting down');
-  await connection.stop();
-  process.exit(0);
-}
-
-process.on('SIGTERM', () => void shutdown('SIGTERM'));
-process.on('SIGINT', () => void shutdown('SIGINT'));

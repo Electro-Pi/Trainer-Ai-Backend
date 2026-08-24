@@ -21,13 +21,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov', 'json-summary'],
       include: ['src/**/*.ts'],
-      exclude: [
-        'src/**/*.d.ts',
-        'src/index.ts',
-        'src/queue/worker.ts',
-        'src/config/**',
-        'src/swagger/**',
-      ],
+      exclude: ['src/**/*.d.ts', 'src/index.ts', 'src/config/**', 'src/swagger/**'],
     },
   },
 });

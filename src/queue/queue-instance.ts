@@ -6,7 +6,7 @@ import { createQueueConnection, createQueueService } from './queue.service.js';
 // instance) needs to enqueue a job.
 // One pg-boss connection (on the same Postgres database), shared by every
 // enqueue call in the api process.
-const connection = createQueueConnection();
+export const connection = createQueueConnection();
 export const queueService = createQueueService(connection);
 
 export async function closeQueueService(): Promise<void> {

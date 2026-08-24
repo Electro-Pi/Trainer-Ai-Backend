@@ -71,22 +71,5 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ['node', 'dist/queue/worker.js']
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trainer_ai?schema=public
-      CLAMAV_HOST: clamav
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-
 volumes:
   postgres-data:
