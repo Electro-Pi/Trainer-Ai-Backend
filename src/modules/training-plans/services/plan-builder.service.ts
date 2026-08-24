@@ -6,6 +6,7 @@ import {
   learnerOutcomeRepository,
   learnerRepository,
 } from '@/modules/learners/learners.module.js';
+import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import type {
   RecommendationItemResult,
   ScoredItem,
@@ -22,6 +23,8 @@ const DEFAULT_SESSION_DURATION_MINUTES = 60;
 export interface SuggestedSession {
   sequence: number;
   primaryOutcomeId: string;
+  /** Every outcome this session covers, including `primaryOutcomeId` — one skill's outcomes are grouped into a single session rather than one session per outcome. */
+  outcomeIds: string[];
   durationMinutes: number;
   contentItemIds: string[];
 }
@@ -56,7 +59,7 @@ export class PlanBuilderService {
 
     const snapshotTree = await this.snapshots.findByTrainingPlanId(params.trainingPlanId);
 
-    const { items, requiredOutcomes } = snapshotTree
+    const { items, requiredOutcomes, outcomeToSkill } = snapshotTree
       ? await this.generateFromSnapshotTree(params.learnerId, snapshotTree)
       : await this.generateFromMasterCatalogue(params.organizationId, params.learnerId);
 
@@ -66,7 +69,12 @@ export class PlanBuilderService {
     // run real coaching sessions; content can be attached to sessions later
     // once it exists. Only content-driven building is skipped, not the plan.
     if (items.length === 0) {
-      return this.suggestFromOutcomesOnly(requiredOutcomes, params.trainingDays, durationMinutes);
+      return this.suggestFromOutcomesOnly(
+        requiredOutcomes,
+        outcomeToSkill,
+        params.trainingDays,
+        durationMinutes,
+      );
     }
 
     // Fetched once for the whole breakdown — every session slot below scores
@@ -80,12 +88,27 @@ export class PlanBuilderService {
     let remainingItems = items;
     let sequence = 1;
 
+    // Grouped by skill, not outcome — a skill with several outcomes gets one
+    // session covering all of them (one manager-facing session per skill,
+    // matching how the wizard's own skill editor scopes work), rather than
+    // one session per outcome. `pickPrimarySkill` still ranks by the
+    // required-outcomes priority order, it just resolves to a skill instead
+    // of a single outcome; `primaryOutcomeId` on the resulting session is
+    // the highest-priority outcome within that skill (the FK every other
+    // consumer — reports, transcripts, the AI Trainer dispatch — already
+    // expects one of), with the rest written to `outcomeIds` for
+    // `SessionOutcome`.
     for (; sequence <= params.trainingDays && remainingItems.length > 0; sequence++) {
-      const primaryOutcomeId = this.pickPrimaryOutcome(remainingItems, requiredOutcomes);
+      const skillId = this.pickPrimarySkill(remainingItems, requiredOutcomes, outcomeToSkill);
       const candidatesForSlot = remainingItems.filter(
-        (item) => item.outcomeId === primaryOutcomeId,
+        (item) => (outcomeToSkill.get(item.outcomeId) ?? item.outcomeId) === skillId,
       );
-      const otherItems = remainingItems.filter((item) => item.outcomeId !== primaryOutcomeId);
+      const otherItems = remainingItems.filter(
+        (item) => (outcomeToSkill.get(item.outcomeId) ?? item.outcomeId) !== skillId,
+      );
+
+      const outcomeIdsForSlot = [...new Set(candidatesForSlot.map((item) => item.outcomeId))];
+      const primaryOutcomeId = this.pickPrimaryOutcome(outcomeIdsForSlot, requiredOutcomes);
 
       const scoredForFit = this.toScoredItems(candidatesForSlot, contentById);
       const fit = this.durationFit.fit(scoredForFit, durationMinutes);
@@ -93,6 +116,7 @@ export class PlanBuilderService {
       sessions.push({
         sequence,
         primaryOutcomeId,
+        outcomeIds: outcomeIdsForSlot,
         durationMinutes,
         contentItemIds: fit.fitted.map((item) => item.contentItem.id),
       });
@@ -111,14 +135,31 @@ export class PlanBuilderService {
   private async generateFromMasterCatalogue(
     organizationId: string,
     learnerId: string,
-  ): Promise<{ items: RecommendationItemResult[]; requiredOutcomes: LearnerOutcome[] }> {
+  ): Promise<{
+    items: RecommendationItemResult[];
+    requiredOutcomes: LearnerOutcome[];
+    outcomeToSkill: Map<string, string>;
+  }> {
     const { items } = await this.recommendations.generate({
       organizationId,
       learnerId,
       trigger: 'PLAN_BUILD',
     });
     const requiredOutcomes = await learnerOutcomeRepository.findByLearner(learnerId);
-    return { items, requiredOutcomes };
+
+    // `Outcome.skillId` is nullable during the skill-relations migration
+    // window (schema.prisma) — an outcome with no resolved skill yet groups
+    // alone, by its own outcome id, rather than joining any session (falling
+    // back to one-outcome-per-session for just that outcome instead of
+    // dropping it).
+    const outcomeIds = [...new Set(items.map((item) => item.outcomeId))];
+    const outcomes = await outcomeRepository.findManyByIdsScoped(outcomeIds);
+    const skillByOutcomeId = new Map(outcomes.map((o) => [o.id, o.skillId]));
+    const outcomeToSkill = new Map<string, string>(
+      outcomeIds.map((id) => [id, skillByOutcomeId.get(id) ?? id]),
+    );
+
+    return { items, requiredOutcomes, outcomeToSkill };
   }
 
   /**
@@ -136,7 +177,11 @@ export class PlanBuilderService {
     snapshotTree: NonNullable<
       Awaited<ReturnType<PlanTrackSnapshotRepository['findByTrainingPlanId']>>
     >,
-  ): Promise<{ items: RecommendationItemResult[]; requiredOutcomes: LearnerOutcome[] }> {
+  ): Promise<{
+    items: RecommendationItemResult[];
+    requiredOutcomes: LearnerOutcome[];
+    outcomeToSkill: Map<string, string>;
+  }> {
     const learner = await learnerRepository.findByIdScoped(learnerId);
     if (!learner) {
       throw new Error(`Learner ${learnerId} not found`);
@@ -169,6 +214,16 @@ export class PlanBuilderService {
       .flatMap((skill, skillIndex) => skill.outcomes.map((outcome) => ({ ...outcome, skillIndex })))
       .filter((outcome) => !outcome.isRemoved && outcome.sourceOutcomeId)
       .sort((a, b) => a.order - b.order);
+
+    // Groups sessions by skill, not outcome — `skillIndex` (stable per plan,
+    // see the round-robin priority comment below) doubles as the grouping
+    // key so every outcome under the same skill lands in the same session.
+    const outcomeToSkill = new Map<string, string>(
+      activeOutcomes.map((outcome) => [
+        outcome.sourceOutcomeId as string,
+        String(outcome.skillIndex),
+      ]),
+    );
 
     const bySkillCount = new Map<number, number>();
     const requiredOutcomes: LearnerOutcome[] = activeOutcomes.map((outcome) => {
@@ -204,17 +259,19 @@ export class PlanBuilderService {
     });
     const validItems = remapped.filter((item): item is RecommendationItemResult => item !== null);
 
-    return { items: validItems, requiredOutcomes };
+    return { items: validItems, requiredOutcomes, outcomeToSkill };
   }
 
   /**
-   * Content-free fallback: one session per outstanding required outcome, in
-   * priority order, capped at `trainingDays`. `contentItemIds` stays empty —
-   * the manager runs the session as live coaching and content can be
-   * attached later once the org has authored some for this track/level.
+   * Content-free fallback: one session per outstanding skill (every one of
+   * its outstanding outcomes bundled in), in priority order, capped at
+   * `trainingDays`. `contentItemIds` stays empty — the manager runs the
+   * session as live coaching and content can be attached later once the org
+   * has authored some for this track/level.
    */
   private suggestFromOutcomesOnly(
     requiredOutcomes: LearnerOutcome[],
+    outcomeToSkill: Map<string, string>,
     trainingDays: number,
     durationMinutes: number,
   ): SuggestedBreakdown {
@@ -222,25 +279,55 @@ export class PlanBuilderService {
       .filter((lo) => lo.status !== 'ACHIEVED')
       .sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
 
-    const sessions: SuggestedSession[] = outstanding.slice(0, trainingDays).map((lo, i) => ({
-      sequence: i + 1,
-      primaryOutcomeId: lo.outcomeId,
-      durationMinutes,
-      contentItemIds: [],
-    }));
+    const bySkill = new Map<string, LearnerOutcome[]>();
+    for (const lo of outstanding) {
+      const skillId = outcomeToSkill.get(lo.outcomeId) ?? lo.outcomeId;
+      const group = bySkill.get(skillId) ?? [];
+      group.push(lo);
+      bySkill.set(skillId, group);
+    }
 
-    return { sessions, deferredItemCount: Math.max(0, outstanding.length - trainingDays) };
+    const sessions: SuggestedSession[] = [...bySkill.values()]
+      .slice(0, trainingDays)
+      .map((group, i) => ({
+        sequence: i + 1,
+        primaryOutcomeId: group[0]!.outcomeId,
+        outcomeIds: group.map((lo) => lo.outcomeId),
+        durationMinutes,
+        contentItemIds: [],
+      }));
+
+    const deferredCount = [...bySkill.values()]
+      .slice(trainingDays)
+      .reduce((n, g) => n + g.length, 0);
+    return { sessions, deferredItemCount: deferredCount };
   }
 
-  /** Earliest not-yet-scheduled outcome, in the ranked list's own order — keeps session sequencing stable with the pipeline's own priority ordering. */
-  private pickPrimaryOutcome(
+  /** Earliest not-yet-scheduled skill, ranked by its best (lowest-priority-number) outstanding outcome — keeps session sequencing stable with the pipeline's own priority ordering. */
+  private pickPrimarySkill(
     items: RecommendationItemResult[],
     requiredOutcomes: LearnerOutcome[],
+    outcomeToSkill: Map<string, string>,
   ): string {
     const outcomeOrder = new Map(requiredOutcomes.map((lo) => [lo.outcomeId, lo.priority]));
-    const outcomeIds = [...new Set(items.map((item) => item.outcomeId))];
-    outcomeIds.sort((a, b) => (outcomeOrder.get(a) ?? 0) - (outcomeOrder.get(b) ?? 0));
-    return outcomeIds[0]!;
+    const skillOrder = new Map<string, number>();
+    for (const item of items) {
+      const skillId = outcomeToSkill.get(item.outcomeId) ?? item.outcomeId;
+      const priority = outcomeOrder.get(item.outcomeId) ?? 0;
+      const best = skillOrder.get(skillId);
+      if (best === undefined || priority < best) skillOrder.set(skillId, priority);
+    }
+    const skillIds = [...skillOrder.keys()].sort((a, b) => skillOrder.get(a)! - skillOrder.get(b)!);
+    return skillIds[0]!;
+  }
+
+  /** Highest-priority outcome among a skill's own candidates, in the ranked list's own order — becomes the session's `primaryOutcomeId` FK. */
+  private pickPrimaryOutcome(outcomeIds: string[], requiredOutcomes: LearnerOutcome[]): string {
+    const outcomeOrder = new Map(requiredOutcomes.map((lo) => [lo.outcomeId, lo.priority]));
+    const sorted = [...outcomeIds].sort(
+      (a, b) => (outcomeOrder.get(a) ?? 0) - (outcomeOrder.get(b) ?? 0),
+    );
+    return sorted[0]!;
   }
 
   private toScoredItems(

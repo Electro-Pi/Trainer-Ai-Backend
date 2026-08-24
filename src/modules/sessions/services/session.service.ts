@@ -192,6 +192,7 @@ export class SessionService {
     }
 
     await queueService.removeJob('session.reminder', `session-reminder-${session.id}`);
+    await queueService.removeJob('agent.dispatch', `agent-dispatch-${session.id}`);
 
     await writeAuditLog({
       organizationId: actor.organizationId,

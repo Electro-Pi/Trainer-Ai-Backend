@@ -21,10 +21,9 @@ import type { EmailService } from '@/shared-types.js';
 import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
 
-import { dispatchToAiTrainer } from './dispatch-ai-trainer.js';
-
 const sessions = new SessionRepository();
 const REMINDER_LEAD_TIME_MS = 60 * 60_000;
+const AGENT_DISPATCH_LEAD_TIME_MS = 3 * 60_000;
 
 /**
  * `IV-01`, `IV-05` — creates the Teams meeting for a confirmed session,
@@ -176,16 +175,25 @@ export async function processCreateMeetingJob(
 
     // `P8-10`, ARCHITECTURE §9.11 rule 6 — asks the AI Trainer service to join
     // the meeting via the same `POST /sessions/external` call the manual
-    // `ExternalSessionService.start()` flow uses. Shared with
-    // `meeting-update.job.ts`'s reschedule re-dispatch — see
-    // `dispatch-ai-trainer.ts`'s own doc comment for why a reschedule needs
-    // this too, not just first creation.
-    await dispatchToAiTrainer({
-      organizationId: payload.organizationId,
-      session,
-      learner,
-      joinUrl: joinUrlForNotifications,
-    });
+    // `ExternalSessionService.start()` flow uses. Scheduled for close to the
+    // session's real start time (`agent.dispatch`, `AGENT_DISPATCH_LEAD_TIME_MS`
+    // before `scheduledStart`) rather than fired here at confirm-time — the
+    // AI Trainer's start call has no scheduled-time field, it's "join this
+    // meeting_url right now," so dispatching it at confirm-time (which can be
+    // hours or days before the actual session) has the agent show up and time
+    // out long before the learner does. Also re-enqueued by
+    // `meeting-update.job.ts` on reschedule — see `dispatch-ai-trainer.ts`'s
+    // own doc comment for why a reschedule needs a fresh dispatch too.
+    const dispatchDelayMs =
+      session.scheduledStart.getTime() - AGENT_DISPATCH_LEAD_TIME_MS - Date.now();
+    await queueService.enqueue(
+      'agent.dispatch',
+      { sessionId: session.id, organizationId: payload.organizationId },
+      {
+        jobId: `agent-dispatch-${session.id}`,
+        ...(dispatchDelayMs > 0 ? { delayMs: dispatchDelayMs } : {}),
+      },
+    );
 
     const reminderDelayMs = session.scheduledStart.getTime() - REMINDER_LEAD_TIME_MS - Date.now();
     if (reminderDelayMs > 0) {

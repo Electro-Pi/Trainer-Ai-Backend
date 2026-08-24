@@ -4,10 +4,12 @@ import { ExternalSessionRepository } from '@/modules/ai-trainer/repositories/ext
 import { SlideDeckRepository } from '@/modules/ai-trainer/repositories/slide-deck.repository.js';
 import { AiTrainerClientService } from '@/modules/ai-trainer/services/ai-trainer-client.service.js';
 import type { Learner } from '@/modules/learners/learners.module.js';
+import { writeNotification } from '@/modules/notifications/notifications.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import type { Session } from '@/modules/sessions/repositories/session.repository.js';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
+import { teamRepository } from '@/modules/teams/teams.module.js';
 
 const sessions = new SessionRepository();
 const slideDecks = new SlideDeckRepository();
@@ -81,6 +83,7 @@ export async function dispatchToAiTrainer(params: {
       throw new Error(result.dispatch_error);
     }
   } catch (error) {
+    const reason = error instanceof Error ? error.message : 'unknown';
     logger.error(
       { sessionId: session.id, err: error },
       'dispatch-ai-trainer: dispatch failed, notifying manager',
@@ -91,7 +94,24 @@ export async function dispatchToAiTrainer(params: {
       action: 'session.dispatch_failed',
       entityType: 'Session',
       entityId: session.id,
-      after: { reason: error instanceof Error ? error.message : 'unknown' },
+      after: { reason },
     });
+
+    if (learner.teamId) {
+      const team = await teamRepository.findByIdScoped(learner.teamId);
+      if (team?.managerId) {
+        await writeNotification({
+          organizationId,
+          recipientPortalUserId: team.managerId,
+          type: 'SESSION_DISPATCH_FAILED',
+          entityType: 'Session',
+          entityId: session.id,
+          titleEn: 'AI Trainer failed to join session',
+          titleAr: 'فشل انضمام المدرب الذكي للجلسة',
+          bodyEn: `${learner.displayName}'s session could not be started: ${reason}`,
+          bodyAr: `تعذر بدء جلسة ${learner.displayName}: ${reason}`,
+        });
+      }
+    }
   }
 }

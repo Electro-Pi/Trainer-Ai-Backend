@@ -2,6 +2,7 @@ import type { Job, PgBoss } from 'pg-boss';
 
 import { logger } from '@/logger/logger.service.js';
 
+import { processAgentDispatchJob } from './jobs/agent-dispatch.job.js';
 import { processCleanupJob } from './jobs/cleanup.job.js';
 import { processCreateMeetingJob } from './jobs/create-meeting.job.js';
 import { processGenerateReportJob } from './jobs/generate-report.job.js';
@@ -28,6 +29,7 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'meeting.create': processCreateMeetingJob,
   'meeting.update': processMeetingUpdateJob,
   'session.reminder': processSendReminderJob,
+  'agent.dispatch': processAgentDispatchJob,
   'report.generate': processGenerateReportJob,
   'report.send': processSendReportJob,
   'effectiveness.recompute': processRecomputeEffectivenessJob,

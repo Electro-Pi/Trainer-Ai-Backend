@@ -36,6 +36,18 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
     return this.delegate.findFirst({ where: { id, level: { track: { organizationId } } } });
   }
 
+  /** Batched `findByIdScoped` — the plan builder's outcome-to-skill grouping needs every candidate outcome's `skillId` in one query, not one round-trip per outcome. */
+  async findManyByIdsScoped(ids: string[]): Promise<Outcome[]> {
+    if (ids.length === 0) return [];
+    const organizationId = getCurrentOrganizationId();
+    if (!organizationId) {
+      throw new Error('findManyByIdsScoped() called outside runWithTenant()');
+    }
+    return this.delegate.findMany({
+      where: { id: { in: ids }, level: { track: { organizationId } } },
+    });
+  }
+
   /**
    * `P4-6` — transactional reorder within one level. Two-phase for the same
    * reason as `LevelRepository.reorder`: `(levelId, order)` is a

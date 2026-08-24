@@ -70,9 +70,8 @@ export class SessionSchedulingService {
         scheduledStart,
         scheduledEnd,
         durationMinutes: item.durationMinutes,
-        carriedOverOutcomeIds: item.primaryOutcomeId
-          ? carriedOverOutcomeIds.filter((id) => id !== item.primaryOutcomeId)
-          : carriedOverOutcomeIds,
+        outcomeIds: item.outcomeIds,
+        carriedOverOutcomeIds: carriedOverOutcomeIds.filter((id) => !item.outcomeIds.includes(id)),
         contentItemIds: item.contentItemIds,
       });
       created.push(session);

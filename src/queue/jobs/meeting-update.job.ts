@@ -17,11 +17,11 @@ import { skillRepository } from '@/modules/skills/skills.module.js';
 import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
 import type { EmailService } from '@/shared-types.js';
 
+import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
 
-import { dispatchToAiTrainer } from './dispatch-ai-trainer.js';
-
 const sessions = new SessionRepository();
+const AGENT_DISPATCH_LEAD_TIME_MS = 3 * 60_000;
 
 /**
  * `TP-06` — reschedule/cancel already wrote the session's new state before
@@ -187,21 +187,29 @@ export async function processMeetingUpdateJob(
       logger.error({ sessionId, err: error }, 'meeting-update: reschedule email failed to send');
     }
 
-    // Re-dispatch the AI Trainer to the (possibly new) join link/time — a
-    // session already dispatched once was only ever told about its
+    // Re-schedule the AI Trainer dispatch for the (possibly new) time/join
+    // link — a session already dispatched once was only ever told about its
     // *original* meeting; without this, a reschedule silently leaves the
     // agent working from a stale reference it can never learn has changed
-    // (see `dispatch-ai-trainer.ts`'s doc comment). Always re-dispatches on
-    // a successful reschedule, even if the Graph event itself was merely
-    // updated in place (same event id, new time) — the AI Trainer has no
-    // "update" endpoint, only "start a new session".
+    // (see `dispatch-ai-trainer.ts`'s doc comment). Cancels any dispatch job
+    // still pending for the old time first — `agent.dispatch`'s `jobId` is
+    // keyed by session id, and pg-boss silently drops a second `send` under
+    // an already-pending key rather than replacing it (same reason
+    // `session.reminder` below cancels before re-enqueuing). Always
+    // re-schedules on a successful reschedule, even if the Graph event
+    // itself was merely updated in place (same event id, new time) — the AI
+    // Trainer has no "update" endpoint, only "start a new session".
     if (learner) {
-      await dispatchToAiTrainer({
-        organizationId: payload.organizationId,
-        session,
-        learner,
-        joinUrl: currentJoinUrl ?? '',
-      });
+      await queueService.removeJob('agent.dispatch', `agent-dispatch-${session.id}`);
+      const dispatchDelayMs = scheduledStart.getTime() - AGENT_DISPATCH_LEAD_TIME_MS - Date.now();
+      await queueService.enqueue(
+        'agent.dispatch',
+        { sessionId: session.id, organizationId: payload.organizationId },
+        {
+          jobId: `agent-dispatch-${session.id}`,
+          ...(dispatchDelayMs > 0 ? { delayMs: dispatchDelayMs } : {}),
+        },
+      );
     }
 
     await writeAuditLog({

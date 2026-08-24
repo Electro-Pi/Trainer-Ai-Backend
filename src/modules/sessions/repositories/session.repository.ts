@@ -19,6 +19,8 @@ export interface CreateSessionInput {
   scheduledStart: Date;
   scheduledEnd: Date;
   durationMinutes: number;
+  /** Every outcome this session covers besides `primaryOutcomeId` — a skill grouped into one session covers several; written as non-carried-over `SessionOutcome` rows. */
+  outcomeIds: string[];
   carriedOverOutcomeIds: string[];
   contentItemIds: string[];
 }
@@ -55,14 +57,27 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
         },
       });
 
-      const outcomeIds = new Set([input.primaryOutcomeId, ...input.carriedOverOutcomeIds]);
+      // `input.outcomeIds` — the skill's own outcomes this session was built
+      // to cover (primary plus the rest of the skill) — are never carried
+      // over; `carriedOverOutcomeIds` (outstanding from *other* skills'
+      // past attempts) are the only rows marked `isCarriedOver`. A carried-
+      // over id that happens to already be one of the skill's own outcomes
+      // stays non-carried-over (its own-outcome membership wins).
+      const ownOutcomeIds = new Set([input.primaryOutcomeId, ...input.outcomeIds]);
+      const carriedOverIds = new Set(
+        input.carriedOverOutcomeIds.filter((id) => !ownOutcomeIds.has(id)),
+      );
+      const sessionOutcomeRows = [
+        ...[...ownOutcomeIds].map((outcomeId) => ({ outcomeId, isCarriedOver: false })),
+        ...[...carriedOverIds].map((outcomeId) => ({ outcomeId, isCarriedOver: true })),
+      ];
       await Promise.all(
-        [...outcomeIds].map((outcomeId) =>
+        sessionOutcomeRows.map((row) =>
           tx.sessionOutcome.create({
             data: {
               sessionId: session.id,
-              outcomeId,
-              isCarriedOver: outcomeId !== input.primaryOutcomeId,
+              outcomeId: row.outcomeId,
+              isCarriedOver: row.isCarriedOver,
             },
           }),
         ),

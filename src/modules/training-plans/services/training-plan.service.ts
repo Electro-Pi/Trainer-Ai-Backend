@@ -59,6 +59,20 @@ export class TrainingPlanService {
       ]);
     }
 
+    // A learner can only ever have one non-terminal plan — without this, a
+    // second "create plan" call (re-running the wizard, a double-submit)
+    // leaves both the old and new plan in DRAFT/CONFIRMED/ACTIVE at once.
+    // `findActiveByLearner`'s createdAt-desc tiebreak then arbitrarily picks
+    // one as "the" active plan, silently orphaning the other's real
+    // sessions — they keep their Teams invites and INVITED status, but no
+    // screen that reads "the active plan" ever sees them again. Cancelling
+    // the prior plan reuses `cancel()`'s own session/Graph/queue cleanup
+    // rather than leaving those sessions dangling.
+    const priorPlan = await this.plans.findActiveByLearner(dto.learnerId);
+    if (priorPlan) {
+      await this.cancel(actor, priorPlan.id);
+    }
+
     const assignment = await learnerAssignmentRepository.findActiveByLearner(dto.learnerId);
     if (!assignment) {
       throw new ValidationError([
