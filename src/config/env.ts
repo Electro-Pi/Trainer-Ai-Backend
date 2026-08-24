@@ -16,6 +16,15 @@ const envSchema = z.object({
     ),
 
   DATABASE_URL: z.url(),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(5),
+  QUEUE_POOL_MAX: z.coerce.number().int().positive().default(5),
+  // Lets a dev machine skip pg-boss entirely when working against the
+  // shared remote DB (a starved `max_connections` — see MEMORY.md — means
+  // every extra local worker pool makes it worse for everyone else).
+  WORKER_ENABLED: z
+    .string()
+    .default('true')
+    .transform((value) => value !== 'false'),
 
   JWT_PRIVATE_KEY: z.string().min(1, { error: 'JWT_PRIVATE_KEY is required' }),
   JWT_PUBLIC_KEY: z.string().min(1, { error: 'JWT_PUBLIC_KEY is required' }),

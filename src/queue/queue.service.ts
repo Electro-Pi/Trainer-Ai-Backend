@@ -10,7 +10,10 @@ import {
 } from './queues.js';
 
 export function createQueueConnection(): PgBoss {
-  return new PgBoss(env.DATABASE_URL);
+  // Capped explicitly — pg-boss defaults `max` to 10, which stacked on top
+  // of Prisma's own pool exhausted a low-`max_connections` Postgres tier
+  // (error 53300, only SUPERUSER slots left).
+  return new PgBoss({ connectionString: env.DATABASE_URL, max: env.QUEUE_POOL_MAX });
 }
 
 /**

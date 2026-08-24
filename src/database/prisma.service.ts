@@ -7,7 +7,10 @@ import { tenantExtension } from '@/database/tenant.extension.js';
 // Prisma 7's SQL path has no bundled engine binary — a driver adapter is
 // mandatory, not optional (see MEMORY.md Technical Discoveries for the
 // full v6→v7 delta this project inherited).
-const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
+// Capped explicitly — an uncapped pool takes node-postgres's default (10),
+// and stacked against pg-boss's own pool this was enough to exhaust a
+// low-`max_connections` Postgres tier (error 53300, SUPERUSER slots only).
+const adapter = new PrismaPg({ connectionString: env.DATABASE_URL, max: env.DATABASE_POOL_MAX });
 
 // Every tenant-scoped query is forced through the extension (ARCHITECTURE
 // §7.3) — this is the ONLY exported client. Nothing should construct its own

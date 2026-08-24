@@ -28,9 +28,13 @@ const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Server started');
 });
 
-void startWorker(connection, queueService).catch((err: unknown) => {
-  logger.error({ err }, 'Worker failed to start');
-});
+if (env.WORKER_ENABLED) {
+  void startWorker(connection, queueService).catch((err: unknown) => {
+    logger.error({ err }, 'Worker failed to start');
+  });
+} else {
+  logger.info('WORKER_ENABLED=false — skipping in-process queue worker');
+}
 
 let shuttingDown = false;
 

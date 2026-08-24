@@ -60,7 +60,10 @@ export async function startWorker(connection: PgBoss, queueService: QueueService
 
   for (const name of QUEUE_NAMES) {
     const processor = PROCESSORS[name];
-    await connection.work(name, { localConcurrency: 5 }, async ([job]: Job[]) => {
+    // Was 5 — with the pool capped at QUEUE_POOL_MAX (5 total, shared across
+    // every queue), 5-per-queue only caused internal contention against a
+    // starved DB, not real throughput.
+    await connection.work(name, { localConcurrency: 1 }, async ([job]: Job[]) => {
       if (!job) return;
       if (!processor) {
         logger.info({ queue: name, jobId: job.id }, 'No-op processor — no handler registered yet');
