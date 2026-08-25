@@ -50,11 +50,10 @@ export class AnalyticsController {
 
   /** `PF-07` */
   async contentUsage(req: Request, res: Response): Promise<void> {
-    const query = req.query as { trackId?: string; levelId?: string };
+    const query = req.query as { skillId?: string };
     const result = await contentUsageService.contentUsage({
       organizationId: req.auth!.orgId,
-      ...(query.trackId ? { trackId: query.trackId } : {}),
-      ...(query.levelId ? { levelId: query.levelId } : {}),
+      ...(query.skillId ? { skillId: query.skillId } : {}),
     });
     res.status(200).json(result);
   }

@@ -4,7 +4,7 @@ import { fileTypeFromBuffer } from 'file-type';
 
 import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
-import { MIME_ALLOWLIST_BY_CONTENT_TYPE } from '@/config/constants.js';
+import { DOCUMENT_MIME_ALLOWLIST } from '@/config/constants.js';
 import { container } from '@/config/container.js';
 import { queueService } from '@/queue/queue-instance.js';
 import type { StorageService } from '@/shared-types.js';
@@ -17,14 +17,10 @@ import type { ActingUser } from './content.service.js';
 
 export type { ActingUser };
 
-const MEDIA_CONTENT_TYPES = ['DOCUMENT', 'SLIDES', 'IMAGE'] as const;
-
 export interface UploadMediaInput {
   buffer: Buffer;
   originalFilename: string;
   caption?: string | undefined;
-  altTextEn?: string | undefined;
-  altTextAr?: string | undefined;
 }
 
 /** `content/media` — P5-4. Magic-byte MIME sniff, size cap (multer layer), checksum, malware scan pipeline kickoff. */
@@ -42,40 +38,13 @@ export class MediaService {
       throw new NotFoundError('Content item not found');
     }
 
-    if (
-      !MEDIA_CONTENT_TYPES.includes(contentItem.contentType as (typeof MEDIA_CONTENT_TYPES)[number])
-    ) {
-      throw new ValidationError([
-        {
-          path: 'contentItemId',
-          code: 'invalid',
-          message: `Content type ${contentItem.contentType} does not accept media uploads`,
-        },
-      ]);
-    }
-
-    const isImage = contentItem.contentType === 'IMAGE';
-    if (isImage && (!input.altTextEn || !input.altTextAr)) {
-      throw new ValidationError([
-        {
-          path: 'altTextEn',
-          code: 'required',
-          message: 'Images require alt text in AR and EN (CM-04)',
-        },
-      ]);
-    }
-
     const sniffed = await fileTypeFromBuffer(input.buffer);
-    const allowlist =
-      MIME_ALLOWLIST_BY_CONTENT_TYPE[
-        contentItem.contentType as keyof typeof MIME_ALLOWLIST_BY_CONTENT_TYPE
-      ];
-    if (!sniffed || !(allowlist as readonly string[]).includes(sniffed.mime)) {
+    if (!sniffed || !(DOCUMENT_MIME_ALLOWLIST as readonly string[]).includes(sniffed.mime)) {
       throw new ValidationError([
         {
           path: 'file',
           code: 'invalid_mime',
-          message: `File content does not match an allowed type for ${contentItem.contentType}`,
+          message: 'File content does not match an allowed document type',
         },
       ]);
     }
@@ -94,8 +63,8 @@ export class MediaService {
       sizeBytes: input.buffer.length,
       checksum,
       caption: input.caption ?? null,
-      altTextEn: input.altTextEn ?? null,
-      altTextAr: input.altTextAr ?? null,
+      altTextEn: null,
+      altTextAr: null,
       scanStatus: 'PENDING',
     } as never);
 

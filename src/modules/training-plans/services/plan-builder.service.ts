@@ -79,7 +79,7 @@ export class PlanBuilderService {
 
     // Fetched once for the whole breakdown — every session slot below scores
     // against the same content set, so this must not re-query per slot.
-    const contentItems = await contentItemRepository.findManyByIdsScoped(
+    const contentItems = await contentItemRepository.findManyByIds(
       items.map((item) => item.contentItemId),
     );
     const contentById = new Map<string, ContentItem>(contentItems.map((item) => [item.id, item]));
@@ -250,7 +250,6 @@ export class PlanBuilderService {
 
     const { items } = await this.recommendations.generateFromSnapshot({
       snapshotTree,
-      language: learner.preferredLanguage,
       yearsOfExperience: experience?.yearsOfExperience ?? null,
     });
     const remapped = items.map((item) => {

@@ -148,15 +148,37 @@ export async function createLevel(
   );
 }
 
+export async function createSkill(
+  levelId: string,
+  organizationId: string,
+  overrides: Partial<{ key: string }> = {},
+) {
+  return runWithTenant(organizationId, () =>
+    prisma.skill.create({
+      data: {
+        organizationId,
+        levelId,
+        key: overrides.key ?? `skill-${randomUUID()}`,
+        nameEn: 'Discovery Calls',
+        nameAr: 'مكالمات الاستكشاف',
+        descriptionEn: 'Running an effective discovery call',
+        descriptionAr: 'إجراء مكالمة استكشاف فعالة',
+        levels: ['Beginner'],
+      },
+    }),
+  );
+}
+
 export async function createOutcome(
   levelId: string,
   organizationId: string,
-  overrides: Partial<{ order: number }> = {},
+  overrides: Partial<{ order: number; skillId: string | null }> = {},
 ) {
   return runWithTenant(organizationId, () =>
     prisma.outcome.create({
       data: {
         levelId,
+        skillId: overrides.skillId ?? null,
         titleEn: 'Discovery calls',
         titleAr: 'مكالمات الاستكشاف',
         targetSkills: ['listening'],
@@ -199,10 +221,11 @@ export async function createLearner(
   );
 }
 
-/** A full track→level→outcome tree in one call, for tests that just need a valid catalogue target. */
+/** A full track→level→skill→outcome tree in one call, for tests that just need a valid catalogue target. */
 export async function createCatalogueTree(organizationId: string) {
   const track = await createTrack(organizationId);
   const level = await createLevel(track.id, organizationId);
-  const outcome = await createOutcome(level.id, organizationId);
-  return { track, level, outcome };
+  const skill = await createSkill(level.id, organizationId);
+  const outcome = await createOutcome(level.id, organizationId, { skillId: skill.id });
+  return { track, level, skill, outcome };
 }

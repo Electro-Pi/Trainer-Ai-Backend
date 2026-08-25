@@ -133,10 +133,8 @@ export class AnalyticsRepository {
   async contentUsage(organizationId: string): Promise<
     {
       contentItemId: string;
-      title: string;
-      contentType: string;
-      trackId: string;
-      levelId: string;
+      name: string;
+      skillId: string;
       timesDelivered: number;
       timesAchieved: number;
       effectivenessScore: number;
@@ -145,16 +143,14 @@ export class AnalyticsRepository {
     const rows = await prisma.contentEffectiveness.findMany({
       where: { contentItem: { organizationId } },
       include: {
-        contentItem: { select: { title: true, contentType: true, trackId: true, levelId: true } },
+        contentItem: { select: { name: true, skillId: true } },
       },
       orderBy: { effectivenessScore: 'desc' },
     });
     return rows.map((row) => ({
       contentItemId: row.contentItemId,
-      title: row.contentItem.title,
-      contentType: row.contentItem.contentType,
-      trackId: row.contentItem.trackId,
-      levelId: row.contentItem.levelId,
+      name: row.contentItem.name,
+      skillId: row.contentItem.skillId,
       timesDelivered: row.timesDelivered,
       timesAchieved: row.timesAchieved,
       effectivenessScore: row.effectivenessScore,

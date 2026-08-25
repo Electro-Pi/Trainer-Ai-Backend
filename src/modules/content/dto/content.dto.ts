@@ -1,71 +1,26 @@
 export interface ContentResponseDto {
   id: string;
   organizationId: string;
-  title: string;
-  trackId: string;
-  levelId: string;
-  contentType: 'DOCUMENT' | 'SLIDES' | 'TEXT' | 'LINK' | 'IMAGE';
-  textBody: string | null;
-  sourceUrl: string | null;
-  language: 'EN' | 'AR';
-  status: 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
-  version: number;
-  parentVersionId: string | null;
-  skillTags: string[];
-  outcomeIds: string[];
+  skillId: string;
+  name: string;
   createdById: string;
-  publishedAt: string | null;
-  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateContentDto {
-  title: string;
-  trackId: string;
-  levelId: string;
-  contentType: 'DOCUMENT' | 'SLIDES' | 'TEXT' | 'LINK' | 'IMAGE';
-  textBody?: string;
-  sourceUrl?: string;
-  language: 'EN' | 'AR';
-  skillTags?: string[];
-  outcomeIds: string[];
+  skillId: string;
+  name: string;
 }
 
 export interface UpdateContentDto {
-  title?: string;
-  textBody?: string;
-  sourceUrl?: string;
-  skillTags?: string[];
-  outcomeIds?: string[];
+  name?: string;
 }
 
 export interface ContentFilterDto {
   limit?: number;
   cursor?: string;
-  trackId?: string;
-  levelId?: string;
-  status?: 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
-  contentType?: 'DOCUMENT' | 'SLIDES' | 'TEXT' | 'LINK' | 'IMAGE';
-  language?: 'EN' | 'AR';
-}
-
-export interface BulkCreateContentDto {
-  items: CreateContentDto[];
-  sharedTags?: string[];
-}
-
-export interface BulkMetadataEditDto {
-  contentItemIds: string[];
-  skillTags?: string[];
-}
-
-export interface CoverageGapDto {
-  outcomeId: string;
-  outcomeTitleEn: string;
-  outcomeTitleAr: string;
-  levelId: string;
-  trackId: string;
+  skillId?: string;
 }
 
 export interface MediaResponseDto {
@@ -83,14 +38,4 @@ export interface MediaResponseDto {
   scanStatus: 'PENDING' | 'CLEAN' | 'INFECTED' | 'FAILED';
   downloadUrl: string;
   createdAt: string;
-}
-
-export interface ContentSearchResultDto {
-  contentItemId: string;
-  title: string;
-  contentType: string;
-  language: string;
-  matchType: 'FULL_TEXT' | 'SEMANTIC';
-  score: number;
-  snippet: string;
 }

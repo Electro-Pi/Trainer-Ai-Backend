@@ -2,12 +2,11 @@ import { openApiRegistry } from '@/swagger/swagger.js';
 
 import { createContentRouter, createMediaRouter } from './content.routes.js';
 import { ContentItemRepository } from './repositories/content-item.repository.js';
-import { ContentOutcomeRepository } from './repositories/content-outcome.repository.js';
 import { ContentPrerequisiteRepository } from './repositories/content-prerequisite.repository.js';
 import { MediaAssetRepository } from './repositories/media-asset.repository.js';
 import { MediaService } from './services/media.service.js';
 
-export type { ContentItem, ContentType } from './repositories/content-item.repository.js';
+export type { ContentItem } from './repositories/content-item.repository.js';
 export type { ContentPrerequisite } from './repositories/content-prerequisite.repository.js';
 export type { MediaAsset } from './repositories/media-asset.repository.js';
 
@@ -15,11 +14,10 @@ export const contentRouter = createContentRouter();
 export const mediaRouter = createMediaRouter();
 
 // Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `recommendations`
-// (P6) resolves the candidate pool, outcome bindings and prerequisite edges,
-// and `agent` (P8) resolves media SAS URLs for session context, through
-// these instead of deep-importing `modules/content/repositories/*`.
+// (P6) resolves the candidate pool and prerequisite edges, and `agent` (P8)
+// resolves media SAS URLs for session context, through these instead of
+// deep-importing `modules/content/repositories/*`.
 export const contentItemRepository = new ContentItemRepository();
-export const contentOutcomeRepository = new ContentOutcomeRepository();
 export const contentPrerequisiteRepository = new ContentPrerequisiteRepository();
 export const mediaAssetRepository = new MediaAssetRepository();
 export const mediaService = new MediaService();
@@ -28,7 +26,7 @@ openApiRegistry.registerPath({
   method: 'get',
   path: '/content',
   tags: ['Content'],
-  summary: 'Lists content items, filterable by track/level/status/type/language',
+  summary: 'Lists content items, filterable by skill',
   responses: { 200: { description: 'Content list' } },
 });
 
@@ -36,40 +34,8 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/content',
   tags: ['Content'],
-  summary: 'Creates a content item — binds to 1 track + 1 level + ≥1 outcome (`CM-01`)',
+  summary: 'Creates a content item — binds to exactly 1 skill',
   responses: { 201: { description: 'Created content item' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'post',
-  path: '/content/bulk',
-  tags: ['Content'],
-  summary: 'Batch-creates content items with shared tags merged into each (`CM-08`)',
-  responses: { 201: { description: 'Created content items' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'patch',
-  path: '/content/bulk-metadata',
-  tags: ['Content'],
-  summary: 'Edits shared metadata across many content items in one call (`CM-16`)',
-  responses: { 200: { description: 'Updated content items' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
-  path: '/content/coverage',
-  tags: ['Content'],
-  summary: 'Lists enabled outcomes with zero published content (`CM-13`)',
-  responses: { 200: { description: 'Coverage gap list' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
-  path: '/content/search',
-  tags: ['Content'],
-  summary: 'Hybrid Postgres FTS (arabic/english) + pgvector semantic search',
-  responses: { 200: { description: 'Ranked search results' } },
 });
 
 openApiRegistry.registerPath({
@@ -84,41 +50,16 @@ openApiRegistry.registerPath({
   method: 'patch',
   path: '/content/{id}',
   tags: ['Content'],
-  summary: 'Updates a content item’s fields',
+  summary: 'Updates a content item’s name',
   responses: { 200: { description: 'Updated content item' } },
 });
 
 openApiRegistry.registerPath({
-  method: 'post',
-  path: '/content/{id}/submit-review',
+  method: 'delete',
+  path: '/content/{id}',
   tags: ['Content'],
-  summary: 'Moves a content item from DRAFT to IN_REVIEW',
-  responses: { 200: { description: 'Content item in review' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'post',
-  path: '/content/{id}/publish',
-  tags: ['Content'],
-  summary: 'Publishes a content item — blocked unless all media is scan-CLEAN (`CM-07`, `CM-12`)',
-  responses: { 200: { description: 'Published content item' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'post',
-  path: '/content/{id}/archive',
-  tags: ['Content'],
-  summary: 'Archives a content item without deleting it (`CM-17`)',
-  responses: { 200: { description: 'Archived content item' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'post',
-  path: '/content/{id}/new-version',
-  tags: ['Content'],
-  summary:
-    'Clones a content item into a new DRAFT version without touching in-progress plans (`CM-14`)',
-  responses: { 201: { description: 'New draft version' } },
+  summary: 'Deletes a content item and its media',
+  responses: { 204: { description: 'Deleted' } },
 });
 
 openApiRegistry.registerPath({

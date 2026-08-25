@@ -2,12 +2,6 @@ import type { ContentItem } from '@/modules/content/content.module.js';
 
 import type { ContentEffectiveness } from '../repositories/content-effectiveness.repository.js';
 
-/** Minimal shape the signals need from a `ContentOutcome` join row — matches `ContentOutcomeRepository.findByContentItems`'s projection. */
-export interface ContentOutcomeBinding {
-  contentItemId: string;
-  outcomeId: string;
-}
-
 /**
  * One candidate content item plus everything a signal needs to score it
  * against one required outcome — ARCHITECTURE §8.1. Each signal is a pure
@@ -18,8 +12,8 @@ export interface SignalContext {
   contentItem: ContentItem;
   /** The specific outcome this candidate is being scored against. */
   outcomeId: string;
-  /** All `ContentOutcome` bindings for this candidate pool. */
-  contentOutcomes: ContentOutcomeBinding[];
+  /** The skill that `outcomeId` belongs to (`Outcome.skillId`) — content is relevant when its own `skillId` matches. */
+  outcomeSkillId: string;
   /** The learner's outcome priority for `outcomeId` (`LearnerOutcome.priority`), lower is higher priority. */
   outcomePriority: number;
   /** Whether the outcome is carried over from a prior session (`OT-02`, `OT-03`) — always due for attention. */

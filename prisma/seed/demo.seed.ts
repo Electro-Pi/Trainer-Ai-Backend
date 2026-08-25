@@ -36,6 +36,10 @@ export async function seedDemo(organizationId: string): Promise<void> {
     if (!discoveryOutcome || !valuePropOutcome) {
       throw new Error('seedDemo: expected 2 outcomes on sales/beginner — check tracks.seed.ts.');
     }
+    if (!discoveryOutcome.skillId) {
+      throw new Error('seedDemo: discoveryOutcome has no skillId — check tracks.seed.ts.');
+    }
+    const discoverySkillId = discoveryOutcome.skillId;
 
     // ── Portal users, one per role ──────────────────────────────────────
     const admin = await upsertPortalUser({
@@ -96,73 +100,35 @@ export async function seedDemo(organizationId: string): Promise<void> {
     await upsertExperience(learnerSara.id, admin.id, 'university-graduate', 0);
     await upsertExperience(learnerYoussef.id, admin.id, 'lateral-hire-from-competitor', 3);
 
-    // ── Content — all 5 types, both outcomes covered EXCEPT the deliberate gap ──
-    // valuePropOutcome is left with zero PUBLISHED content on purpose — the
-    // coverage report (CM-13, P5-10) and recommendation coverage-gap flag
-    // (RC-10, P6-7) both need a real gap to detect, not just an empty table.
-    const document = await upsertContentItem({
+    // ── Content — document files scoped to the discovery skill EXCEPT the
+    // deliberate gap. valuePropOutcome's skill is left with zero content on
+    // purpose — the coverage report (CM-13, P5-10) and recommendation
+    // coverage-gap flag (RC-10, P6-7) both need a real gap to detect, not
+    // just an empty table.
+    const playbook = await upsertContentItem({
       organizationId,
-      trackId: salesTrack.id,
-      levelId: beginnerLevel.id,
-      title: 'Discovery Call Playbook',
-      contentType: 'DOCUMENT',
-      textBody: null,
-      sourceUrl: null,
-      language: 'EN',
+      skillId: discoverySkillId,
+      name: 'Discovery Call Playbook.pdf',
       createdById: contentManager.id,
-      outcomeIds: [discoveryOutcome.id],
     });
-    const slides = await upsertContentItem({
+    const cheatSheet = await upsertContentItem({
       organizationId,
-      trackId: salesTrack.id,
-      levelId: beginnerLevel.id,
-      title: 'Needs Discovery Framework',
-      contentType: 'SLIDES',
-      textBody: null,
-      sourceUrl: null,
-      language: 'EN',
+      skillId: discoverySkillId,
+      name: 'Discovery Question Cheat Sheet.png',
       createdById: contentManager.id,
-      outcomeIds: [discoveryOutcome.id],
-    });
-    const text = await upsertContentItem({
-      organizationId,
-      trackId: salesTrack.id,
-      levelId: beginnerLevel.id,
-      title: 'Open Discovery Questions — Model Answers',
-      contentType: 'TEXT',
-      textBody:
-        'Examples: "What does success look like for your team this quarter?" "What have you already tried?"',
-      sourceUrl: null,
-      language: 'EN',
-      createdById: contentManager.id,
-      outcomeIds: [discoveryOutcome.id],
-    });
-    const link = await upsertContentItem({
-      organizationId,
-      trackId: salesTrack.id,
-      levelId: beginnerLevel.id,
-      title: 'Discovery Call Recording (external)',
-      contentType: 'LINK',
-      textBody: null,
-      sourceUrl: 'https://example.com/demo-sales-discovery-call',
-      language: 'EN',
-      createdById: contentManager.id,
-      outcomeIds: [discoveryOutcome.id],
-    });
-    const image = await upsertContentItem({
-      organizationId,
-      trackId: salesTrack.id,
-      levelId: beginnerLevel.id,
-      title: 'Discovery Question Cheat Sheet',
-      contentType: 'IMAGE',
-      textBody: null,
-      sourceUrl: null,
-      language: 'EN',
-      createdById: contentManager.id,
-      outcomeIds: [discoveryOutcome.id],
     });
 
-    await upsertMediaAsset(image.id, {
+    await upsertMediaAsset(playbook.id, {
+      blobKey: 'demo/discovery-call-playbook.pdf',
+      originalFilename: 'discovery-call-playbook.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: 512_000,
+      checksum: 'demo-checksum-playbook',
+      caption: 'A playbook for running a discovery call.',
+      altTextEn: 'Discovery call playbook document.',
+      altTextAr: 'مستند دليل مكالمة الاستكشاف.',
+    });
+    await upsertMediaAsset(cheatSheet.id, {
       blobKey: 'demo/discovery-cheat-sheet.png',
       originalFilename: 'discovery-cheat-sheet.png',
       mimeType: 'image/png',
@@ -172,13 +138,6 @@ export async function seedDemo(organizationId: string): Promise<void> {
       altTextEn: 'Cheat sheet listing five open discovery questions for sales calls.',
       altTextAr: 'ورقة مرجعية تضم خمسة أسئلة استكشاف مفتوحة لمكالمات المبيعات.',
     });
-
-    for (const item of [document, slides, text, link, image]) {
-      await prisma.contentItem.update({
-        where: { id: item.id },
-        data: { status: 'PUBLISHED', publishedAt: item.publishedAt ?? new Date() },
-      });
-    }
 
     // ── Question bank + rubric on the covered outcome ───────────────────
     const questionBank = await upsertQuestionBank(discoveryOutcome.id, 'EN');
@@ -261,8 +220,8 @@ export async function seedDemo(organizationId: string): Promise<void> {
       },
     });
 
-    await upsertSessionContent(session.id, document.id, 0, 'RECOMMENDED');
-    await upsertSessionContent(session.id, text.id, 1, 'RECOMMENDED');
+    await upsertSessionContent(session.id, playbook.id, 0, 'RECOMMENDED');
+    await upsertSessionContent(session.id, cheatSheet.id, 1, 'RECOMMENDED');
 
     const existingAssessment = await prisma.assessment.findFirst({
       where: { sessionId: session.id },
@@ -374,45 +333,24 @@ async function upsertExperience(
 
 async function upsertContentItem(input: {
   organizationId: string;
-  trackId: string;
-  levelId: string;
-  title: string;
-  contentType: 'DOCUMENT' | 'SLIDES' | 'TEXT' | 'LINK' | 'IMAGE';
-  textBody: string | null;
-  sourceUrl: string | null;
-  language: 'EN' | 'AR';
+  skillId: string;
+  name: string;
   createdById: string;
-  outcomeIds: string[];
 }) {
   const existing = await prisma.contentItem.findFirst({
-    where: { organizationId: input.organizationId, title: input.title },
+    where: { organizationId: input.organizationId, skillId: input.skillId, name: input.name },
   });
-  const item =
+  return (
     existing ??
-    (await prisma.contentItem.create({
+    prisma.contentItem.create({
       data: {
         organizationId: input.organizationId,
-        trackId: input.trackId,
-        levelId: input.levelId,
-        title: input.title,
-        contentType: input.contentType,
-        textBody: input.textBody,
-        sourceUrl: input.sourceUrl,
-        language: input.language,
+        skillId: input.skillId,
+        name: input.name,
         createdById: input.createdById,
       },
-    }));
-
-  for (const outcomeId of input.outcomeIds) {
-    const link = await prisma.contentOutcome.findFirst({
-      where: { contentItemId: item.id, outcomeId },
-    });
-    if (!link) {
-      await prisma.contentOutcome.create({ data: { contentItemId: item.id, outcomeId } });
-    }
-  }
-
-  return item;
+    })
+  );
 }
 
 async function upsertMediaAsset(

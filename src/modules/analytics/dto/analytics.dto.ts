@@ -75,10 +75,8 @@ export interface TrendsResponseDto {
 
 export interface ContentUsageRow {
   contentItemId: string;
-  title: string;
-  contentType: string;
-  trackId: string;
-  levelId: string;
+  name: string;
+  skillId: string;
   timesDelivered: number;
   timesAchieved: number;
   effectivenessScore: number;

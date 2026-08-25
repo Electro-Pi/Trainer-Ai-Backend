@@ -39,10 +39,7 @@ export interface SessionContextContentItem {
   sessionContentId: string;
   contentItemId: string;
   order: number;
-  title: string;
-  contentType: string;
-  textBody: string | null;
-  sourceUrl: string | null;
+  name: string;
   source: string;
   deliveredAt: string | null;
   media: SessionContextMedia[];

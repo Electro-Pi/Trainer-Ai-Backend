@@ -227,7 +227,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
       const outcomeIds = outcomes.map((o) => o.id);
 
       const contentItems = await tx.contentItem.findMany({
-        where: { trackId: id },
+        where: { skillId: { in: skillIds } },
         select: { id: true },
       });
       const contentItemIds = contentItems.map((c) => c.id);
@@ -265,7 +265,6 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           ],
         },
       });
-      await tx.contentOutcome.deleteMany({ where: { contentItemId: { in: contentItemIds } } });
       await tx.contentItem.deleteMany({ where: { id: { in: contentItemIds } } });
 
       // Outcome-side leaves.
@@ -434,25 +433,12 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
             const item = await tx.contentItem.create({
               data: {
                 organizationId,
-                title: contentDto.title,
-                trackId: track.id,
-                levelId: level.id,
-                contentType: contentDto.contentType,
-                textBody: contentDto.textBody ?? null,
-                sourceUrl: contentDto.sourceUrl ?? null,
-                language: contentDto.language,
-                skillTags: [skillDto.nameEn],
+                skillId: skill.id,
+                name: contentDto.name,
                 createdById: actorId,
-                status: 'PUBLISHED',
-                publishedAt: new Date(),
               },
             });
-            for (const idx of contentDto.outcomeIndexes) {
-              await tx.contentOutcome.create({
-                data: { contentItemId: item.id, outcomeId: outcomes[idx]!.id },
-              });
-            }
-            content.push({ id: item.id, title: item.title, status: item.status });
+            content.push({ id: item.id, name: item.name });
           }
 
           skills.push({

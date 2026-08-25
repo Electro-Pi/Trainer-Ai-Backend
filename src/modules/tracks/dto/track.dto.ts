@@ -49,13 +49,7 @@ export interface TrackFilterDto {
 export type LevelKey = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 
 export interface CreateFullContentDto {
-  title: string;
-  contentType: 'DOCUMENT' | 'SLIDES' | 'TEXT' | 'LINK' | 'IMAGE';
-  textBody?: string;
-  sourceUrl?: string;
-  language: 'EN' | 'AR';
-  /** Indexes into this skill's `outcomes[]` — resolved to real outcome ids inside the transaction. */
-  outcomeIndexes: number[];
+  name: string;
 }
 
 export interface CreateFullOutcomeDto {
@@ -100,7 +94,7 @@ export interface FullTrackResponseDto {
       nameEn: string;
       nameAr: string;
       outcomes: { id: string; titleEn: string; titleAr: string }[];
-      content: { id: string; title: string; status: string }[];
+      content: { id: string; name: string }[];
     }[];
   }[];
 }

@@ -9,7 +9,6 @@ import {
   type SignalContext,
   type SignalName,
 } from '../signals/index.js';
-import type { ContentOutcomeBinding } from '../signals/signal.types.js';
 
 export interface ScoredItem {
   contentItem: ContentItem;
@@ -22,7 +21,6 @@ export interface ScorerInput {
   candidates: ContentItem[];
   boundOutcomesByContent: Map<string, string[]>;
   outcomesById: Map<string, Outcome>;
-  contentOutcomes: ContentOutcomeBinding[];
   outcomePriorityByOutcomeId: Map<string, { priority: number; isCarriedOver: boolean }>;
   yearsOfExperience: number | null;
   weakOutcomeIds: ReadonlySet<string>;
@@ -50,14 +48,15 @@ export class ScorerService {
 
       for (const outcomeId of boundOutcomeIds) {
         const priorityInfo = input.outcomePriorityByOutcomeId.get(outcomeId);
-        if (!priorityInfo) continue;
+        const outcomeSkillId = input.outcomesById.get(outcomeId)?.skillId;
+        if (!priorityInfo || !outcomeSkillId) continue;
 
         const effectiveness = effectivenessByKey.get(`${contentItem.id}:${outcomeId}`) ?? null;
 
         const context: SignalContext = {
           contentItem,
           outcomeId,
-          contentOutcomes: input.contentOutcomes,
+          outcomeSkillId,
           outcomePriority: priorityInfo.priority,
           isCarriedOver: priorityInfo.isCarriedOver,
           yearsOfExperience: input.yearsOfExperience,

@@ -52,74 +52,27 @@ export const duplicateTrackSchema = z.object({
 // ---- POST /tracks/full — bulk track-creation wizard ----
 
 const levelKeySchema = z.enum(['beginner', 'intermediate', 'advanced', 'expert']);
-const contentTypeSchema = z.enum(['DOCUMENT', 'SLIDES', 'TEXT', 'LINK', 'IMAGE']);
-const languageSchema = z.enum(['EN', 'AR']);
 
 const createFullOutcomeSchema = z.object({
   titleEn: bilingualTextSchema,
   titleAr: bilingualTextSchema,
 });
 
-const baseCreateFullContentSchema = z.object({
-  title: z.string().trim().min(1).max(300),
-  contentType: contentTypeSchema,
-  textBody: z.string().trim().min(1).max(50_000).optional(),
-  sourceUrl: z
-    .url()
-    .max(2048)
-    .refine((value) => value.startsWith('https://'), { error: 'URL must use https' })
-    .optional(),
-  language: languageSchema,
-  outcomeIndexes: z.array(z.number().int().nonnegative()).min(1),
+const createFullContentSchema = z.object({
+  name: z.string().trim().min(1).max(300),
 });
 
-const createFullContentSchema = baseCreateFullContentSchema.check((ctx) => {
-  const { contentType, textBody, sourceUrl } = ctx.value;
-  if (contentType === 'TEXT' && !textBody) {
-    ctx.issues.push({
-      code: 'custom',
-      message: 'textBody is required for TEXT content',
-      path: ['textBody'],
-      input: ctx.value,
-    });
-  }
-  if (contentType === 'LINK' && !sourceUrl) {
-    ctx.issues.push({
-      code: 'custom',
-      message: 'sourceUrl is required for LINK content',
-      path: ['sourceUrl'],
-      input: ctx.value,
-    });
-  }
+const createFullSkillSchema = z.object({
+  nameEn: bilingualTextSchema,
+  nameAr: bilingualTextSchema,
+  descriptionEn: z.string().trim().min(1).max(4000),
+  descriptionAr: z.string().trim().min(1).max(4000),
+  assessmentEnabled: z.boolean().optional(),
+  outcomes: z
+    .array(createFullOutcomeSchema)
+    .min(1, { error: 'Each skill needs at least one outcome' }),
+  content: z.array(createFullContentSchema),
 });
-
-const createFullSkillSchema = z
-  .object({
-    nameEn: bilingualTextSchema,
-    nameAr: bilingualTextSchema,
-    descriptionEn: z.string().trim().min(1).max(4000),
-    descriptionAr: z.string().trim().min(1).max(4000),
-    assessmentEnabled: z.boolean().optional(),
-    outcomes: z
-      .array(createFullOutcomeSchema)
-      .min(1, { error: 'Each skill needs at least one outcome' }),
-    content: z.array(createFullContentSchema),
-  })
-  .check((ctx) => {
-    const { outcomes, content } = ctx.value;
-    content.forEach((item, contentIndex) => {
-      item.outcomeIndexes.forEach((idx) => {
-        if (idx >= outcomes.length) {
-          ctx.issues.push({
-            code: 'custom',
-            message: 'outcomeIndexes must reference an outcome defined on this skill',
-            path: ['content', contentIndex, 'outcomeIndexes'],
-            input: ctx.value,
-          });
-        }
-      });
-    });
-  });
 
 const createFullLevelSchema = z.object({
   key: levelKeySchema,

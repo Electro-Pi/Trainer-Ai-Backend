@@ -97,12 +97,12 @@ export class ConfirmationService {
         const replacement = await contentItemRepository.findByIdScoped(
           action.replacementContentItemId,
         );
-        if (!replacement || replacement.status !== 'PUBLISHED') {
+        if (!replacement) {
           throw new ValidationError([
             {
               path: 'replacementContentItemId',
               code: 'invalid',
-              message: 'replacementContentItemId must reference a PUBLISHED content item',
+              message: 'replacementContentItemId must reference an existing content item',
             },
           ]);
         }

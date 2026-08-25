@@ -39,8 +39,7 @@ export interface SessionReportOutcomeView {
 }
 
 export interface SessionReportContentView {
-  title: string;
-  contentType: string;
+  name: string;
   delivered: boolean;
 }
 
@@ -199,8 +198,7 @@ export class ReportDataService {
       content: sessionContents.map((sc) => {
         const item = contentItemById.get(sc.contentItemId);
         return {
-          title: item?.title ?? '',
-          contentType: item?.contentType ?? '',
+          name: item?.name ?? '',
           delivered: sc.deliveredAt !== null,
         };
       }),

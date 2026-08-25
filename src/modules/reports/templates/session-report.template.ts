@@ -238,8 +238,7 @@ export function renderSessionReportHtml(
     .map(
       (item) => `
       <tr>
-        <td>${escapeHtml(item.title)}</td>
-        <td>${escapeHtml(item.contentType)}</td>
+        <td>${escapeHtml(item.name)}</td>
         <td>${item.delivered ? t.delivered : t.notDelivered}</td>
       </tr>`,
     )
@@ -298,7 +297,7 @@ export function renderSessionReportHtml(
   <section>
     <h2>${t.content}</h2>
     <table>
-      <thead><tr><th>${t.contentTitle}</th><th>${t.contentType}</th><th></th></tr></thead>
+      <thead><tr><th>${t.contentTitle}</th><th></th></tr></thead>
       <tbody>${contentRows}</tbody>
     </table>
   </section>

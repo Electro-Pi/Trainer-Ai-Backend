@@ -137,7 +137,7 @@ export class SessionContextService {
     const sessionContents = await sessionContentRepository.findBySession(sessionId);
     if (sessionContents.length === 0) return [];
 
-    const contentItems = await contentItemRepository.findManyByIdsScoped(
+    const contentItems = await contentItemRepository.findManyByIds(
       sessionContents.map((sc) => sc.contentItemId),
     );
     const contentById = new Map(contentItems.map((ci) => [ci.id, ci]));
@@ -166,10 +166,7 @@ export class SessionContextService {
         sessionContentId: sc.id,
         contentItemId: item.id,
         order: sc.order,
-        title: item.title,
-        contentType: item.contentType,
-        textBody: item.textBody,
-        sourceUrl: item.sourceUrl,
+        name: item.name,
         source: sc.source,
         deliveredAt: sc.deliveredAt?.toISOString() ?? null,
         media,

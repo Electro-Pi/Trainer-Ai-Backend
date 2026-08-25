@@ -1,10 +1,7 @@
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { eventBus } from '@/events/event-bus.js';
-import {
-  contentOutcomeRepository,
-  contentPrerequisiteRepository,
-} from '@/modules/content/content.module.js';
+import { contentPrerequisiteRepository } from '@/modules/content/content.module.js';
 import type { LearnerOutcome } from '@/modules/learners/learners.module.js';
 import {
   learnerAssignmentRepository,
@@ -37,6 +34,8 @@ import { ScorerService, type ScoredItem } from './scorer.service.js';
 export interface SnapshotTreeInput {
   skills: {
     isRemoved: boolean;
+    /** Real `Skill.id` this snapshot skill was copied from — null for a manager-added skill with no master counterpart. */
+    sourceSkillId: string | null;
     outcomes: {
       id: string;
       sourceOutcomeId: string | null;
@@ -56,7 +55,6 @@ export interface SnapshotTreeInput {
       } | null;
     }[];
   }[];
-  content: { sourceContentId: string | null; isRemoved: boolean }[];
 }
 
 export type RecommendationTrigger =
@@ -120,10 +118,8 @@ export class RecommendationService {
     const experience = await learnerExperienceRepository.findByLearner(input.learnerId);
 
     const pool = await this.candidatePool.buildPool({
-      trackId: assignment.trackId,
-      levelId: assignment.levelId,
-      language: learner.preferredLanguage,
       requiredOutcomes,
+      outcomesById,
       ...(input.excludeContentItemIds
         ? { excludeContentItemIds: input.excludeContentItemIds }
         : {}),
@@ -181,9 +177,6 @@ export class RecommendationService {
   ): Promise<ScoredItem[]> {
     if (pool.candidates.length === 0) return [];
 
-    const contentOutcomes = await contentOutcomeRepository.findByContentItems(
-      pool.candidates.map((item) => item.id),
-    );
     const outcomePriorityByOutcomeId = new Map(
       requiredOutcomes.map((lo) => [
         lo.outcomeId,
@@ -195,7 +188,6 @@ export class RecommendationService {
       candidates: pool.candidates,
       boundOutcomesByContent: pool.boundOutcomesByContent,
       outcomesById,
-      contentOutcomes,
       outcomePriorityByOutcomeId,
       yearsOfExperience,
       weakOutcomeIds: new Set<string>(), // `RC` §6.7.1 gap-match source (P8 `AssessmentAnswer` history) — none exists before a session has run.
@@ -317,7 +309,6 @@ export class RecommendationService {
    */
   async generateFromSnapshot(params: {
     snapshotTree: SnapshotTreeInput;
-    language: 'EN' | 'AR';
     yearsOfExperience: number | null;
     excludeContentItemIds?: ReadonlySet<string>;
   }): Promise<{ items: RecommendationItemResult[]; coverageGaps: CoverageGap[] }> {
@@ -330,7 +321,13 @@ export class RecommendationService {
     const bySkillCount = new Map<number, number>();
     const activeOutcomes = params.snapshotTree.skills
       .filter((skill) => !skill.isRemoved)
-      .flatMap((skill, skillIndex) => skill.outcomes.map((outcome) => ({ ...outcome, skillIndex })))
+      .flatMap((skill, skillIndex) =>
+        skill.outcomes.map((outcome) => ({
+          ...outcome,
+          skillIndex,
+          sourceSkillId: skill.sourceSkillId,
+        })),
+      )
       .filter((outcome) => !outcome.isRemoved)
       .sort((a, b) => a.order - b.order)
       .map((outcome) => {
@@ -344,20 +341,21 @@ export class RecommendationService {
     );
 
     // Synthetic `Outcome`/`LearnerOutcome` shapes — only fields the scoring
-    // pipeline actually reads (`id`, `titleEn/Ar`, `status`, `priority` via
-    // `order`, `attemptCount`) are populated with real snapshot data;
-    // everything else is an unused placeholder, never read by
+    // pipeline actually reads (`id`, `titleEn`, `skillId`, `status`,
+    // `priority` via `order`, `attemptCount`) are populated with real
+    // snapshot data; everything else is an unused placeholder, never read by
     // `scoreAndRank`/`coverageGaps`/`explainer` (verified against every call
-    // site in this file and the signal functions).
+    // site in this file and the signal functions). `skillId` carries the
+    // snapshot skill's `sourceSkillId` so the same-skill outcome-relevance
+    // signal has a real skill to compare against.
     const outcomesById = new Map<string, Outcome>(
       activeOutcomes.map((outcome) => [
         outcome.id,
         {
           id: outcome.id,
           levelId: '',
-          skillId: null,
+          skillId: outcome.sourceSkillId,
           titleEn: outcome.titleEn,
-          titleAr: outcome.titleAr,
           targetSkills: [],
           order: outcome.order,
           isEnabled: true,
@@ -385,31 +383,11 @@ export class RecommendationService {
         }) as unknown as LearnerOutcome,
     );
 
-    const outcomeSnapshotsWithSources = activeOutcomes.map((outcome) => ({
-      ...outcome,
-      sourceContentIds: [] as string[],
-    }));
-
-    // Content bound to each outcome comes from the snapshot's copied
-    // ContentItem links — resolved via the ORIGINAL master ContentOutcome
-    // bindings for every source outcome this snapshot outcome descended
-    // from, restricted to content this snapshot actually kept a copy of.
-    const contentSnapshotBySourceId = new Set(
-      params.snapshotTree.content
-        .filter((c) => !c.isRemoved && c.sourceContentId)
-        .map((c) => c.sourceContentId!),
-    );
-    for (const outcome of outcomeSnapshotsWithSources) {
-      if (!outcome.sourceOutcomeId) continue;
-      const bindings = await contentOutcomeRepository.findByOutcome(outcome.sourceOutcomeId);
-      outcome.sourceContentIds = bindings
-        .map((b) => b.contentItemId)
-        .filter((contentId) => contentSnapshotBySourceId.has(contentId));
-    }
-
     const pool = await this.candidatePool.buildPoolFromSnapshot({
-      outcomeSnapshots: outcomeSnapshotsWithSources,
-      language: params.language,
+      outcomeSnapshots: activeOutcomes.map((outcome) => ({
+        id: outcome.id,
+        sourceSkillId: outcome.sourceSkillId,
+      })),
       outstandingOutcomeSnapshotIds,
       ...(params.excludeContentItemIds
         ? { excludeContentItemIds: params.excludeContentItemIds }

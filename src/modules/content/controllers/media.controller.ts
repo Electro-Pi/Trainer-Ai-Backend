@@ -39,11 +39,7 @@ async function toMediaResponseDto(
 export class MediaController {
   async upload(req: Request, res: Response): Promise<void> {
     const { id: contentItemId } = req.params as { id: string };
-    const { caption, altTextEn, altTextAr } = req.body as {
-      caption?: string;
-      altTextEn?: string;
-      altTextAr?: string;
-    };
+    const { caption } = req.body as { caption?: string };
 
     if (!req.file) {
       throw new ValidationError([
@@ -55,8 +51,6 @@ export class MediaController {
       buffer: req.file.buffer,
       originalFilename: req.file.originalname,
       caption,
-      altTextEn,
-      altTextAr,
     });
 
     res.status(201).json(await toMediaResponseDto(created, service));

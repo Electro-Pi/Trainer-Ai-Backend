@@ -69,9 +69,9 @@ export class PlanTrackSnapshotRepository {
   /**
    * `PlanSnapshotService.createFromMasterTrack`'s deep-copy, one
    * transaction: Track → its level's `Skill`s (via `Skill.levelId`) → each
-   * Skill's `Outcome`s (via the `Outcome.skillId` FK) → each Outcome's linked
-   * `ContentItem`s (via `ContentOutcome`), plus one `PlanLearnerOutcomeSnapshot`
-   * per copied outcome. A partial copy can never land.
+   * Skill's `Outcome`s (via the `Outcome.skillId` FK) and `ContentItem`s
+   * (via `ContentItem.skillId`), plus one `PlanLearnerOutcomeSnapshot` per
+   * copied outcome. A partial copy can never land.
    */
   async createFromMasterTrack(params: {
     trainingPlanId: string;
@@ -99,14 +99,11 @@ export class PlanTrackSnapshotRepository {
         order: number;
       }[]
     >;
-    contentByOutcomeId: Map<
+    contentBySkillId: Map<
       string,
       {
         id: string;
-        title: string;
-        contentType: string;
-        sourceUrl: string | null;
-        textBody: string | null;
+        name: string;
       }[]
     >;
   }): Promise<PlanTrackSnapshotTree> {
@@ -121,10 +118,6 @@ export class PlanTrackSnapshotRepository {
           descriptionAr: params.track.descriptionAr,
         },
       });
-
-      // De-duplicated across skills — the same ContentItem can be linked to
-      // outcomes under more than one skill; it should only be copied once.
-      const contentSnapshotIdBySourceId = new Map<string, string>();
 
       for (const trackSkill of params.trackSkills) {
         const skillSnapshot = await tx.planSkillSnapshot.create({
@@ -157,24 +150,21 @@ export class PlanTrackSnapshotRepository {
           await tx.planLearnerOutcomeSnapshot.create({
             data: { outcomeSnapshotId: outcomeSnapshot.id },
           });
+        }
 
-          const contentItems = params.contentByOutcomeId.get(outcome.id) ?? [];
-          for (const content of contentItems) {
-            if (contentSnapshotIdBySourceId.has(content.id)) continue;
-
-            const contentSnapshot = await tx.planContentSnapshot.create({
-              data: {
-                snapshotId: snapshot.id,
-                skillSnapshotId: skillSnapshot.id,
-                sourceContentId: content.id,
-                title: content.title,
-                contentType: content.contentType as never,
-                sourceUrl: content.sourceUrl,
-                textBody: content.textBody,
-              },
-            });
-            contentSnapshotIdBySourceId.set(content.id, contentSnapshot.id);
-          }
+        const contentItems = params.contentBySkillId.get(trackSkill.skillId) ?? [];
+        for (const content of contentItems) {
+          await tx.planContentSnapshot.create({
+            data: {
+              snapshotId: snapshot.id,
+              skillSnapshotId: skillSnapshot.id,
+              sourceContentId: content.id,
+              title: content.name,
+              contentType: 'DOCUMENT',
+              sourceUrl: null,
+              textBody: null,
+            },
+          });
         }
       }
 

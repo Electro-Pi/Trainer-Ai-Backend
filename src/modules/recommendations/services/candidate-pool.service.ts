@@ -1,33 +1,29 @@
 import type { ContentItem } from '@/modules/content/content.module.js';
-import {
-  contentItemRepository,
-  contentOutcomeRepository,
-} from '@/modules/content/content.module.js';
+import { contentItemRepository } from '@/modules/content/content.module.js';
 import type { LearnerOutcome } from '@/modules/learners/learners.module.js';
+import type { Outcome } from '@/modules/outcomes/outcomes.module.js';
 
 export type Language = 'EN' | 'AR';
 
 export interface CandidatePoolResult {
-  /** Published, language-matched, not-yet-achieved candidates. */
+  /** Every uploaded document belonging to a skill with at least one outstanding required outcome. */
   candidates: ContentItem[];
-  /** `contentItemId → outcomeId[]` this candidate is bound to, restricted to the learner's required outcome set. */
+  /** `contentItemId → outcomeId[]` — every outstanding required outcome that shares this candidate's skill (content covers the whole skill, not individual outcomes within it). */
   boundOutcomesByContent: Map<string, string[]>;
 }
 
 /**
  * `P6-1` — ARCHITECTURE §8.1 step 1–2: builds the scorable candidate set for
- * one learner assignment. Hard filters are applied here, never by scoring
- * them away downstream (§8.1's own wording): published only, track/level
- * match, language match (`RC-11`), archived excluded (`CM-17`), already-
- * `ACHIEVED` outcomes excluded from the *outcome* set considered (`RC-03`) —
- * a candidate bound only to already-achieved outcomes is dropped entirely.
+ * one learner assignment. Content no longer carries its own language/status —
+ * it belongs to a skill and is usable as soon as it's uploaded, so the only
+ * hard filter left is "does this content's skill have any outstanding
+ * required outcome" (`RC-03`) — a candidate whose skill's outcomes are all
+ * already `ACHIEVED` is dropped entirely.
  */
 export class CandidatePoolService {
   async buildPool(params: {
-    trackId: string;
-    levelId: string;
-    language: Language;
     requiredOutcomes: LearnerOutcome[];
+    outcomesById: Map<string, Outcome>;
     /** `RC-14` — content ids to drop from the pool regardless of score (repeat-failure remediation excluding what was already delivered). */
     excludeContentItemIds?: ReadonlySet<string>;
   }): Promise<CandidatePoolResult> {
@@ -39,27 +35,28 @@ export class CandidatePoolService {
       return { candidates: [], boundOutcomesByContent: new Map() };
     }
 
-    const published = await contentItemRepository.findCandidates({
-      trackId: params.trackId,
-      levelId: params.levelId,
-      language: params.language,
-      status: 'PUBLISHED',
-    });
-
-    const bindings = await contentOutcomeRepository.findByContentItems(published.map((c) => c.id));
-    const boundOutcomesByContent = new Map<string, string[]>();
-    for (const binding of bindings) {
-      if (!outstandingOutcomeIds.has(binding.outcomeId)) continue;
-      const existing = boundOutcomesByContent.get(binding.contentItemId) ?? [];
-      existing.push(binding.outcomeId);
-      boundOutcomesByContent.set(binding.contentItemId, existing);
+    // Group outstanding outcomes by the skill they belong to — content is
+    // fetched per skill, then bound back to every outstanding outcome that
+    // shares that skill.
+    const outcomeIdsBySkill = new Map<string, string[]>();
+    for (const outcomeId of outstandingOutcomeIds) {
+      const skillId = params.outcomesById.get(outcomeId)?.skillId;
+      if (!skillId) continue;
+      const existing = outcomeIdsBySkill.get(skillId) ?? [];
+      existing.push(outcomeId);
+      outcomeIdsBySkill.set(skillId, existing);
     }
 
-    // `CM-17`: `findCandidates` already filters to PUBLISHED, so no separate
-    // archived-exclusion step is needed — ARCHIVED items never reach here.
-    const candidates = published.filter(
-      (item) => boundOutcomesByContent.has(item.id) && !params.excludeContentItemIds?.has(item.id),
-    );
+    const boundOutcomesByContent = new Map<string, string[]>();
+    const candidates: ContentItem[] = [];
+    for (const [skillId, outcomeIds] of outcomeIdsBySkill) {
+      const items = await contentItemRepository.findBySkill(skillId);
+      for (const item of items) {
+        if (params.excludeContentItemIds?.has(item.id)) continue;
+        candidates.push(item);
+        boundOutcomesByContent.set(item.id, outcomeIds);
+      }
+    }
 
     return { candidates, boundOutcomesByContent };
   }
@@ -72,18 +69,16 @@ export class CandidatePoolService {
    * only ever treats `outcomeId` as an opaque key, so this substitution is
    * safe without touching any of that code.
    *
-   * Candidates are the REAL master `ContentItem`s behind each snapshot
-   * content row's `sourceContentId` (confirmed direction: score using the
-   * original library content when one was copied, so effectiveness/semantic
-   * signals reflect real data). A manager-authored
-   * snapshot content row with no `sourceContentId` has nothing to resolve
-   * to a real `ContentItem` and is therefore not scorable by this pipeline
-   * — it's surfaced separately by `PlanSnapshotService.getTree()` for the
-   * wizard to show directly, not through recommendation ranking.
+   * Candidates are the REAL master `ContentItem`s belonging to each snapshot
+   * skill's `sourceSkillId` (confirmed direction: score using the original
+   * library content when a master skill was copied, so effectiveness/
+   * semantic signals reflect real data). A manager-added snapshot skill with
+   * no `sourceSkillId` has no master content to resolve to and is therefore
+   * not scorable by this pipeline — its outcomes still show in the wizard's
+   * snapshot editor directly, just not through recommendation ranking.
    */
   async buildPoolFromSnapshot(params: {
-    outcomeSnapshots: { id: string; sourceContentIds: string[] }[];
-    language: Language;
+    outcomeSnapshots: { id: string; sourceSkillId: string | null }[];
     outstandingOutcomeSnapshotIds: ReadonlySet<string>;
     excludeContentItemIds?: ReadonlySet<string>;
   }): Promise<CandidatePoolResult> {
@@ -91,30 +86,23 @@ export class CandidatePoolService {
       return { candidates: [], boundOutcomesByContent: new Map() };
     }
 
-    const contentIdToOutcomeSnapshotIds = new Map<string, string[]>();
+    const outcomeSnapshotIdsBySkill = new Map<string, string[]>();
     for (const outcome of params.outcomeSnapshots) {
-      if (!params.outstandingOutcomeSnapshotIds.has(outcome.id)) continue;
-      for (const contentId of outcome.sourceContentIds) {
-        const existing = contentIdToOutcomeSnapshotIds.get(contentId) ?? [];
-        existing.push(outcome.id);
-        contentIdToOutcomeSnapshotIds.set(contentId, existing);
-      }
+      if (!params.outstandingOutcomeSnapshotIds.has(outcome.id) || !outcome.sourceSkillId) continue;
+      const existing = outcomeSnapshotIdsBySkill.get(outcome.sourceSkillId) ?? [];
+      existing.push(outcome.id);
+      outcomeSnapshotIdsBySkill.set(outcome.sourceSkillId, existing);
     }
-
-    const allContentIds = [...contentIdToOutcomeSnapshotIds.keys()];
-    const items = await contentItemRepository.findManyByIdsScoped(allContentIds);
-    const itemsById = new Map(items.map((item) => [item.id, item]));
 
     const boundOutcomesByContent = new Map<string, string[]>();
     const candidates: ContentItem[] = [];
-    for (const [contentId, outcomeSnapshotIds] of contentIdToOutcomeSnapshotIds) {
-      const item = itemsById.get(contentId);
-      if (!item) continue;
-      if (item.language !== params.language) continue;
-      if (params.excludeContentItemIds?.has(contentId)) continue;
-
-      candidates.push(item);
-      boundOutcomesByContent.set(contentId, outcomeSnapshotIds);
+    for (const [skillId, outcomeSnapshotIds] of outcomeSnapshotIdsBySkill) {
+      const items = await contentItemRepository.findBySkill(skillId);
+      for (const item of items) {
+        if (params.excludeContentItemIds?.has(item.id)) continue;
+        candidates.push(item);
+        boundOutcomesByContent.set(item.id, outcomeSnapshotIds);
+      }
     }
 
     return { candidates, boundOutcomesByContent };

@@ -17,9 +17,9 @@ import type { SignalContext } from '@/modules/recommendations/signals/signal.typ
 // exactly the right amount of fixture for a unit test at this altitude.
 function baseContext(overrides: Partial<SignalContext> = {}): SignalContext {
   return {
-    contentItem: { id: 'content-1' } as never,
+    contentItem: { id: 'content-1', skillId: 'skill-1' } as never,
     outcomeId: 'outcome-1',
-    contentOutcomes: [{ contentItemId: 'content-1', outcomeId: 'outcome-1' }],
+    outcomeSkillId: 'skill-1',
     outcomePriority: 0,
     isCarriedOver: false,
     yearsOfExperience: null,
@@ -38,24 +38,15 @@ describe('SIGNAL_WEIGHTS — §8.1 weight table sums to 1.0', () => {
 });
 
 describe('outcomeRelevanceSignal (weight 0.30)', () => {
-  it('scores 1 when the candidate is bound to exactly this one outcome', () => {
+  it('scores 1 when the candidate belongs to the outcome’s skill', () => {
     const ctx = baseContext();
     expect(outcomeRelevanceSignal(ctx)).toBe(1);
   });
 
-  it('scores 0.6 when the candidate is bound to several outcomes (diluted focus)', () => {
+  it('scores 0 when the candidate belongs to a different skill', () => {
     const ctx = baseContext({
-      contentOutcomes: [
-        { contentItemId: 'content-1', outcomeId: 'outcome-1' },
-        { contentItemId: 'content-1', outcomeId: 'outcome-2' },
-      ],
-    });
-    expect(outcomeRelevanceSignal(ctx)).toBe(0.6);
-  });
-
-  it('scores 0 when the candidate is not bound to the target outcome at all', () => {
-    const ctx = baseContext({
-      contentOutcomes: [{ contentItemId: 'content-1', outcomeId: 'some-other-outcome' }],
+      contentItem: { id: 'content-1', skillId: 'skill-2' } as never,
+      outcomeSkillId: 'skill-1',
     });
     expect(outcomeRelevanceSignal(ctx)).toBe(0);
   });

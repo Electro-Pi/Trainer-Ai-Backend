@@ -4,7 +4,6 @@ import { fileTypeFromBuffer } from 'file-type';
 
 import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
-import { MIME_ALLOWLIST_BY_CONTENT_TYPE } from '@/config/constants.js';
 import { container } from '@/config/container.js';
 import { queueService } from '@/queue/queue-instance.js';
 import type { StorageService } from '@/shared-types.js';
@@ -14,6 +13,25 @@ import { PlanContentMediaRepository } from '../repositories/plan-content-media.r
 import { PlanTrackSnapshotRepository } from '../repositories/plan-track-snapshot.repository.js';
 
 const MEDIA_CONTENT_TYPES = ['DOCUMENT', 'SLIDES', 'IMAGE'] as const;
+
+// `PlanContentSnapshot` (this file's model) is a separate, plan-scoped copy
+// of content that still carries its own `contentType` — unlike the master
+// catalogue's `ContentItem`, it wasn't narrowed to document-only by the
+// content restructure, so it keeps its own MIME allowlist here.
+const PLAN_CONTENT_MIME_ALLOWLIST_BY_TYPE = {
+  DOCUMENT: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+  SLIDES: [
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ],
+  IMAGE: ['image/png', 'image/jpeg', 'image/webp'],
+  TEXT: [],
+  LINK: [],
+} as const;
 
 export interface ActingUser {
   id: string;
@@ -64,8 +82,8 @@ export class PlanContentMediaService {
 
     const sniffed = await fileTypeFromBuffer(input.buffer);
     const allowlist =
-      MIME_ALLOWLIST_BY_CONTENT_TYPE[
-        content.contentType as keyof typeof MIME_ALLOWLIST_BY_CONTENT_TYPE
+      PLAN_CONTENT_MIME_ALLOWLIST_BY_TYPE[
+        content.contentType as keyof typeof PLAN_CONTENT_MIME_ALLOWLIST_BY_TYPE
       ];
     if (!sniffed || !(allowlist as readonly string[]).includes(sniffed.mime)) {
       throw new ValidationError([

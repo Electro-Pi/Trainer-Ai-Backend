@@ -2,11 +2,7 @@ import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { container } from '@/config/container.js';
 import { logger } from '@/logger/logger.service.js';
-import {
-  contentItemRepository,
-  contentOutcomeRepository,
-  mediaAssetRepository,
-} from '@/modules/content/content.module.js';
+import { contentItemRepository, mediaAssetRepository } from '@/modules/content/content.module.js';
 import { levelRepository } from '@/modules/levels/levels.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
@@ -86,16 +82,11 @@ export class AiTrainerService {
 
     const allOutcomes = await outcomeRepository.findBySkillIds(allSkills.map((skill) => skill.id));
     const outcomesBySkillId = new Map<string, string[]>();
-    const outcomeIdsBySkillId = new Map<string, string[]>();
     for (const outcome of allOutcomes) {
       if (!outcome.skillId) continue;
       const titles = outcomesBySkillId.get(outcome.skillId) ?? [];
       titles.push(outcome.titleEn);
       outcomesBySkillId.set(outcome.skillId, titles);
-
-      const ids = outcomeIdsBySkillId.get(outcome.skillId) ?? [];
-      ids.push(outcome.id);
-      outcomeIdsBySkillId.set(outcome.skillId, ids);
     }
 
     // The AI service requires >=1 outcome per skill in the payload — a skill
@@ -112,7 +103,7 @@ export class AiTrainerService {
     // default (`en-US` per the API doc) rather than us guessing one.
     const results: SlideDeckResultDto[] = [];
     for (const skill of skills) {
-      const file = await this.resolveSkillAttachment(outcomeIdsBySkillId.get(skill.id) ?? []);
+      const file = await this.resolveSkillAttachment(skill.id);
 
       const skillResult = await this.client.generateSlideWithAttachment({
         track_name: track.nameEn,
@@ -158,27 +149,17 @@ export class AiTrainerService {
 
   /**
    * Picks the most-recently-uploaded eligible reference document (PDF/DOCX/
-   * PPTX — AI Trainer rejects legacy `.doc`/`.ppt`) across every
-   * `ContentItem` linked to any of the skill's outcomes, fetches its bytes
-   * via a signed download URL (storage exposes no direct byte-read), and
-   * returns it in the shape `generateSlideWithAttachment` expects. Returns
-   * `null` (no `file` field sent) when the skill has no eligible content —
-   * an attachment is always optional per the AI service's own contract.
+   * PPTX — AI Trainer rejects legacy `.doc`/`.ppt`) across every `ContentItem`
+   * belonging to the skill, fetches its bytes via a signed download URL
+   * (storage exposes no direct byte-read), and returns it in the shape
+   * `generateSlideWithAttachment` expects. Returns `null` (no `file` field
+   * sent) when the skill has no eligible content — an attachment is always
+   * optional per the AI service's own contract.
    */
   private async resolveSkillAttachment(
-    outcomeIds: string[],
+    skillId: string,
   ): Promise<{ data: Buffer; filename: string; mimeType: string } | null> {
-    if (outcomeIds.length === 0) return null;
-
-    const links = await Promise.all(
-      outcomeIds.map((outcomeId) => contentOutcomeRepository.findByOutcome(outcomeId)),
-    );
-    const contentItemIds = [...new Set(links.flat().map((link) => link.contentItemId))];
-    if (contentItemIds.length === 0) return null;
-
-    const contentItems = (
-      await contentItemRepository.findManyByIdsAnyStatus(contentItemIds)
-    ).filter((item) => item.contentType === 'DOCUMENT' || item.contentType === 'SLIDES');
+    const contentItems = await contentItemRepository.findBySkill(skillId);
     if (contentItems.length === 0) return null;
 
     const assetsByItem = await Promise.all(

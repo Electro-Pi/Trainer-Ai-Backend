@@ -53,11 +53,11 @@ export class LevelRepository extends BaseRepository<Level, LevelDelegate> {
     return this.delegate.findFirst({ where: { trackId, key } });
   }
 
-  /** Mirrors `TrackRepository.hasChildren` — a level with any real data attached (outcomes, content, plan templates, or a learner ever assigned to it) can't be hard-deleted, only archived. */
+  /** Mirrors `TrackRepository.hasChildren` — a level with any real data attached (outcomes, content, plan templates, or a learner ever assigned to it) can't be hard-deleted, only archived. Content is reached through the level's skills — `ContentItem` no longer carries its own `levelId`. */
   async hasChildren(id: string): Promise<boolean> {
     const [outcomeCount, contentCount, templateCount, assignmentCount] = await Promise.all([
       prisma.outcome.count({ where: { levelId: id } }),
-      prisma.contentItem.count({ where: { levelId: id } }),
+      prisma.contentItem.count({ where: { skill: { levelId: id } } }),
       prisma.planTemplate.count({ where: { levelId: id } }),
       prisma.learnerAssignment.count({ where: { levelId: id } }),
     ]);

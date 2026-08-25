@@ -25,8 +25,7 @@ export const trendsQuerySchema = analyticsFilterQuerySchema.extend({
 });
 
 export const contentUsageQuerySchema = z.object({
-  trackId: cuidSchema.optional(),
-  levelId: cuidSchema.optional(),
+  skillId: cuidSchema.optional(),
 });
 
 /** `PF-08` — export either a team or the whole org, as PDF or XLSX. */

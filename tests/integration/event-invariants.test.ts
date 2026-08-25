@@ -84,7 +84,7 @@ describe('cleanup.job invariant: the hard boundary is never crossed', () => {
     const { user: manager } = await createAuthedUser(org.id, 'DEPARTMENT_MANAGER');
     const team = await createTeam(org.id, manager.id);
     const learner = await createLearner(org.id, team.id);
-    const { track, level, outcome } = await createCatalogueTree(org.id);
+    const { track, level, skill, outcome } = await createCatalogueTree(org.id);
 
     const longExpiredDate = new Date('2000-01-01T00:00:00.000Z');
 
@@ -145,12 +145,8 @@ describe('cleanup.job invariant: the hard boundary is never crossed', () => {
       const contentItem = await prisma.contentItem.create({
         data: {
           organizationId: org.id,
-          title: 'Cleanup invariant content',
-          trackId: track.id,
-          levelId: level.id,
-          contentType: 'TEXT',
-          textBody: 'Body',
-          language: 'EN',
+          name: 'Cleanup invariant content',
+          skillId: skill.id,
           createdById: manager.id,
         },
       });

@@ -1,9 +1,6 @@
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
-import {
-  contentOutcomeRepository,
-  contentItemRepository,
-} from '@/modules/content/content.module.js';
+import { contentItemRepository } from '@/modules/content/content.module.js';
 import { learnerAssignmentRepository } from '@/modules/learners/learners.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
@@ -93,18 +90,14 @@ export class PlanSnapshotService {
       outcomesBySkillId.set(outcome.skillId, bucket);
     }
 
-    const outcomeIds = outcomesBySkill.map((outcome) => outcome.id);
-    const contentByOutcomeId = new Map<
-      string,
-      Awaited<ReturnType<typeof contentItemRepository.findManyByIdsAnyStatus>>
-    >();
-    for (const outcomeId of outcomeIds) {
-      const links = await contentOutcomeRepository.findByOutcome(outcomeId);
-      if (links.length === 0) continue;
-      const items = await contentItemRepository.findManyByIdsAnyStatus(
-        links.map((link) => link.contentItemId),
+    const contentBySkillId = new Map<string, { id: string; name: string }[]>();
+    for (const skillId of skillIds) {
+      const items = await contentItemRepository.findBySkill(skillId);
+      if (items.length === 0) continue;
+      contentBySkillId.set(
+        skillId,
+        items.map((item) => ({ id: item.id, name: item.name })),
       );
-      contentByOutcomeId.set(outcomeId, items);
     }
 
     const tree = await this.snapshots.createFromMasterTrack({
@@ -118,18 +111,7 @@ export class PlanSnapshotService {
       },
       trackSkills,
       outcomesBySkillId,
-      contentByOutcomeId: new Map(
-        [...contentByOutcomeId.entries()].map(([outcomeId, items]) => [
-          outcomeId,
-          items.map((item) => ({
-            id: item.id,
-            title: item.title,
-            contentType: item.contentType,
-            sourceUrl: item.sourceUrl,
-            textBody: item.textBody,
-          })),
-        ]),
-      ),
+      contentBySkillId,
     });
 
     await writeAuditLog({

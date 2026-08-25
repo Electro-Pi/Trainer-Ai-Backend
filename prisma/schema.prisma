@@ -436,7 +436,6 @@ model Track {
   organization  Organization   @relation(fields: [organizationId], references: [id])
   department    Department     @relation(fields: [departmentId], references: [id])
   levels        Level[]
-  contentItems  ContentItem[]
   planTemplates PlanTemplate[]
 
   @@unique([organizationId, key])
@@ -469,10 +468,11 @@ model Skill {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  level        Level?       @relation(fields: [levelId], references: [id])
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  level        Level?        @relation(fields: [levelId], references: [id])
   outcomes     Outcome[]
   slideDecks   SlideDeck[]
+  contentItems ContentItem[]
 
   @@unique([organizationId, key])
   @@index([organizationId])
@@ -496,7 +496,6 @@ model Level {
   track         Track               @relation(fields: [trackId], references: [id])
   skills        Skill[]
   outcomes      Outcome[]
-  contentItems  ContentItem[]
   assignments   LearnerAssignment[]
   planTemplates PlanTemplate[]
 
@@ -527,7 +526,6 @@ model Outcome {
 
   level                Level                  @relation(fields: [levelId], references: [id])
   skill                Skill?                 @relation(fields: [skillId], references: [id])
-  contentOutcomes      ContentOutcome[]
   prerequisiteFor      ContentPrerequisite[]  @relation("PrerequisiteOutcome")
   learnerOutcomes      LearnerOutcome[]
   questionBanks        QuestionBank[]
@@ -657,33 +655,18 @@ model LearnerOutcome {
 // ─────────────────────────────────────────────────────────────────────────
 
 model ContentItem {
-  id              String        @id @default(cuid(2))
-  organizationId  String
-  title           String
-  trackId         String
-  levelId         String
-  contentType     ContentType
-  textBody        String?
-  sourceUrl       String?
-  language        Language
-  status          ContentStatus @default(DRAFT)
-  version         Int           @default(1)
-  parentVersionId String?       @unique
-  skillTags       String[]
-  createdById     String
-  publishedAt     DateTime?
-  archivedAt      DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String   @id @default(cuid(2))
+  organizationId String
+  skillId        String
+  name           String
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization  Organization @relation(fields: [organizationId], references: [id])
-  track         Track        @relation(fields: [trackId], references: [id])
-  level         Level        @relation(fields: [levelId], references: [id])
-  createdBy     PortalUser   @relation("ContentCreatedBy", fields: [createdById], references: [id])
-  parentVersion ContentItem? @relation("ContentVersioning", fields: [parentVersionId], references: [id])
-  childVersion  ContentItem? @relation("ContentVersioning")
+  organization Organization @relation(fields: [organizationId], references: [id])
+  skill        Skill        @relation(fields: [skillId], references: [id])
+  createdBy    PortalUser   @relation("ContentCreatedBy", fields: [createdById], references: [id])
 
-  contentOutcomes     ContentOutcome[]
   prerequisites       ContentPrerequisite[]  @relation("ContentPrerequisiteOf")
   requiredBy          ContentPrerequisite[]  @relation("PrerequisiteContent")
   mediaAssets         MediaAsset[]
@@ -692,20 +675,8 @@ model ContentItem {
   effectiveness       ContentEffectiveness[]
   sessionContents     SessionContent[]
 
-  @@index([organizationId, status, trackId, levelId, language])
+  @@index([organizationId, skillId])
   @@map("content_items")
-}
-
-model ContentOutcome {
-  contentItemId String
-  outcomeId     String
-
-  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
-  outcome     Outcome     @relation(fields: [outcomeId], references: [id])
-
-  @@id([contentItemId, outcomeId])
-  @@index([outcomeId])
-  @@map("content_outcomes")
 }
 
 model ContentPrerequisite {
