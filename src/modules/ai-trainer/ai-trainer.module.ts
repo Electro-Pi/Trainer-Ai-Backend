@@ -6,12 +6,34 @@ import {
   createSkillAiTrainerRouter,
   createTrackAiTrainerRouter,
 } from './ai-trainer.routes.js';
+import { ExternalSessionRepository } from './repositories/external-session.repository.js';
 import { AiTrainerClientService } from './services/ai-trainer-client.service.js';
 
 export const trackAiTrainerRouter = createTrackAiTrainerRouter();
 export const skillAiTrainerRouter = createSkillAiTrainerRouter();
 export const externalSessionsRouter = createExternalSessionsRouter();
 export const draftAiTrainerRouter = createDraftAiTrainerRouter();
+
+// `aiTrainerWebhookRouter` is deliberately NOT re-exported from here —
+// `app.ts` imports `ai-trainer-webhook.routes.ts` directly instead. That
+// route's controller/service reach into `sessions.module.ts`
+// (`sessionRepository`/`sessionOutcomeRepository`), and `sessions.module.ts`'s
+// own `session.service.ts` imports THIS module (`externalSessionRepository`,
+// below) for its DB-first transcript read — routing the webhook through this
+// barrel too would close that into an import cycle
+// (`sessions` → `ai-trainer` → webhook chain → `sessions`).
+
+export type { ExternalSession } from './repositories/external-session.repository.js';
+export type {
+  WebhookManagerView,
+  WebhookTraineeView,
+  WebhookTranscriptTurn,
+} from './dto/ai-trainer.dto.js';
+
+// Sanctioned cross-module surface — `sessions` and `reports` read the
+// webhook-saved evaluation/transcript payloads through this before falling
+// back to a live `aiTrainerClientService` pull.
+export const externalSessionRepository = new ExternalSessionRepository();
 
 export type {
   SessionEvaluationManagerView,
@@ -102,4 +124,13 @@ openApiRegistry.registerPath({
   summary:
     'Live evaluation, proxied to the AI Trainer service (never cached; only available once the session has ended)',
   responses: { 200: { description: 'External session evaluation' } },
+});
+
+openApiRegistry.registerPath({
+  method: 'post',
+  path: '/external-sessions/{id}/complete',
+  tags: ['AI Trainer'],
+  summary:
+    'AI Trainer webhook — pushes the final evaluation + transcript once a meeting ends and completes the matching Session. No authentication.',
+  responses: { 200: { description: 'Accepted' } },
 });

@@ -38,3 +38,69 @@ export const startExternalSessionSchema = z.object({
   slideDeckId: cuidSchema,
   meetingUrl: httpsUrlSchema,
 });
+
+// `POST /external-sessions/:id/complete` — the AI Trainer webhook body.
+// `snake_case`, mirroring her wire format verbatim (see the matching DTO's
+// comment in `dto/ai-trainer.dto.ts`).
+
+const webhookOutcomeResultSchema = z.object({
+  outcome: z.string(),
+  questions_asked: z.number().int().nonnegative(),
+  questions_correct: z.number().int().nonnegative(),
+  passed: z.boolean(),
+});
+
+const webhookTraineeQuestionSchema = z.object({
+  question_index: z.number().int().nonnegative(),
+  question_text: z.string(),
+  trainee_answer_text: z.string(),
+  is_correct: z.boolean(),
+  ai_feedback: z.string(),
+  outcome_text: z.string(),
+});
+
+const webhookTraineeViewSchema = z.object({
+  overall_score: z.number(),
+  passed: z.boolean(),
+  summary_feedback: z.string(),
+  strengths: z.array(z.string()),
+  areas_for_improvement: z.array(z.string()),
+  questions: z.array(webhookTraineeQuestionSchema),
+  outcome_results: z.array(webhookOutcomeResultSchema),
+});
+
+const webhookManagerQuestionSchema = z.object({
+  question_index: z.number().int().nonnegative(),
+  question_text: z.string(),
+  trainee_answer_text: z.string(),
+  is_correct: z.boolean(),
+  manager_feedback: z.string(),
+  outcome_text: z.string(),
+});
+
+const webhookManagerViewSchema = z.object({
+  overall_score: z.number(),
+  passed: z.boolean(),
+  readiness: z.enum(['ready', 'needs_practice', 'not_ready']),
+  risk_areas: z.array(z.string()),
+  outcome_coverage_comparison: z.string(),
+  questions: z.array(webhookManagerQuestionSchema),
+  outcome_results: z.array(webhookOutcomeResultSchema),
+});
+
+const webhookTranscriptTurnSchema = z.object({
+  turn_index: z.number().int().nonnegative(),
+  speaker: z.enum(['trainer_ai', 'trainee']),
+  text: z.string(),
+  occurred_at: z.string(),
+});
+
+export const webhookSessionCompleteSchema = z.object({
+  evaluation: z.object({
+    trainee_view: webhookTraineeViewSchema,
+    manager_view: webhookManagerViewSchema.nullable(),
+  }),
+  transcript: z.object({
+    turns: z.array(webhookTranscriptTurnSchema),
+  }),
+});

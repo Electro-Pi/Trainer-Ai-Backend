@@ -1,7 +1,11 @@
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { container } from '@/config/container.js';
-import { aiTrainerClientService } from '@/modules/ai-trainer/ai-trainer.module.js';
+import {
+  aiTrainerClientService,
+  externalSessionRepository,
+} from '@/modules/ai-trainer/ai-trainer.module.js';
+import type { WebhookTranscriptTurn } from '@/modules/ai-trainer/ai-trainer.module.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
 import {
@@ -228,6 +232,30 @@ export class SessionService {
     if (!session.externalSessionId) {
       throw new NotFoundError('No transcript exists for this session yet');
     }
+
+    // The webhook (`POST /external-sessions/:id/complete`) saves the
+    // transcript once the meeting ends — prefer that over a live pull, which
+    // only works while the AI Trainer's own session record is still
+    // resolvable and is the sole source before the webhook fires.
+    const externalSession = await externalSessionRepository.findByIdScoped(
+      session.externalSessionId,
+    );
+    if (externalSession?.transcriptPayload) {
+      const stored = externalSession.transcriptPayload as unknown as {
+        turns: WebhookTranscriptTurn[];
+      };
+      return {
+        sessionId: session.id,
+        status: 'completed',
+        turns: stored.turns.map((turn) => ({
+          turnIndex: turn.turn_index,
+          speaker: turn.speaker,
+          text: turn.text,
+          occurredAt: turn.occurred_at,
+        })),
+      };
+    }
+
     const transcript = await aiTrainerClientService.getSessionTranscript(session.externalSessionId);
     return {
       sessionId: session.id,

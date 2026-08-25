@@ -151,3 +151,72 @@ export interface ExternalSessionEvaluationResponseDto {
   /** `null` when the evaluation predates the manager-evaluation feature. */
   managerView: ExternalSessionManagerViewDto | null;
 }
+
+// `POST /external-sessions/:id/complete` — the AI Trainer webhook's inbound
+// body. Deliberately `snake_case`, matching her wire format verbatim
+// (`ai-trainer-client.types.ts`'s `SessionEvaluationResponse`/
+// `SessionTranscriptResponse`) rather than this file's usual camelCase
+// convention — there's no outbound HTTP call here to translate at, this IS
+// the payload she sends.
+
+export interface WebhookOutcomeResult {
+  outcome: string;
+  questions_asked: number;
+  questions_correct: number;
+  passed: boolean;
+}
+
+export interface WebhookTraineeQuestion {
+  question_index: number;
+  question_text: string;
+  trainee_answer_text: string;
+  is_correct: boolean;
+  ai_feedback: string;
+  outcome_text: string;
+}
+
+export interface WebhookTraineeView {
+  overall_score: number;
+  passed: boolean;
+  summary_feedback: string;
+  strengths: string[];
+  areas_for_improvement: string[];
+  questions: WebhookTraineeQuestion[];
+  outcome_results: WebhookOutcomeResult[];
+}
+
+export interface WebhookManagerQuestion {
+  question_index: number;
+  question_text: string;
+  trainee_answer_text: string;
+  is_correct: boolean;
+  manager_feedback: string;
+  outcome_text: string;
+}
+
+export interface WebhookManagerView {
+  overall_score: number;
+  passed: boolean;
+  readiness: 'ready' | 'needs_practice' | 'not_ready';
+  risk_areas: string[];
+  outcome_coverage_comparison: string;
+  questions: WebhookManagerQuestion[];
+  outcome_results: WebhookOutcomeResult[];
+}
+
+export interface WebhookTranscriptTurn {
+  turn_index: number;
+  speaker: 'trainer_ai' | 'trainee';
+  text: string;
+  occurred_at: string;
+}
+
+export interface WebhookSessionCompleteRequestDto {
+  evaluation: {
+    trainee_view: WebhookTraineeView;
+    manager_view: WebhookManagerView | null;
+  };
+  transcript: {
+    turns: WebhookTranscriptTurn[];
+  };
+}

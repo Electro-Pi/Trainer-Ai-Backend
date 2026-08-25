@@ -12,6 +12,7 @@ import { container } from '@/config/container.js';
 import { runAllHealthChecks } from '@/health/health-checks.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
 import { agentRouter } from '@/modules/agent/agent.module.js';
+import { createAiTrainerWebhookRouter } from '@/modules/ai-trainer/ai-trainer-webhook.routes.js';
 import {
   draftAiTrainerRouter,
   externalSessionsRouter,
@@ -110,6 +111,10 @@ export function createApp(): Express {
   v1.use('/tracks/:trackId', trackAiTrainerRouter);
   v1.use('/skills/:skillId', skillAiTrainerRouter);
   v1.use('/external-sessions', externalSessionsRouter);
+  // No auth on this one, unlike `externalSessionsRouter` above — the AI
+  // team's meeting-end webhook, per explicit user request (see
+  // `ai-trainer-webhook.routes.ts`'s doc comment).
+  v1.use('/external-sessions', createAiTrainerWebhookRouter());
   v1.use('/ai-trainer', draftAiTrainerRouter);
 
   mountSwagger(app);

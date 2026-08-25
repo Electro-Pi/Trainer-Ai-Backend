@@ -29,6 +29,21 @@ export class ExternalSessionRepository extends BaseRepository<
     return this.delegate.findFirst({ where: { id } });
   }
 
+  /** Persists the webhook's payload (`POST /external-sessions/:id/complete`) — the raw evaluation/transcript JSON the AI Trainer pushes once the meeting ends. */
+  async completeExternal(
+    id: string,
+    input: { evaluationPayload: unknown; transcriptPayload: unknown },
+  ): Promise<ExternalSession> {
+    return this.delegate.update({
+      where: { id } as never,
+      data: {
+        evaluationPayload: input.evaluationPayload,
+        transcriptPayload: input.transcriptPayload,
+        completedAt: new Date(),
+      } as never,
+    });
+  }
+
   async updateProgress(
     id: string,
     input: {

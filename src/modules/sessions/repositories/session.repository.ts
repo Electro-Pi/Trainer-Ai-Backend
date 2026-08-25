@@ -179,6 +179,26 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
   }
 
   /**
+   * The AI Trainer webhook (`POST /external-sessions/:id/complete`) has no
+   * auth at all, so no `req.auth.orgId` to seed `runWithTenant` with before
+   * the first read — same two-step unscoped→scoped reasoning as
+   * `findByJoinToken`/`findOrganizationIdForSession`, keyed on
+   * `externalSessionId` instead.
+   */
+  async findByExternalSessionId(externalSessionId: string): Promise<Session | null> {
+    const unscoped = await prisma.$queryRaw<
+      { id: string; organizationId: string }[]
+    >`SELECT "id", "organizationId" FROM "sessions" WHERE "externalSessionId" = ${externalSessionId} LIMIT 1`;
+
+    const match = unscoped[0];
+    if (!match) return null;
+
+    return runWithTenant(match.organizationId, () =>
+      this.delegate.findFirst({ where: { id: match.id } }),
+    );
+  }
+
+  /**
    * `IV-01`, `IV-02` — one atomic write: marks the session `INVITED` with its
    * Graph meeting details, and creates the matching `Invitation` row.
    * Without a transaction, a mid-write failure could leave a session with

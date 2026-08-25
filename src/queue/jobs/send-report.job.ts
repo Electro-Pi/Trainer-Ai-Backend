@@ -20,6 +20,16 @@ function isReportRecipientArray(value: unknown): value is ReportRecipient[] {
   );
 }
 
+/** ASCII-only, hyphen-separated — email attachment filenames can't safely carry arbitrary Unicode across every client. */
+function slugifyForFilename(title: string | undefined): string | null {
+  if (!title) return null;
+  const slug = title
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .replace(/\s+/g, '-');
+  return slug.length > 0 ? slug : null;
+}
+
 /**
  * `RP-02` — Graph `sendMail` to manager + learner, report language follows
  * each recipient (the report row itself already carries the right language
@@ -65,6 +75,7 @@ export async function processSendReportJob(payload: QueuePayloads['report.send']
 
     const plan = report.planId ? await trainingPlanRepository.findByIdScoped(report.planId) : null;
     const emailService = container.resolveEmail<EmailService>();
+    const attachmentFilename = `${slugifyForFilename(plan?.title) ?? 'Training'}-Report.pdf`;
 
     for (const recipient of recipients) {
       const senderPortalUserId =
@@ -76,7 +87,7 @@ export async function processSendReportJob(payload: QueuePayloads['report.send']
         html: renderReportEmailHtml(recipient.name, report.language),
         attachments: [
           {
-            filename: `report-${report.id}.pdf`,
+            filename: attachmentFilename,
             content: pdfBuffer,
             contentType: 'application/pdf',
           },

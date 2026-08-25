@@ -1,9 +1,14 @@
 import { NotFoundError } from '@/common/exceptions/app-error.js';
 import { logger } from '@/logger/logger.service.js';
-import { aiTrainerClientService } from '@/modules/ai-trainer/ai-trainer.module.js';
+import {
+  aiTrainerClientService,
+  externalSessionRepository,
+} from '@/modules/ai-trainer/ai-trainer.module.js';
 import type {
   SessionEvaluationManagerView,
   SessionEvaluationTraineeView,
+  WebhookManagerView,
+  WebhookTraineeView,
 } from '@/modules/ai-trainer/ai-trainer.module.js';
 import {
   assessmentAnswerRepository,
@@ -150,26 +155,43 @@ export class ReportDataService {
 
     const branding = resolveBranding(organization);
 
-    // Best-effort — the evaluation endpoint depends on the AI Trainer's own
-    // session record existing (`session.externalSessionId`) and having
-    // finished evaluating; either can legitimately not be true yet (or ever,
-    // for a session dispatch that failed). Any failure here falls back to
-    // `assessment.strengths`/`gaps`/`agentNotes` above rather than blocking
-    // report generation on a call this service doesn't control.
     let traineeEvaluation: SessionEvaluationTraineeView | null = null;
     let managerEvaluation: SessionEvaluationManagerView | null = null;
     if (session.externalSessionId) {
-      try {
-        const evaluation = await aiTrainerClientService.getSessionEvaluation(
-          session.externalSessionId,
-        );
-        traineeEvaluation = evaluation.trainee_view;
-        managerEvaluation = evaluation.manager_view;
-      } catch (error) {
-        logger.warn(
-          { sessionId, externalSessionId: session.externalSessionId, err: error },
-          'buildSessionReport: evaluation fetch failed, falling back to assessment notes',
-        );
+      // The webhook (`POST /external-sessions/:id/complete`) saves this once
+      // the meeting ends — same wire shape as the live pull below (both
+      // mirror the AI Trainer's `trainee_view`/`manager_view`), so prefer it
+      // and only fall back to a live call if the webhook hasn't fired yet.
+      const externalSession = await externalSessionRepository.findByIdScoped(
+        session.externalSessionId,
+      );
+      const storedEvaluation = externalSession?.evaluationPayload as {
+        trainee_view: WebhookTraineeView;
+        manager_view: WebhookManagerView | null;
+      } | null;
+
+      if (storedEvaluation) {
+        traineeEvaluation = storedEvaluation.trainee_view as SessionEvaluationTraineeView;
+        managerEvaluation = storedEvaluation.manager_view as SessionEvaluationManagerView | null;
+      } else {
+        // Best-effort — the live evaluation endpoint depends on the AI
+        // Trainer's own session record existing and having finished
+        // evaluating; either can legitimately not be true yet (or ever, for
+        // a session dispatch that failed). Any failure here falls back to
+        // `assessment.strengths`/`gaps`/`agentNotes` above rather than
+        // blocking report generation on a call this service doesn't control.
+        try {
+          const evaluation = await aiTrainerClientService.getSessionEvaluation(
+            session.externalSessionId,
+          );
+          traineeEvaluation = evaluation.trainee_view;
+          managerEvaluation = evaluation.manager_view;
+        } catch (error) {
+          logger.warn(
+            { sessionId, externalSessionId: session.externalSessionId, err: error },
+            'buildSessionReport: evaluation fetch failed, falling back to assessment notes',
+          );
+        }
       }
     }
 

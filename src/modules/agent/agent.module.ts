@@ -8,6 +8,12 @@ import {
 
 export const agentRouter = createAgentRouter();
 
+// Sanctioned cross-module surface — the AI Trainer webhook flow
+// (`external-session-complete.service.ts`) shares this exact
+// outcome-tracking/escalation behavior with `CompleteSessionService`'s
+// rubric-scored completion path.
+export { updateLearnerOutcomes } from './services/update-learner-outcomes.js';
+
 // `P8-8b` — subscribes `session.completed`/`outcome.failed.repeatedly` at
 // module load, the same way `recommendations.module.ts` wires `RC-01`'s
 // `LEVEL_ASSIGNED` subscriber. Must be imported (for its router) before

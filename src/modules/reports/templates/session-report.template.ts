@@ -126,25 +126,30 @@ function verdictBadgeClass(verdict: string | null): string {
  * bundled webfont — production Linux containers need an Arabic-capable font
  * package installed (e.g. `fonts-noto`), flagged for the deploy runbook (P12).
  */
+// Brand tokens mirrored from Trainer-Ai's `styles/landing.css` light theme —
+// kept in sync manually since the PDF renderer runs outside the app and
+// can't consume its CSS variables. `branding.primaryColor` (per-org override)
+// still wins when an organization has customized it.
 function baseStyles(branding: SessionReportData['branding']): string {
-  const accent = branding.primaryColor ?? '#1f5fb0';
+  const accent = branding.primaryColor ?? '#172378';
   return `
     :root {
       --color-accent: ${accent};
-      --color-text: #1a1a1a;
-      --color-muted: #5a5a5a;
-      --color-border: #dcdcdc;
-      --color-bg-subtle: #f6f7f9;
-      --color-achieved: #1a7f37;
-      --color-achieved-bg: #eaf7ee;
-      --color-partial: #9a6700;
-      --color-partial-bg: #fff6e0;
-      --color-not-achieved: #b3261e;
-      --color-not-achieved-bg: #fbeaea;
+      --color-accent-soft: #EEF0FB;
+      --color-text: #1D252C;
+      --color-muted: #66717A;
+      --color-border: #D9E1E8;
+      --color-bg-subtle: #F3F5F8;
+      --color-achieved: #1A7F37;
+      --color-achieved-bg: #EAF7EE;
+      --color-partial: #9A6700;
+      --color-partial-bg: #FFF6E0;
+      --color-not-achieved: #B3261E;
+      --color-not-achieved-bg: #FBEAEA;
     }
     * { box-sizing: border-box; }
     body {
-      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      font-family: 'IBM Plex Sans', 'Segoe UI', Tahoma, Arial, sans-serif;
       color: var(--color-text);
       font-size: 12pt;
       line-height: 1.6;
@@ -154,27 +159,30 @@ function baseStyles(branding: SessionReportData['branding']): string {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 3px solid var(--color-accent);
-      padding-block-end: 12pt;
-      margin-block-end: 16pt;
+      background: var(--color-accent);
+      padding: 20pt 28pt;
+      margin-block-end: 20pt;
     }
-    .header img { max-height: 48pt; }
-    .header h1 { font-size: 16pt; margin: 0; color: var(--color-accent); }
-    .org-name { font-size: 10pt; color: var(--color-muted); }
+    .header img { max-height: 40pt; }
+    .header h1 { font-size: 15pt; margin: 0 0 3pt; color: #FFFFFF; font-weight: 600; }
+    .org-name { font-size: 9pt; color: rgba(255,255,255,.75); letter-spacing: .04em; }
+    .body-inset { padding: 0 28pt; }
     .meta-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6pt 24pt;
       margin-block-end: 18pt;
-      padding: 12pt;
+      padding: 14pt 16pt;
       background: var(--color-bg-subtle);
-      border-radius: 6pt;
+      border: 1px solid var(--color-border);
+      border-radius: 10pt;
     }
-    .meta-item .label { font-size: 9pt; color: var(--color-muted); text-transform: uppercase; }
-    .meta-item .value { font-size: 11pt; font-weight: 600; }
+    .meta-item .label { font-size: 8.5pt; color: var(--color-muted); text-transform: uppercase; letter-spacing: .04em; }
+    .meta-item .value { font-size: 11pt; font-weight: 600; color: var(--color-text); }
     section { margin-block-end: 18pt; }
     h2 {
-      font-size: 12pt;
+      font-size: 11.5pt;
+      font-weight: 600;
       color: var(--color-accent);
       border-inline-start: 4pt solid var(--color-accent);
       padding-inline-start: 8pt;
@@ -183,29 +191,29 @@ function baseStyles(branding: SessionReportData['branding']): string {
     table { width: 100%; border-collapse: collapse; font-size: 10pt; }
     th, td {
       text-align: start;
-      padding: 6pt 8pt;
+      padding: 7pt 8pt;
       border-bottom: 1px solid var(--color-border);
     }
-    th { color: var(--color-muted); font-weight: 600; font-size: 9pt; text-transform: uppercase; }
+    th { color: var(--color-muted); font-weight: 600; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .03em; }
     .badge {
       display: inline-block;
-      padding: 2pt 8pt;
-      border-radius: 10pt;
-      font-size: 9pt;
+      padding: 2pt 9pt;
+      border-radius: 999pt;
+      font-size: 8.5pt;
       font-weight: 600;
     }
     .badge-achieved { color: var(--color-achieved); background: var(--color-achieved-bg); }
     .badge-partial { color: var(--color-partial); background: var(--color-partial-bg); }
     .badge-not-achieved { color: var(--color-not-achieved); background: var(--color-not-achieved-bg); }
     .prose { white-space: pre-wrap; font-size: 10.5pt; }
-    .qa { padding: 10pt 0; border-bottom: 1px solid var(--color-border); }
-    .qa:last-child { border-bottom: none; }
-    .qa .q { font-size: 10.5pt; font-weight: 600; margin-block-end: 4pt; }
+    .qa { padding: 10pt 12pt; border: 1px solid var(--color-border); border-radius: 8pt; background: var(--color-accent-soft); margin-block-end: 8pt; }
+    .qa:last-child { margin-block-end: 0; }
+    .qa .q { font-size: 10.5pt; font-weight: 600; margin-block-end: 4pt; color: var(--color-text); }
     .qa .a { font-size: 10pt; color: var(--color-muted); margin-block-end: 4pt; }
     .qa .fb { font-size: 10pt; }
     ul.plain { margin: 0; padding-inline-start: 18pt; font-size: 10.5pt; }
     ul.plain li { margin-block-end: 4pt; }
-    .footer { margin-block-start: 24pt; padding-block-start: 8pt; border-top: 1px solid var(--color-border); font-size: 8pt; color: var(--color-muted); text-align: center; }
+    .footer { margin: 24pt 28pt 0; padding-block-start: 10pt; border-top: 1px solid var(--color-border); font-size: 8pt; color: var(--color-muted); text-align: center; }
   `;
 }
 
@@ -272,6 +280,7 @@ export function renderSessionReportHtml(
     ${data.branding.logoUrl ? `<img src="${escapeHtml(data.branding.logoUrl)}" alt="" />` : ''}
   </div>
 
+  <div class="body-inset">
   <div class="meta-grid">
     <div class="meta-item"><div class="label">${t.learner}</div><div class="value">${escapeHtml(data.learnerName)}</div></div>
     <div class="meta-item"><div class="label">${t.manager}</div><div class="value">${escapeHtml(data.managerName)}</div></div>
@@ -303,6 +312,7 @@ export function renderSessionReportHtml(
   </section>
 
   ${evaluationSectionsHtml}
+  </div>
 
   <div class="footer">${escapeHtml(data.branding.organizationName)} · ${t.title}</div>
 </body>

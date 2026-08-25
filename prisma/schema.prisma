@@ -590,6 +590,17 @@ model ExternalSession {
   questionsRecorded    Int?
   startedAt            DateTime?
   endedAt              DateTime?
+  /// Raw `SessionEvaluationResponse` (trainee_view/manager_view) pushed by
+  /// the AI Trainer's `POST /external-sessions/:id/complete` webhook —
+  /// `report-data.service.ts` reads this before falling back to a live pull.
+  evaluationPayload    Json?
+  /// Raw `SessionTranscriptResponse` (turns[]) pushed by the same webhook —
+  /// `session.service.ts`'s `getTranscript` reads this before falling back
+  /// to a live pull.
+  transcriptPayload    Json?
+  /// Set by the webhook once evaluation+transcript are saved — distinct from
+  /// `endedAt` (which tracks the AI Trainer's own live-status polling).
+  completedAt          DateTime?
   createdAt            DateTime  @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
