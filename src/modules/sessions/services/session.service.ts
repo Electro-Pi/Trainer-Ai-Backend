@@ -287,7 +287,6 @@ export class SessionService {
         skillName: skill?.nameEn ?? 'Training session',
         outcomeTitle: outcome?.titleEn ?? '',
         ...formatLocalDateAndTime(session.scheduledStart),
-        durationMinutes: session.durationMinutes ?? 45,
         joinUrl: session.joinUrl,
         language,
       }),

@@ -160,7 +160,6 @@ export async function processCreateMeetingJob(
           skillName: skill?.nameEn ?? 'Training session',
           outcomeTitle: outcome?.titleEn ?? '',
           ...formatLocalDateAndTime(session.scheduledStart),
-          durationMinutes: session.durationMinutes ?? 45,
           joinUrl: joinUrlForNotifications,
           language,
           kind: 'confirmed',

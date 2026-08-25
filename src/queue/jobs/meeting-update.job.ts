@@ -176,7 +176,6 @@ export async function processMeetingUpdateJob(
             skillName: skill?.nameEn ?? 'Training session',
             outcomeTitle: outcome?.titleEn ?? '',
             ...formatLocalDateAndTime(session.scheduledStart),
-            durationMinutes: session.durationMinutes ?? 45,
             joinUrl: currentJoinUrl ?? '',
             language,
             kind: 'rescheduled',

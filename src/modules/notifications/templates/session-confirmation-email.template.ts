@@ -15,8 +15,6 @@ const COPY = {
         : `Your training session on <strong>${skillName}</strong> has been scheduled.<br/>Focus outcome: <strong>${outcomeTitle}</strong>.`,
     dateLabel: 'Date',
     timeLabel: 'Time',
-    durationLabel: 'Duration',
-    minutes: (n: number) => `${n} minutes`,
     cta: 'Join meeting',
     fallback: "If the button doesn't work, copy and paste this link into your browser:",
     calendarNote:
@@ -36,8 +34,6 @@ const COPY = {
         : `تم جدولة جلستك التدريبية على <strong>${skillName}</strong>.<br/>الهدف من الجلسة: <strong>${outcomeTitle}</strong>.`,
     dateLabel: 'التاريخ',
     timeLabel: 'الوقت',
-    durationLabel: 'المدة',
-    minutes: (n: number) => `${n} دقيقة`,
     cta: 'الانضمام إلى الاجتماع',
     fallback: 'إذا لم يعمل الزر، انسخ الرابط التالي والصقه في متصفحك:',
     calendarNote: 'تم أيضاً تحديث دعوة التقويم لهذه الجلسة في بريدك الإلكتروني على Outlook.',
@@ -66,7 +62,6 @@ export function renderSessionConfirmationEmailHtml(params: {
   outcomeTitle: string;
   date: string;
   time: string;
-  durationMinutes: number;
   joinUrl: string;
   language: Language;
   kind?: SessionEmailKind;
@@ -112,9 +107,6 @@ export function renderSessionConfirmationEmailHtml(params: {
                       </tr>
                       <tr>
                         <td style="padding:4px 0;font-size:13px;color:${BRAND.primary700};"><strong>${t.timeLabel}:</strong> ${params.time}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding:4px 0;font-size:13px;color:${BRAND.primary700};"><strong>${t.durationLabel}:</strong> ${t.minutes(params.durationMinutes)}</td>
                       </tr>
                     </table>
                   </td>

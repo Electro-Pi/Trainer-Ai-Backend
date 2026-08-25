@@ -354,7 +354,6 @@ export class TrainingPlanService {
               skillName: skill?.nameEn ?? 'Training session',
               outcomeTitle: outcome?.titleEn ?? '',
               ...formatLocalDateAndTime(session.scheduledStart),
-              durationMinutes: session.durationMinutes ?? 45,
             };
           }),
         );

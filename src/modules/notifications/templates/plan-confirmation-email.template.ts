@@ -9,8 +9,6 @@ const COPY = {
     sessionLabel: (n: number) => `Session ${n}`,
     dateLabel: 'Date',
     timeLabel: 'Time',
-    durationLabel: 'Duration',
-    minutes: (n: number) => `${n} min`,
     calendarNote: 'Each session above also has its own calendar invite in your Outlook mailbox.',
     signOff: 'This is an automated message from MODRB — please don’t reply to this email.',
   },
@@ -22,8 +20,6 @@ const COPY = {
     sessionLabel: (n: number) => `الجلسة ${n}`,
     dateLabel: 'التاريخ',
     timeLabel: 'الوقت',
-    durationLabel: 'المدة',
-    minutes: (n: number) => `${n} دقيقة`,
     calendarNote: 'كل جلسة أعلاه لها أيضاً دعوة تقويم خاصة بها في بريدك الإلكتروني على Outlook.',
     signOff: 'هذه رسالة آلية من منصة MODRB — يرجى عدم الرد على هذا البريد.',
   },
@@ -48,7 +44,6 @@ export type PlanConfirmationSessionRow = {
   outcomeTitle: string;
   date: string;
   time: string;
-  durationMinutes: number;
 };
 
 export function renderPlanConfirmationEmailHtml(params: {
@@ -79,7 +74,7 @@ export function renderPlanConfirmationEmailHtml(params: {
                           <table role="presentation" cellpadding="0" cellspacing="0" style="background:${BRAND.primaryTint};border-radius:8px;">
                             <tr>
                               <td style="padding:8px 12px;font-size:12.5px;color:${BRAND.primary700};white-space:nowrap;">
-                                <strong>${s.date}</strong> &nbsp;·&nbsp; <strong>${s.time}</strong> &nbsp;·&nbsp; ${t.minutes(s.durationMinutes)}
+                                <strong>${s.date}</strong> &nbsp;·&nbsp; <strong>${s.time}</strong>
                               </td>
                             </tr>
                           </table>
