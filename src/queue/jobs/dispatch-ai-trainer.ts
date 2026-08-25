@@ -10,11 +10,17 @@ import type { Session } from '@/modules/sessions/repositories/session.repository
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
+import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
 
 const sessions = new SessionRepository();
 const slideDecks = new SlideDeckRepository();
 const externalSessions = new ExternalSessionRepository();
 const aiTrainerClient = new AiTrainerClientService();
+
+/** `TrainingPlan.language` ('EN'|'AR') → the AI Trainer service's own locale tags. */
+function toAiTrainerLanguage(language: 'EN' | 'AR' | undefined): 'en-US' | 'ar-SA' {
+  return language === 'AR' ? 'ar-SA' : 'en-US';
+}
 
 /**
  * `POST /sessions/external` dispatch, shared by `create-meeting.job.ts`
@@ -56,6 +62,8 @@ export async function dispatchToAiTrainer(params: {
       );
     }
 
+    const plan = await trainingPlanRepository.findByIdScoped(session.planId);
+
     const result = await aiTrainerClient.startExternalSession({
       user_id: learner.id,
       user_name: learner.displayName,
@@ -64,6 +72,7 @@ export async function dispatchToAiTrainer(params: {
       slide_deck_id: slideDeck.aiDeckId,
       skill_name: skill.nameEn,
       meeting_url: joinUrl,
+      language: toAiTrainerLanguage(plan?.language),
     });
 
     await externalSessions.create({

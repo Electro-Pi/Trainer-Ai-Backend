@@ -20,6 +20,7 @@ import {
   sessionOutcomeRepository,
   sessionRepository,
 } from '@/modules/sessions/sessions.module.js';
+import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
 
 import type {
   SessionContextContentItem,
@@ -63,6 +64,14 @@ export class SessionContextService {
       throw new NotFoundError('Level not found for this session');
     }
 
+    // The manager sets the plan's coaching language explicitly at plan
+    // creation (see `TrainingPlan.language`); the learner's own
+    // `preferredLanguage` is only a fallback for plans that predate that
+    // field or were created without one — otherwise the two can disagree
+    // and the AI coach would follow the wrong one.
+    const plan = await trainingPlanRepository.findByIdScoped(session.planId);
+    const sessionLanguage = plan?.language ?? learner.preferredLanguage;
+
     const sessionOutcomes = await sessionOutcomeRepository.findBySession(session.id);
     const outcomeIds = sessionOutcomes.map((so) => so.outcomeId);
     const outcomes = await Promise.all(
@@ -87,7 +96,7 @@ export class SessionContextService {
 
     const questionBank = await questionBankRepository.findByOutcomeAndLanguage(
       primaryOutcome.id,
-      learner.preferredLanguage,
+      sessionLanguage,
     );
     const questions: SessionContextQuestion[] = questionBank
       ? (await questionRepository.findByQuestionBank(questionBank.id)).map((q) => ({
@@ -118,7 +127,7 @@ export class SessionContextService {
     return {
       sessionId: session.id,
       status: session.status,
-      language: learner.preferredLanguage,
+      language: sessionLanguage,
       learner: {
         id: learner.id,
         displayName: learner.displayName,

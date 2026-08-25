@@ -90,6 +90,7 @@ export interface StartExternalSessionRequest {
   slide_deck_id: string;
   skill_name: string;
   meeting_url: string;
+  language?: 'en-US' | 'ar-SA';
 }
 
 export interface StartExternalSessionResponse {

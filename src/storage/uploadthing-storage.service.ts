@@ -1,5 +1,6 @@
 import { UTApi, UTFile } from 'uploadthing/server';
 
+import { ExternalServiceError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
 import type { StorageBlobListing, StorageService } from '@/shared-types.js';
 
@@ -9,9 +10,19 @@ export class UploadThingStorageService implements StorageService {
 
   async upload(blobKey: string, data: Buffer, contentType: string): Promise<void> {
     const file = new UTFile([data], blobKey, { type: contentType, customId: blobKey });
-    const [result] = await this.client.uploadFiles([file]);
+    let result;
+    try {
+      [result] = await this.client.uploadFiles([file]);
+    } catch (error) {
+      throw new ExternalServiceError(
+        `UploadThing upload failed for ${blobKey}: ${error instanceof Error ? error.message : 'unknown error'}`,
+        error,
+      );
+    }
     if (!result || result.error) {
-      throw new Error(`UploadThing upload failed for ${blobKey}: ${result?.error?.message}`);
+      throw new ExternalServiceError(
+        `UploadThing upload failed for ${blobKey}: ${result?.error?.message ?? 'no result returned'}`,
+      );
     }
   }
 
