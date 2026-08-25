@@ -100,6 +100,20 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     expect(levelRes.status).toBe(201);
     const levelId = levelRes.body.id as string;
 
+    const skillRes = await request(app)
+      .post(`/api/v1/levels/${levelId}/skills`)
+      .set('Authorization', contentAuth)
+      .send({
+        key: 'discovery-calls',
+        nameEn: 'Discovery Calls',
+        nameAr: 'مكالمات الاستكشاف',
+        descriptionEn: 'Running an effective discovery call',
+        descriptionAr: 'إجراء مكالمة استكشاف فعالة',
+        levels: ['Beginner'],
+      });
+    expect(skillRes.status).toBe(201);
+    const skillId = skillRes.body.id as string;
+
     const outcomeRes = await request(app)
       .post(`/api/v1/levels/${levelId}/outcomes`)
       .set('Authorization', contentAuth)
@@ -108,37 +122,21 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
         titleAr: 'مكالمات الاستكشاف',
         targetSkills: ['listening'],
         trainingForm: 'CONVERSATION',
+        skillId,
       });
     expect(outcomeRes.status).toBe(201);
     const outcomeId = outcomeRes.body.id as string;
 
-    // ── Content: one published TEXT item bound to the outcome ──────────
+    // ── Content: one document scoped to the skill ───────────────────────
     const contentRes = await request(app)
       .post('/api/v1/content')
       .set('Authorization', contentAuth)
       .send({
-        title: 'Open Discovery Questions',
-        trackId,
-        levelId,
-        contentType: 'TEXT',
-        textBody: 'Ask open questions like "What does success look like?"',
-        language: 'EN',
-        estimatedMinutes: 5,
-        difficulty: 'EASY',
-        outcomeIds: [outcomeId],
+        skillId,
+        name: 'Open Discovery Questions.pdf',
       });
     expect(contentRes.status).toBe(201);
     const contentItemId = contentRes.body.id as string;
-
-    const submitReviewRes = await request(app)
-      .post(`/api/v1/content/${contentItemId}/submit-review`)
-      .set('Authorization', contentAuth);
-    expect(submitReviewRes.status).toBe(200);
-
-    const publishRes = await request(app)
-      .post(`/api/v1/content/${contentItemId}/publish`)
-      .set('Authorization', contentAuth);
-    expect(publishRes.status).toBe(200);
 
     // ── Question bank + rubric on the outcome (needed for a scorable session) ──
     const rubricRes = await request(app)

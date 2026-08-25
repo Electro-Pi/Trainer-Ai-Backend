@@ -101,54 +101,22 @@ describe('common/validators/primitives — shared field rules', () => {
   });
 });
 
-describe('content.validators — conditional-required fields by content type (CM-02, CM-03)', () => {
-  const base = {
-    title: 'Discovery Call Playbook',
-    trackId: cuid,
-    levelId: cuid,
-    language: 'EN' as const,
-    estimatedMinutes: 15,
-    difficulty: 'EASY' as const,
-    outcomeIds: [cuid],
-  };
-
-  it('TEXT content requires textBody', () => {
-    const result = createContentSchema.safeParse({ ...base, contentType: 'TEXT' });
-    expect(result.success).toBe(false);
-  });
-
-  it('TEXT content succeeds once textBody is present', () => {
+describe('content.validators — content is a document scoped to exactly one skill', () => {
+  it('accepts a skillId + name (media comes via a separate upload)', () => {
     const result = createContentSchema.safeParse({
-      ...base,
-      contentType: 'TEXT',
-      textBody: 'Some real body text.',
+      skillId: cuid,
+      name: 'Discovery Call Playbook.pdf',
     });
     expect(result.success).toBe(true);
   });
 
-  it('LINK content requires sourceUrl', () => {
-    const result = createContentSchema.safeParse({ ...base, contentType: 'LINK' });
+  it('rejects a missing skillId', () => {
+    const result = createContentSchema.safeParse({ name: 'Discovery Call Playbook.pdf' });
     expect(result.success).toBe(false);
   });
 
-  it('LINK content succeeds once a valid https sourceUrl is present', () => {
-    const result = createContentSchema.safeParse({
-      ...base,
-      contentType: 'LINK',
-      sourceUrl: 'https://example.com/video',
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('DOCUMENT/SLIDES/IMAGE need neither textBody nor sourceUrl at creation (media comes via a separate upload)', () => {
-    for (const contentType of ['DOCUMENT', 'SLIDES', 'IMAGE'] as const) {
-      const result = createContentSchema.safeParse({ ...base, contentType });
-      expect(result.success).toBe(true);
-    }
-  });
-
-  it('rejects content bound to zero outcomes (CM-01: at least one outcome required)', () => {
-    const result = createContentSchema.safeParse({ ...base, contentType: 'IMAGE', outcomeIds: [] });
+  it('rejects an empty name', () => {
+    const result = createContentSchema.safeParse({ skillId: cuid, name: '' });
     expect(result.success).toBe(false);
   });
 });
