@@ -16,7 +16,14 @@ export const rescheduleSessionSchema = z
     error: 'scheduledEnd must be after scheduledStart',
     path: ['scheduledEnd'],
   })
-  .refine((value) => new Date(value.scheduledStart) > new Date(), {
+  // `silent` reschedules are the plan wizard proposing a time while the
+  // manager is still picking (per-click, before the plan is confirmed) —
+  // not a real commitment yet, so a mid-pick value that happens to land in
+  // the past (e.g. picking an earlier hour before reaching AM/PM) must not
+  // 400. Only a non-silent reschedule (Sessions/Calendar screens, or the
+  // wizard's own final confirm) is a real, user-committed change and gets
+  // the future-time check.
+  .refine((value) => value.silent || new Date(value.scheduledStart) > new Date(), {
     error: 'scheduledStart must be in the future',
     path: ['scheduledStart'],
   });
