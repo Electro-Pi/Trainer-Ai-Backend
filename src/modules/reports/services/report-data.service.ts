@@ -26,7 +26,6 @@ import {
 } from '@/modules/sessions/sessions.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 import { trackRepository } from '@/modules/tracks/tracks.module.js';
-import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
 
 export interface ReportBranding {
@@ -111,17 +110,15 @@ export class ReportDataService {
     const session = await sessionRepository.findByIdScoped(sessionId);
     if (!session) throw new NotFoundError('Session not found');
 
-    const [assessment, learner, plan, sessionOutcomes, sessionContents] = await Promise.all([
+    const [assessment, learner, sessionOutcomes, sessionContents] = await Promise.all([
       assessmentRepository.findBySession(sessionId),
       learnerRepository.findByIdScoped(session.learnerId),
-      trainingPlanRepository.findByIdScoped(session.planId),
       sessionOutcomeRepository.findBySession(sessionId),
       sessionContentRepository.findBySession(sessionId),
     ]);
 
     if (!assessment) throw new NotFoundError('Assessment not found for session');
     if (!learner) throw new NotFoundError('Learner not found');
-    if (!plan) throw new NotFoundError('Training plan not found');
 
     const [team, organization, answers] = await Promise.all([
       teamRepository.findByIdScoped(learner.teamId),

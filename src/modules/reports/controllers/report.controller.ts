@@ -6,6 +6,7 @@ import type { StorageService } from '@/shared-types.js';
 
 import type { ReportResponseDto } from '../dto/report.dto.js';
 import type { Report } from '../repositories/report.repository.js';
+import { reportDataService } from '../services/report-data.service.js';
 import { type ActingUser, ReportService } from '../services/report.service.js';
 
 type ReportLearnerAndScore = Awaited<ReturnType<ReportService['getLearnerAndScore']>>;
@@ -62,7 +63,42 @@ export class ReportController {
     }
 
     const learnerAndScore = await reports.getLearnerAndScore(report);
-    res.status(200).json({ ...toResponseDto(report, learnerAndScore), downloadUrl });
+    const detail = await this.buildDetail(report);
+    res.status(200).json({ ...toResponseDto(report, learnerAndScore), downloadUrl, detail });
+  }
+
+  /**
+   * Same `ReportDataService.buildSessionReport` view the PDF template
+   * renders from — the portal detail page reuses it rather than keeping a
+   * second, separately-maintained summary of the same evaluation. `null`
+   * for a `PLAN_SUMMARY` report or one whose session record is gone.
+   */
+  private async buildDetail(report: Report): Promise<ReportResponseDto['detail']> {
+    if (report.type !== 'SESSION' || !report.sessionId) return undefined;
+
+    const recipients = report.recipients as { role: 'LEARNER' | 'DEPARTMENT_MANAGER' }[];
+    const recipientRole = recipients[0]?.role ?? 'LEARNER';
+
+    try {
+      const data = await reportDataService.buildSessionReport(report.sessionId, recipientRole);
+      const outcome = data.outcomes[0];
+      const strengths = data.traineeEvaluation?.strengths.join('\n') ?? data.strengths;
+      const gaps = data.traineeEvaluation?.areas_for_improvement.join('\n') ?? data.gaps;
+      return {
+        outcomeTitle:
+          report.language === 'AR'
+            ? outcome?.titleAr || outcome?.titleEn || ''
+            : outcome?.titleEn || '',
+        verdict: data.overallVerdict,
+        sessionDate: data.sessionDate,
+        strengths,
+        gaps,
+        agentNotes: data.agentNotes,
+        isCarriedOver: outcome?.isCarriedOver ?? false,
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   async resend(req: Request, res: Response): Promise<void> {

@@ -14,4 +14,19 @@ export interface ReportResponseDto {
   learnerName: string | null;
   /** SESSION: that session's score. PLAN_SUMMARY: average of the plan's scored sessions. `null` when nothing is scored yet. */
   score: number | null;
+  /**
+   * Only populated by `getById` (`GET /reports/:id`) for a `SESSION` report
+   * whose session has completed — the list endpoint stays cheap. Mirrors the
+   * same `ReportDataService.buildSessionReport` view the PDF template
+   * renders from, so the portal detail page and the PDF never disagree.
+   */
+  detail?: {
+    outcomeTitle: string;
+    verdict: 'ACHIEVED' | 'PARTIALLY_ACHIEVED' | 'NOT_ACHIEVED';
+    sessionDate: string;
+    strengths: string;
+    gaps: string;
+    agentNotes: string;
+    isCarriedOver: boolean;
+  };
 }
