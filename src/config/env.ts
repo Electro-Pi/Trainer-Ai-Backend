@@ -66,6 +66,10 @@ const envSchema = z.object({
 
   ADMIN_DASHBOARD_USER: z.string().default('admin'),
   ADMIN_DASHBOARD_PASSWORD: z.string().default(''),
+
+  // ── MODRB central Contact Dashboard (lead forwarding) ─────
+  MODRB_LEADS_URL: z.string().default('https://demo.testdevelopment.top:6542/api/leads'),
+  MODRB_LEADS_API_KEY: z.string().default(''),
 });
 
 function loadEnv() {

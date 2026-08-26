@@ -2,6 +2,8 @@ import { logger } from '@/logger/logger.service.js';
 
 import { DemoRequestRepository } from '../repositories/demo-request.repository.js';
 
+import { modrbLeadForwarderService } from './modrb-lead-forwarder.service.js';
+
 export interface SubmitDemoRequestInput {
   name: string;
   email: string;
@@ -39,6 +41,20 @@ export class PublicService {
       locale: input.locale,
       consentGivenAt: new Date(),
     } as never);
+
+    // Additive only — MODRB's central dashboard is never allowed to affect
+    // this response. `forward()` swallows its own errors and never throws.
+    modrbLeadForwarderService
+      .forward({
+        name: input.name,
+        email: input.email,
+        companyName: input.company,
+        phone: input.phone,
+        message: input.message,
+      })
+      .catch((error) => {
+        logger.error({ error }, 'modrb-lead-forward: unexpected error escaped forward()');
+      });
   }
 }
 
