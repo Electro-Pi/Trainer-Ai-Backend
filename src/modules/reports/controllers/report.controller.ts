@@ -78,23 +78,76 @@ export class ReportController {
 
     const recipients = report.recipients as { role: 'LEARNER' | 'DEPARTMENT_MANAGER' }[];
     const recipientRole = recipients[0]?.role ?? 'LEARNER';
+    const isAr = report.language === 'AR';
 
     try {
       const data = await reportDataService.buildSessionReport(report.sessionId, recipientRole);
       const outcome = data.outcomes[0];
       const strengths = data.traineeEvaluation?.strengths.join('\n') ?? data.strengths;
       const gaps = data.traineeEvaluation?.areas_for_improvement.join('\n') ?? data.gaps;
+
       return {
-        outcomeTitle:
-          report.language === 'AR'
-            ? outcome?.titleAr || outcome?.titleEn || ''
-            : outcome?.titleEn || '',
+        outcomeTitle: isAr ? outcome?.titleAr || outcome?.titleEn || '' : outcome?.titleEn || '',
         verdict: data.overallVerdict,
         sessionDate: data.sessionDate,
         strengths,
         gaps,
         agentNotes: data.agentNotes,
         isCarriedOver: outcome?.isCarriedOver ?? false,
+        outcomes: data.outcomes.map((o) => ({
+          title: isAr ? o.titleAr || o.titleEn || '' : o.titleEn || '',
+          verdict: o.verdict,
+          score: o.score,
+          isCarriedOver: o.isCarriedOver,
+        })),
+        trackName: isAr ? data.trackNameAr || data.trackNameEn : data.trackNameEn,
+        levelName: isAr ? data.levelNameAr || data.levelNameEn : data.levelNameEn,
+        content: data.content,
+        answerCount: data.answerCount,
+        traineeEvaluation: data.traineeEvaluation
+          ? {
+              overallScore: data.traineeEvaluation.overall_score,
+              passed: data.traineeEvaluation.passed,
+              summaryFeedback: data.traineeEvaluation.summary_feedback,
+              questions: data.traineeEvaluation.questions.map((q) => ({
+                questionIndex: q.question_index,
+                questionText: q.question_text,
+                traineeAnswerText: q.trainee_answer_text,
+                isCorrect: q.is_correct,
+                aiFeedback: q.ai_feedback,
+                outcomeText: q.outcome_text,
+              })),
+              outcomeResults: data.traineeEvaluation.outcome_results.map((r) => ({
+                outcome: r.outcome,
+                questionsAsked: r.questions_asked,
+                questionsCorrect: r.questions_correct,
+                passed: r.passed,
+              })),
+            }
+          : null,
+        managerEvaluation: data.managerEvaluation
+          ? {
+              overallScore: data.managerEvaluation.overall_score,
+              passed: data.managerEvaluation.passed,
+              readiness: data.managerEvaluation.readiness,
+              riskAreas: data.managerEvaluation.risk_areas,
+              outcomeCoverageComparison: data.managerEvaluation.outcome_coverage_comparison,
+              questions: data.managerEvaluation.questions.map((q) => ({
+                questionIndex: q.question_index,
+                questionText: q.question_text,
+                traineeAnswerText: q.trainee_answer_text,
+                isCorrect: q.is_correct,
+                managerFeedback: q.manager_feedback,
+                outcomeText: q.outcome_text,
+              })),
+              outcomeResults: data.managerEvaluation.outcome_results.map((r) => ({
+                outcome: r.outcome,
+                questionsAsked: r.questions_asked,
+                questionsCorrect: r.questions_correct,
+                passed: r.passed,
+              })),
+            }
+          : null,
       };
     } catch {
       return undefined;
