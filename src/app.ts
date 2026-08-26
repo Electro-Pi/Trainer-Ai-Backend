@@ -110,11 +110,14 @@ export function createApp(): Express {
   v1.use('/public', publicRouter);
   v1.use('/tracks/:trackId', trackAiTrainerRouter);
   v1.use('/skills/:skillId', skillAiTrainerRouter);
-  v1.use('/external-sessions', externalSessionsRouter);
-  // No auth on this one, unlike `externalSessionsRouter` above — the AI
-  // team's meeting-end webhook, per explicit user request (see
+  // MUST be mounted BEFORE `externalSessionsRouter` — that router applies
+  // `authenticate()` via `router.use()`, which runs for every request that
+  // enters it, including the `POST /:id/complete` it has no route for. Mounted
+  // after, this webhook was unreachable: the AI team got a 401 "Missing bearer
+  // token" instead. No auth on this one, per explicit user request (see
   // `ai-trainer-webhook.routes.ts`'s doc comment).
   v1.use('/external-sessions', createAiTrainerWebhookRouter());
+  v1.use('/external-sessions', externalSessionsRouter);
   v1.use('/ai-trainer', draftAiTrainerRouter);
 
   mountSwagger(app);

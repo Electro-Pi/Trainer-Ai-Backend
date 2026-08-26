@@ -95,12 +95,38 @@ const webhookTranscriptTurnSchema = z.object({
   occurred_at: z.string(),
 });
 
-export const webhookSessionCompleteSchema = z.object({
+const webhookSessionCompleteBodySchema = z.object({
   evaluation: z.object({
     trainee_view: webhookTraineeViewSchema,
-    manager_view: webhookManagerViewSchema.nullable(),
+    manager_view: webhookManagerViewSchema.nullable().default(null),
   }),
-  transcript: z.object({
-    turns: z.array(webhookTranscriptTurnSchema),
-  }),
+  // Optional: the AI Trainer sends evaluation-only payloads when a session
+  // produced no usable transcript (e.g. the audio/transcription broke). An
+  // absent transcript is a valid outcome, not a rejectable body.
+  transcript: z.object({ turns: z.array(webhookTranscriptTurnSchema) }).default({ turns: [] }),
 });
+
+/**
+ * Accepts BOTH wire shapes the AI Trainer sends:
+ *
+ *   canonical: { evaluation: { trainee_view, manager_view }, transcript }
+ *   flat:      { session_id?, trainee_view, manager_view, transcript? }
+ *
+ * The flat form is what her evaluation endpoint returns verbatim, so she was
+ * posting it straight through. Normalising here (rather than making her
+ * re-wrap) keeps the webhook tolerant; everything downstream still sees the
+ * canonical shape only.
+ */
+export const webhookSessionCompleteSchema = z.preprocess((value) => {
+  if (typeof value !== 'object' || value === null) return value;
+  const body = value as Record<string, unknown>;
+  if ('evaluation' in body) return body;
+  if (!('trainee_view' in body)) return body;
+
+  const { session_id: _sessionId, trainee_view, manager_view, transcript, ...rest } = body;
+  return {
+    ...rest,
+    evaluation: { trainee_view, manager_view: manager_view ?? null },
+    ...(transcript === undefined ? {} : { transcript }),
+  };
+}, webhookSessionCompleteBodySchema);
