@@ -70,6 +70,19 @@ export interface ReportResponseDto {
   /** SESSION: that session's score. PLAN_SUMMARY: average of the plan's scored sessions. `null` when nothing is scored yet. */
   score: number | null;
   /**
+   * Cheap list-safe fields, resolved the same way as `score` above (straight
+   * off `Session`, one join to its `primaryOutcome`/`skill` — not the full
+   * `ReportDataService.buildSessionReport` view `detail` below uses). `null`
+   * for a PLAN_SUMMARY report or a SESSION report whose session record is
+   * gone. The list endpoint needs these so a report row shows its real
+   * verdict/outcome/skill instead of a placeholder before ever being opened.
+   */
+  verdict: 'ACHIEVED' | 'PARTIALLY_ACHIEVED' | 'NOT_ACHIEVED' | null;
+  outcomeTitleEn: string | null;
+  outcomeTitleAr: string | null;
+  skillNameEn: string | null;
+  skillNameAr: string | null;
+  /**
    * Only populated by `getById` (`GET /reports/:id`) for a `SESSION` report
    * whose session has completed — the list endpoint stays cheap. Mirrors the
    * same `ReportDataService.buildSessionReport` view the PDF template

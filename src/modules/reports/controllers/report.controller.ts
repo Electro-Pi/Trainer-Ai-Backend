@@ -33,6 +33,11 @@ function toResponseDto(report: Report, learnerAndScore: ReportLearnerAndScore): 
     learnerId: learnerAndScore.learnerId,
     learnerName: learnerAndScore.learnerName,
     score: learnerAndScore.score,
+    verdict: learnerAndScore.verdict as ReportResponseDto['verdict'],
+    outcomeTitleEn: learnerAndScore.outcomeTitleEn,
+    outcomeTitleAr: learnerAndScore.outcomeTitleAr,
+    skillNameEn: learnerAndScore.skillNameEn,
+    skillNameAr: learnerAndScore.skillNameAr,
   };
 }
 

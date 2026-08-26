@@ -42,7 +42,7 @@ export class ReportService {
     return report;
   }
 
-  /** `ReportResponseDto.learnerId`/`learnerName`/`score` read-through. */
+  /** `ReportResponseDto.learnerId`/`learnerName`/`score`/`verdict`/`outcomeTitle`/`skillName` read-through. */
   async getLearnerAndScore(report: Report) {
     return reportRepository.findLearnerAndScore(report);
   }

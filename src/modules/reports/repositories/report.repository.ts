@@ -79,30 +79,68 @@ export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
   }
 
   /**
-   * `ReportResponseDto.learnerId`/`learnerName`/`score` read-through — a
-   * `Report` doesn't carry these itself (RP-05: it only links to a `Session`
-   * or `TrainingPlan`), so they're resolved from whichever the report is
-   * for. SESSION reports use that one session's score; PLAN_SUMMARY reports
-   * average every scored session under the plan. Queries `prisma.session` /
+   * `ReportResponseDto.learnerId`/`learnerName`/`score`/`verdict`/`outcomeTitle`/
+   * `skillName` read-through — a `Report` doesn't carry these itself (RP-05:
+   * it only links to a `Session` or `TrainingPlan`), so they're resolved from
+   * whichever the report is for. SESSION reports use that one session's own
+   * fields (plus its `primaryOutcome`/`skill`, one join away — cheap enough
+   * for the list endpoint, unlike the full `ReportDataService.buildSessionReport`
+   * detail view); PLAN_SUMMARY reports average every scored session under the
+   * plan and have no single outcome/skill to report. Queries `prisma.session` /
    * `prisma.trainingPlan` / `prisma.learner` directly instead of importing
    * `sessions`/`training-plans`/`learners`' `*.module.js` — `reports` sits on
    * the back-edge of `training-plans`' route chain (`createPlanSummaryReports`
    * is called from `training-plan.controller.ts`), so a cross-module import
    * back would cycle (import-x/no-cycle).
    */
-  async findLearnerAndScore(
-    report: Report,
-  ): Promise<{ learnerId: string | null; learnerName: string | null; score: number | null }> {
+  async findLearnerAndScore(report: Report): Promise<{
+    learnerId: string | null;
+    learnerName: string | null;
+    score: number | null;
+    verdict: string | null;
+    outcomeTitleEn: string | null;
+    outcomeTitleAr: string | null;
+    skillNameEn: string | null;
+    skillNameAr: string | null;
+  }> {
+    const empty = {
+      learnerId: null,
+      learnerName: null,
+      score: null,
+      verdict: null,
+      outcomeTitleEn: null,
+      outcomeTitleAr: null,
+      skillNameEn: null,
+      skillNameAr: null,
+    };
+
     if (report.sessionId) {
       const session = await prisma.session.findFirst({
         where: { id: report.sessionId },
-        select: { learnerId: true, score: true, learner: { select: { displayName: true } } },
+        select: {
+          learnerId: true,
+          score: true,
+          verdict: true,
+          learner: { select: { displayName: true } },
+          primaryOutcome: {
+            select: {
+              titleEn: true,
+              titleAr: true,
+              skill: { select: { nameEn: true, nameAr: true } },
+            },
+          },
+        },
       });
-      if (!session) return { learnerId: null, learnerName: null, score: null };
+      if (!session) return empty;
       return {
         learnerId: session.learnerId,
         learnerName: session.learner.displayName,
         score: session.score,
+        verdict: session.verdict,
+        outcomeTitleEn: session.primaryOutcome?.titleEn ?? null,
+        outcomeTitleAr: session.primaryOutcome?.titleAr ?? null,
+        skillNameEn: session.primaryOutcome?.skill?.nameEn ?? null,
+        skillNameAr: session.primaryOutcome?.skill?.nameAr ?? null,
       };
     }
 
@@ -111,7 +149,7 @@ export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
         where: { id: report.planId },
         select: { learnerId: true, learner: { select: { displayName: true } } },
       });
-      if (!plan) return { learnerId: null, learnerName: null, score: null };
+      if (!plan) return empty;
       const sessions = await prisma.session.findMany({
         where: { planId: report.planId },
         select: { score: true },
@@ -121,9 +159,14 @@ export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
         scored.length > 0
           ? Math.round(scored.reduce((sum, s) => sum + s, 0) / scored.length)
           : null;
-      return { learnerId: plan.learnerId, learnerName: plan.learner.displayName, score: avgScore };
+      return {
+        ...empty,
+        learnerId: plan.learnerId,
+        learnerName: plan.learner.displayName,
+        score: avgScore,
+      };
     }
 
-    return { learnerId: null, learnerName: null, score: null };
+    return empty;
   }
 }
