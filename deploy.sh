@@ -21,6 +21,9 @@ echo "⏳ Running database migrations..."
 echo "⏳ Building..."
 /usr/bin/npm run build
 
+echo "⏳ Ensuring Playwright browsers are installed..."
+/usr/bin/npx playwright install --with-deps chromium
+
 echo "⏳ Restarting service..."
 sudo /usr/bin/systemctl restart trainer-ai-backend.service
 
