@@ -3,7 +3,6 @@
 // plumbing has something concrete to type against.
 
 export const QUEUE_NAMES = [
-  'media.scan',
   'meeting.create',
   'meeting.update',
   'session.reminder',
@@ -21,7 +20,6 @@ export const QUEUE_NAMES = [
 export type QueueName = (typeof QUEUE_NAMES)[number];
 
 export interface QueuePayloads {
-  'media.scan': { mediaAssetId: string; organizationId: string };
   'meeting.create': { sessionId: string; organizationId: string };
   'meeting.update': { sessionId: string; organizationId: string };
   'session.reminder': { sessionId: string; organizationId: string };
@@ -48,7 +46,6 @@ export interface QueueRetryOptions {
  * the first try, so `attempts - 1`) and `retryDelay` (seconds).
  */
 export const QUEUE_DEFAULT_JOB_OPTIONS: Record<QueueName, QueueRetryOptions> = {
-  'media.scan': { retryLimit: 2, retryDelay: 5, retryBackoff: true },
   'meeting.create': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
   'meeting.update': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
   'session.reminder': { retryLimit: 1, retryDelay: 30, retryBackoff: true },

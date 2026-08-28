@@ -50,10 +50,6 @@ const envSchema = z.object({
 
   UPLOADTHING_TOKEN: z.string().min(1, { error: 'UPLOADTHING_TOKEN is required' }),
 
-  SCANNER_PROVIDER: z.enum(['fake', 'clamav']).default('fake'),
-  CLAMAV_HOST: z.string().default('localhost'),
-  CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
-
   EMAIL_PROVIDER: z.enum(['fake', 'smtp', 'graph']).default('fake'),
   SMTP_HOST: z.string().default(''),
   SMTP_PORT: z.coerce.number().int().positive().default(587),

@@ -9,7 +9,6 @@ import { processGenerateReportJob } from './jobs/generate-report.job.js';
 import { processHealthAlertJob } from './jobs/health-alert.job.js';
 import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
 import { processRecomputeEffectivenessJob } from './jobs/recompute-effectiveness.job.js';
-import { processScanMediaJob } from './jobs/scan-media.job.js';
 import { processSendInviteJob } from './jobs/send-invite.job.js';
 import { processSendReminderJob } from './jobs/send-reminder.job.js';
 import { processSendReportJob } from './jobs/send-report.job.js';
@@ -26,7 +25,6 @@ type Processor<K extends QueueName> = (payload: QueuePayloads[K]) => Promise<voi
  * P9, etc.), per this file's original P0 comment.
  */
 const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
-  'media.scan': processScanMediaJob,
   'meeting.create': processCreateMeetingJob,
   'meeting.update': processMeetingUpdateJob,
   'session.reminder': processSendReminderJob,

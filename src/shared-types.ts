@@ -29,16 +29,6 @@ export interface StorageService {
   list(): Promise<StorageBlobListing[]>;
 }
 
-export interface ScanResult {
-  status: 'CLEAN' | 'INFECTED' | 'FAILED';
-  signature?: string | undefined;
-}
-
-/** Malware scanning (`ClamAvScanner` real, `FakeScanner` dev/test default — CM-07). */
-export interface Scanner {
-  scan(data: Buffer): Promise<ScanResult>;
-}
-
 // ─────────────────────────────────────────────────────────────────────────
 // P9 — Notifications (ARCHITECTURE §4.5, `RP-02`)
 // ─────────────────────────────────────────────────────────────────────────

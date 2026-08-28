@@ -2,28 +2,50 @@ import { UTApi, UTFile } from 'uploadthing/server';
 
 import { ExternalServiceError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
+import { logger } from '@/logger/logger.service.js';
 import type { StorageBlobListing, StorageService } from '@/shared-types.js';
+
+const UPLOAD_RETRY_ATTEMPTS = 3;
+const UPLOAD_RETRY_DELAY_MS = 500;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** File storage backed by UploadThing (ARCHITECTURE §4.5) — the sole storage provider. */
 export class UploadThingStorageService implements StorageService {
   private readonly client = new UTApi({ token: env.UPLOADTHING_TOKEN });
 
+  /**
+   * UploadThing occasionally returns a transient "unexpected error" /
+   * "dependency unavailable" for a single attempt that succeeds moments
+   * later (observed directly against the live API, not a config issue) — a
+   * user saving a track with several files could see some fail while others
+   * on the exact same request succeed. Retrying a few times with a short
+   * delay absorbs that blip instead of surfacing it as a permanent failure.
+   */
   async upload(blobKey: string, data: Buffer, contentType: string): Promise<void> {
     const file = new UTFile([data], blobKey, { type: contentType, customId: blobKey });
-    let result;
-    try {
-      [result] = await this.client.uploadFiles([file]);
-    } catch (error) {
-      throw new ExternalServiceError(
-        `UploadThing upload failed for ${blobKey}: ${error instanceof Error ? error.message : 'unknown error'}`,
-        error,
-      );
+
+    let lastMessage = 'no result returned';
+    for (let attempt = 1; attempt <= UPLOAD_RETRY_ATTEMPTS; attempt++) {
+      let result;
+      try {
+        [result] = await this.client.uploadFiles([file]);
+      } catch (error) {
+        lastMessage = error instanceof Error ? error.message : 'unknown error';
+      }
+      if (result && !result.error) return;
+      if (result?.error) lastMessage = result.error.message;
+
+      if (attempt < UPLOAD_RETRY_ATTEMPTS) {
+        logger.warn(
+          { blobKey, attempt, error: lastMessage },
+          'UploadThing upload failed, retrying',
+        );
+        await sleep(UPLOAD_RETRY_DELAY_MS * attempt);
+      }
     }
-    if (!result || result.error) {
-      throw new ExternalServiceError(
-        `UploadThing upload failed for ${blobKey}: ${result?.error?.message ?? 'no result returned'}`,
-      );
-    }
+
+    throw new ExternalServiceError(`UploadThing upload failed for ${blobKey}: ${lastMessage}`);
   }
 
   async getDownloadUrl(blobKey: string, expiresInSeconds = 3600): Promise<string> {

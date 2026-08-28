@@ -8,7 +8,6 @@ import { AuditLogRepository } from '@/common/repositories/audit-log.repository.j
 import {
   CLEANUP_BATCH_SIZE,
   DEFAULT_AUDIT_RETENTION_DAYS,
-  INFECTED_MEDIA_RETENTION_DAYS,
   ORPHANED_BLOB_RETENTION_HOURS,
   REFRESH_TOKEN_RETENTION_DAYS,
 } from '@/config/constants.js';
@@ -122,35 +121,6 @@ async function sweepExpiredTranscripts(
   }
   await auditSweep(systemOrgIdForAudit, 'cleanup.transcripts', total, {
     policy: 'Assessment.transcriptRetentionUntil (computed per-org at submission time)',
-  });
-  return total;
-}
-
-/** `MediaAsset` isn't on the hard-boundary list — quarantined (`INFECTED`) rows are trash, not records. */
-async function sweepInfectedMedia(
-  storage: StorageService,
-  systemOrgIdForAudit: string,
-): Promise<number> {
-  const cutoff = daysAgo(INFECTED_MEDIA_RETENTION_DAYS);
-  let total = 0;
-  for (;;) {
-    const batch = await mediaAssets.findInfectedBefore(cutoff, CLEANUP_BATCH_SIZE);
-    if (batch.length === 0) break;
-
-    for (const asset of batch) {
-      await storage.delete(asset.blobKey).catch((error: unknown) => {
-        logger.warn(
-          { mediaAssetId: asset.id, error },
-          'cleanup: failed to delete infected blob, removing row anyway',
-        );
-      });
-      await mediaAssets.deleteById(asset.id);
-      total += 1;
-    }
-    if (batch.length < CLEANUP_BATCH_SIZE) break;
-  }
-  await auditSweep(systemOrgIdForAudit, 'cleanup.infected_media', total, {
-    retentionDays: INFECTED_MEDIA_RETENTION_DAYS,
   });
   return total;
 }
@@ -271,12 +241,11 @@ export async function processCleanupJob(payload: QueuePayloads['cleanup']): Prom
 
   const auditOrgId = organizationIds[0] as string;
 
-  const [refreshTokens, pkceEntries, transcripts, infectedMedia, orphanedBlobs, playwrightTemp] =
+  const [refreshTokens, pkceEntries, transcripts, orphanedBlobs, playwrightTemp] =
     await Promise.all([
       sweepExpiredRefreshTokens(auditOrgId),
       sweepExpiredPkceEntries(auditOrgId),
       sweepExpiredTranscripts(storage, auditOrgId),
-      sweepInfectedMedia(storage, auditOrgId),
       sweepOrphanedBlobs(storage, auditOrgId),
       sweepPlaywrightTempFiles(auditOrgId),
     ]);
@@ -293,7 +262,6 @@ export async function processCleanupJob(payload: QueuePayloads['cleanup']): Prom
       refreshTokens,
       pkceEntries,
       transcripts,
-      infectedMedia,
       orphanedBlobs,
       playwrightTemp,
       auditLogRows,

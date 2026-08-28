@@ -6,7 +6,6 @@ import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { DOCUMENT_MIME_ALLOWLIST } from '@/config/constants.js';
 import { container } from '@/config/container.js';
-import { queueService } from '@/queue/queue-instance.js';
 import type { StorageService } from '@/shared-types.js';
 
 import { ContentItemRepository } from '../repositories/content-item.repository.js';
@@ -23,7 +22,7 @@ export interface UploadMediaInput {
   caption?: string | undefined;
 }
 
-/** `content/media` — P5-4. Magic-byte MIME sniff, size cap (multer layer), checksum, malware scan pipeline kickoff. */
+/** `content/media` — P5-4. Magic-byte MIME sniff, size cap (multer layer), checksum. No malware scan (removed — see git history). */
 export class MediaService {
   private readonly contentItems = new ContentItemRepository();
   private readonly mediaAssets = new MediaAssetRepository();
@@ -65,7 +64,7 @@ export class MediaService {
       caption: input.caption ?? null,
       altTextEn: null,
       altTextAr: null,
-      scanStatus: 'PENDING',
+      scanStatus: 'CLEAN',
     } as never);
 
     await writeAuditLog({
@@ -80,11 +79,6 @@ export class MediaService {
         mimeType: sniffed.mime,
         sizeBytes: created.sizeBytes,
       },
-    });
-
-    await queueService.enqueue('media.scan', {
-      mediaAssetId: created.id,
-      organizationId: actor.organizationId,
     });
 
     return created;

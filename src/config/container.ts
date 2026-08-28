@@ -9,9 +9,7 @@ import { FakeGraphService } from '@/integrations/microsoft/fake-graph.service.js
 import type { GraphService } from '@/integrations/microsoft/graph.interfaces.js';
 import { RealGraphService } from '@/integrations/microsoft/graph.service.js';
 import { FakeErrorTracker } from '@/observability/fake-error-tracker.service.js';
-import type { EmailService, ErrorTracker, Scanner, StorageService } from '@/shared-types.js';
-import { ClamAvScanner } from '@/storage/scanner/clamav.scanner.js';
-import { FakeScanner } from '@/storage/scanner/fake-scanner.service.js';
+import type { EmailService, ErrorTracker, StorageService } from '@/shared-types.js';
 import { UploadThingStorageService } from '@/storage/uploadthing-storage.service.js';
 
 // DI wiring shape (ARCHITECTURE §4.5). Every external dependency resolves
@@ -22,7 +20,6 @@ export interface Container {
   resolveGraph(): GraphService;
   resolveAiService<T>(): T;
   resolveStorage<T>(): T;
-  resolveScanner<T>(): T;
   resolveEmail<T>(): T;
   resolveErrorTracker<T>(): T;
 }
@@ -30,7 +27,6 @@ export interface Container {
 export function createContainer(): Container {
   let graphService: GraphService | undefined;
   let storageService: StorageService | undefined;
-  let scanner: Scanner | undefined;
   let aiServiceClient: AiServiceClient | undefined;
   let emailService: EmailService | undefined;
   let errorTracker: ErrorTracker | undefined;
@@ -49,10 +45,6 @@ export function createContainer(): Container {
     resolveStorage: <T>() => {
       storageService ??= new UploadThingStorageService();
       return storageService as T;
-    },
-    resolveScanner: <T>() => {
-      scanner ??= env.SCANNER_PROVIDER === 'clamav' ? new ClamAvScanner() : new FakeScanner();
-      return scanner as T;
     },
     resolveEmail: <T>() => {
       emailService ??=

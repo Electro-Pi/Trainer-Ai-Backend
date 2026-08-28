@@ -5,7 +5,6 @@ import { fileTypeFromBuffer } from 'file-type';
 import { NotFoundError, ValidationError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { container } from '@/config/container.js';
-import { queueService } from '@/queue/queue-instance.js';
 import type { StorageService } from '@/shared-types.js';
 
 import type { PlanContentMedia } from '../repositories/plan-content-media.repository.js';
@@ -108,7 +107,7 @@ export class PlanContentMediaService {
       mimeType: sniffed.mime,
       sizeBytes: input.buffer.length,
       checksum,
-      scanStatus: 'PENDING',
+      scanStatus: 'CLEAN',
     } as never);
 
     await writeAuditLog({
@@ -123,11 +122,6 @@ export class PlanContentMediaService {
         mimeType: sniffed.mime,
         sizeBytes: created.sizeBytes,
       },
-    });
-
-    await queueService.enqueue('media.scan', {
-      mediaAssetId: created.id,
-      organizationId: actor.organizationId,
     });
 
     return created;
