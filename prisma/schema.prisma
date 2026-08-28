@@ -1135,7 +1135,7 @@ model SessionOutcome {
   verdict       SessionVerdict?
   score         Int?
 
-  session Session @relation(fields: [sessionId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   outcome Outcome @relation(fields: [outcomeId], references: [id])
 
   @@id([sessionId, outcomeId])
@@ -1150,7 +1150,7 @@ model SessionContent {
   source        SessionContentSource @default(RECOMMENDED)
   deliveredAt   DateTime?
 
-  session     Session     @relation(fields: [sessionId], references: [id])
+  session     Session     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   contentItem ContentItem @relation(fields: [contentItemId], references: [id])
 
   @@index([sessionId])

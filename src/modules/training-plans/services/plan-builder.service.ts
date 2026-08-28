@@ -128,6 +128,38 @@ export class PlanBuilderService {
       ];
     }
 
+    // A skill with outstanding outcomes but zero recommended content items
+    // (the org hasn't authored any content for it yet) never has any
+    // `RecommendationItemResult` rows to begin with, so the content-driven
+    // loop above can never select it — `remainingItems`/`items` simply never
+    // contain it. Left alone, that skill silently gets no session at all
+    // while another skill's content gets split across multiple slots to
+    // fill the leftover `trainingDays`. Backfilling with an outcomes-only
+    // session per uncovered skill (same shape `suggestFromOutcomesOnly`
+    // produces for the "no content anywhere" case) keeps every selected
+    // skill represented at least once, same as the code's own stated
+    // "one session per skill" design.
+    const coveredSkillIds = new Set(
+      sessions.flatMap((s) => s.outcomeIds.map((id) => outcomeToSkill.get(id) ?? id)),
+    );
+    const remainingSlots = params.trainingDays - sessions.length;
+    if (remainingSlots > 0) {
+      const uncoveredOutcomes = requiredOutcomes.filter(
+        (lo) =>
+          lo.status !== 'ACHIEVED' &&
+          !coveredSkillIds.has(outcomeToSkill.get(lo.outcomeId) ?? lo.outcomeId),
+      );
+      const fallback = this.suggestFromOutcomesOnly(
+        uncoveredOutcomes,
+        outcomeToSkill,
+        remainingSlots,
+        durationMinutes,
+      );
+      for (const fallbackSession of fallback.sessions) {
+        sessions.push({ ...fallbackSession, sequence: sessions.length + 1 });
+      }
+    }
+
     return { sessions, deferredItemCount: remainingItems.length };
   }
 

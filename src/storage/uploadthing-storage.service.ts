@@ -5,7 +5,7 @@ import { env } from '@/config/env.js';
 import { logger } from '@/logger/logger.service.js';
 import type { StorageBlobListing, StorageService } from '@/shared-types.js';
 
-const UPLOAD_RETRY_ATTEMPTS = 3;
+const UPLOAD_RETRY_ATTEMPTS = 5;
 const UPLOAD_RETRY_DELAY_MS = 500;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -16,11 +16,13 @@ export class UploadThingStorageService implements StorageService {
 
   /**
    * UploadThing occasionally returns a transient "unexpected error" /
-   * "dependency unavailable" for a single attempt that succeeds moments
-   * later (observed directly against the live API, not a config issue) — a
-   * user saving a track with several files could see some fail while others
-   * on the exact same request succeed. Retrying a few times with a short
-   * delay absorbs that blip instead of surfacing it as a permanent failure.
+   * "dependency unavailable" — observed directly against the live API as
+   * their own backend failing to insert a row into its `file` table, not a
+   * config issue on our end — that clears up within a few seconds. A user
+   * saving a track with several files could see some fail while others on
+   * the exact same request succeed. 5 attempts with exponential backoff
+   * (500ms, 1s, 2s, 4s between tries — ~7.5s total) absorbs a blip like that
+   * instead of surfacing it as a permanent failure.
    */
   async upload(blobKey: string, data: Buffer, contentType: string): Promise<void> {
     const file = new UTFile([data], blobKey, { type: contentType, customId: blobKey });
@@ -41,7 +43,7 @@ export class UploadThingStorageService implements StorageService {
           { blobKey, attempt, error: lastMessage },
           'UploadThing upload failed, retrying',
         );
-        await sleep(UPLOAD_RETRY_DELAY_MS * attempt);
+        await sleep(UPLOAD_RETRY_DELAY_MS * 2 ** (attempt - 1));
       }
     }
 
