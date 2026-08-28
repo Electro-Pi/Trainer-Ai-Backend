@@ -50,4 +50,16 @@ export class NotificationService {
   async markAllRead(actor: ActingUser): Promise<number> {
     return notifications.markAllRead(actor.id);
   }
+
+  /** Notifications are disposable, self-service rows — a hard delete is fine here, unlike business entities under non-negotiable 17. */
+  async delete(actor: ActingUser, id: string): Promise<void> {
+    const notification = await notifications.findByIdScoped(id);
+    if (!notification) {
+      throw new NotFoundError('Notification not found');
+    }
+    if (notification.recipientPortalUserId !== actor.id) {
+      throw new ForbiddenError('Not your notification');
+    }
+    await notifications.delete(id);
+  }
 }

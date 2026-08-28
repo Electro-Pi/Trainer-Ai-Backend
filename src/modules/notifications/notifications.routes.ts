@@ -30,5 +30,9 @@ export function createNotificationsRouter(): Router {
     controller.markAllRead(req, res).catch(next);
   });
 
+  router.delete('/:id', validate({ params: notificationIdParamsSchema }), (req, res, next) => {
+    controller.delete(req, res).catch(next);
+  });
+
   return router;
 }
