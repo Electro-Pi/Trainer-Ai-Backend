@@ -1,22 +1,12 @@
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
-import { container } from '@/config/container.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { graphMeetingsService } from '@/integrations/microsoft/graph.meetings.js';
 import { GraphMeetingCreatedWithoutJoinUrlError } from '@/integrations/microsoft/graph.service.js';
 import { logger } from '@/logger/logger.service.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
-import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
-import {
-  renderSessionConfirmationEmailHtml,
-  sessionConfirmationEmailSubject,
-} from '@/modules/notifications/templates/session-confirmation-email.template.js';
-import { organizationRepository } from '@/modules/organizations/organizations.module.js';
-import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { SessionRepository } from '@/modules/sessions/repositories/session.repository.js';
-import { skillRepository } from '@/modules/skills/skills.module.js';
 import { trainingPlanRepository } from '@/modules/training-plans/training-plans.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
-import type { EmailService } from '@/shared-types.js';
 
 import { queueService } from '../queue-instance.js';
 import type { QueuePayloads } from '../queues.js';
@@ -24,6 +14,7 @@ import type { QueuePayloads } from '../queues.js';
 const sessions = new SessionRepository();
 const REMINDER_LEAD_TIME_MS = 60 * 60_000;
 const AGENT_DISPATCH_LEAD_TIME_MS = 3 * 60_000;
+const CONFIRMATION_EMAIL_LEAD_TIME_MS = 5 * 60_000;
 
 /**
  * `IV-01`, `IV-05` — creates the Teams meeting for a confirmed session,
@@ -130,47 +121,31 @@ export async function processCreateMeetingJob(
       }
     }
 
-    const updated = await sessions.recordMeetingCreated(session.id, session.learnerId, {
+    await sessions.recordMeetingCreated(session.id, session.learnerId, {
       graphEventId: meeting.id,
       joinUrl: meeting.joinWebUrl,
     });
 
-    const joinUrlForNotifications = updated.joinUrl ?? meeting.joinWebUrl;
-
     // `TrainingPlanService.confirm()` sends one combined overview email the
     // moment the manager confirms, but that fires before any of these
     // `meeting.create` jobs run — no Teams meeting exists yet at that point,
-    // so that email can't carry a join link (see its own comment). This is
-    // the per-session follow-up once the meeting is real: same branded
-    // template as the reschedule email, with the actual "Join meeting" link.
-    // Best-effort — a delivery failure here shouldn't fail meeting creation,
-    // which already succeeded on Graph regardless.
-    try {
-      const outcome = await outcomeRepository.findByIdScoped(session.primaryOutcomeId);
-      const skill = outcome?.skillId ? await skillRepository.findByIdScoped(outcome.skillId) : null;
-      const organization = await organizationRepository.findById(payload.organizationId);
-      const language = organization?.defaultLanguage === 'AR' ? 'AR' : 'EN';
-
-      const emailService = container.resolveEmail<EmailService>();
-      await emailService.send({
-        to: learner.email,
-        subject: sessionConfirmationEmailSubject(skill?.nameEn ?? 'your session', language),
-        html: renderSessionConfirmationEmailHtml({
-          learnerName: learner.displayName,
-          skillName: skill?.nameEn ?? 'Training session',
-          outcomeTitle: outcome?.titleEn ?? '',
-          ...formatLocalDateAndTime(session.scheduledStart),
-          joinUrl: joinUrlForNotifications,
-          language,
-          kind: 'confirmed',
-        }),
-      });
-    } catch (error) {
-      logger.error(
-        { sessionId: session.id, err: error },
-        'create-meeting: session confirmation email failed to send',
-      );
-    }
+    // so that email can't carry a join link (see its own comment). Sending
+    // the per-session follow-up here too, right after the meeting becomes
+    // real, landed it within seconds of the overview email — same action,
+    // two emails back-to-back. Instead this schedules the join-link email
+    // for `CONFIRMATION_EMAIL_LEAD_TIME_MS` before the session actually
+    // starts (`send-session-confirmation-email.job.ts`), same delayed-job
+    // pattern as `session.reminder` below.
+    const confirmationEmailDelayMs =
+      session.scheduledStart.getTime() - CONFIRMATION_EMAIL_LEAD_TIME_MS - Date.now();
+    await queueService.enqueue(
+      'session.confirmationEmail',
+      { sessionId: session.id, organizationId: payload.organizationId },
+      {
+        jobId: `session-confirmation-email-${session.id}`,
+        ...(confirmationEmailDelayMs > 0 ? { delayMs: confirmationEmailDelayMs } : {}),
+      },
+    );
 
     // `P8-10`, ARCHITECTURE §9.11 rule 6 — asks the AI Trainer service to join
     // the meeting via the same `POST /sessions/external` call the manual

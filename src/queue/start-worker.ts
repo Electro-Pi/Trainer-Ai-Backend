@@ -13,6 +13,7 @@ import { processScanMediaJob } from './jobs/scan-media.job.js';
 import { processSendInviteJob } from './jobs/send-invite.job.js';
 import { processSendReminderJob } from './jobs/send-reminder.job.js';
 import { processSendReportJob } from './jobs/send-report.job.js';
+import { processSendSessionConfirmationEmailJob } from './jobs/send-session-confirmation-email.job.js';
 import type { QueueService } from './queue.service.js';
 import { QUEUE_NAMES, type QueueName, type QueuePayloads } from './queues.js';
 
@@ -29,6 +30,7 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   'meeting.create': processCreateMeetingJob,
   'meeting.update': processMeetingUpdateJob,
   'session.reminder': processSendReminderJob,
+  'session.confirmationEmail': processSendSessionConfirmationEmailJob,
   'agent.dispatch': processAgentDispatchJob,
   'report.generate': processGenerateReportJob,
   'report.send': processSendReportJob,

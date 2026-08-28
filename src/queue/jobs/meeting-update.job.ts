@@ -211,6 +211,16 @@ export async function processMeetingUpdateJob(
       );
     }
 
+    // The delayed `session.confirmationEmail` job scheduled at the original
+    // confirm time is now stale — cancel it. The "session moved" email just
+    // sent above already covers the join link for the new time; there's no
+    // separate near-start confirmation to reschedule here (reschedules don't
+    // re-run `create-meeting.job.ts`).
+    await queueService.removeJob(
+      'session.confirmationEmail',
+      `session-confirmation-email-${session.id}`,
+    );
+
     await writeAuditLog({
       organizationId: payload.organizationId,
       actorType: 'SYSTEM',

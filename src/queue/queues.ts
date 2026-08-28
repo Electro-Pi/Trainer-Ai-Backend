@@ -7,6 +7,7 @@ export const QUEUE_NAMES = [
   'meeting.create',
   'meeting.update',
   'session.reminder',
+  'session.confirmationEmail',
   'agent.dispatch',
   'report.generate',
   'report.send',
@@ -24,6 +25,7 @@ export interface QueuePayloads {
   'meeting.create': { sessionId: string; organizationId: string };
   'meeting.update': { sessionId: string; organizationId: string };
   'session.reminder': { sessionId: string; organizationId: string };
+  'session.confirmationEmail': { sessionId: string; organizationId: string };
   'agent.dispatch': { sessionId: string; organizationId: string };
   'report.generate': { reportId: string; organizationId: string };
   'report.send': { reportId: string; organizationId: string };
@@ -50,6 +52,7 @@ export const QUEUE_DEFAULT_JOB_OPTIONS: Record<QueueName, QueueRetryOptions> = {
   'meeting.create': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
   'meeting.update': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
   'session.reminder': { retryLimit: 1, retryDelay: 30, retryBackoff: true },
+  'session.confirmationEmail': { retryLimit: 2, retryDelay: 10, retryBackoff: true },
   'agent.dispatch': { retryLimit: 2, retryDelay: 10, retryBackoff: true },
   'report.generate': { retryLimit: 2, retryDelay: 10, retryBackoff: true },
   'report.send': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
