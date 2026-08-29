@@ -18,6 +18,9 @@ export const demoRequestSchema = z.object({
   name: z.string().trim().min(1).max(200),
   email: z.email(),
   company: z.string().trim().min(1).max(200),
+  /** The public form's Team size option, verbatim. Capped at 60 to match the
+   * Contact Dashboard's own `orgSize` contract, which 422s anything longer. */
+  orgSize: z.string().trim().min(1).max(60).optional(),
   phone: z
     .string()
     .trim()

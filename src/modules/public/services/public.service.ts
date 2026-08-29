@@ -8,6 +8,8 @@ export interface SubmitDemoRequestInput {
   name: string;
   email: string;
   company: string;
+  /** Team size picked on the public form; forwarded to the Contact Dashboard. */
+  orgSize?: string | undefined;
   phone?: string | undefined;
   message?: string | undefined;
   locale: 'EN' | 'AR';
@@ -49,6 +51,7 @@ export class PublicService {
         name: input.name,
         email: input.email,
         companyName: input.company,
+        orgSize: input.orgSize,
         phone: input.phone,
         message: input.message,
       })
