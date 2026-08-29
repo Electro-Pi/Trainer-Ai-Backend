@@ -9,6 +9,7 @@ import { processGenerateReportJob } from './jobs/generate-report.job.js';
 import { processHealthAlertJob } from './jobs/health-alert.job.js';
 import { processMeetingUpdateJob } from './jobs/meeting-update.job.js';
 import { processRecomputeEffectivenessJob } from './jobs/recompute-effectiveness.job.js';
+import { processReconcileExternalSessionsJob } from './jobs/reconcile-external-sessions.job.js';
 import { processSendInviteJob } from './jobs/send-invite.job.js';
 import { processSendReminderJob } from './jobs/send-reminder.job.js';
 import { processSendReportJob } from './jobs/send-report.job.js';
@@ -36,6 +37,7 @@ const PROCESSORS: Partial<{ [K in QueueName]: Processor<K> }> = {
   cleanup: processCleanupJob,
   'health.alert': processHealthAlertJob,
   'invite.send': processSendInviteJob,
+  'external-session.reconcile': processReconcileExternalSessionsJob,
 };
 
 /**
@@ -94,6 +96,16 @@ export async function startWorker(connection: PgBoss, queueService: QueueService
   await queueService.scheduleCron('health.alert', {}, '*/5 * * * *').catch((err: unknown) => {
     logger.error({ err }, 'Failed to register health.alert cron schedule');
   });
+
+  // Every 15 minutes rather than nightly: a lost webhook means the learner
+  // and their manager are waiting on a report that will never arrive, and a
+  // session the AI Trainer ended without an evaluation needs a human told
+  // while the meeting is still fresh — neither can wait until 3am.
+  await queueService
+    .scheduleCron('external-session.reconcile', {}, '*/15 * * * *')
+    .catch((err: unknown) => {
+      logger.error({ err }, 'Failed to register external-session.reconcile cron schedule');
+    });
 
   logger.info({ queues: QUEUE_NAMES }, 'Queue worker started');
 }

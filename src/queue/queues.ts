@@ -15,6 +15,7 @@ export const QUEUE_NAMES = [
   'cleanup',
   'health.alert',
   'invite.send',
+  'external-session.reconcile',
 ] as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[number];
@@ -32,6 +33,7 @@ export interface QueuePayloads {
   cleanup: { organizationId?: string };
   'health.alert': Record<string, never>;
   'invite.send': { portalInviteId: string; organizationId: string };
+  'external-session.reconcile': Record<string, never>;
 }
 
 export interface QueueRetryOptions {
@@ -58,4 +60,7 @@ export const QUEUE_DEFAULT_JOB_OPTIONS: Record<QueueName, QueueRetryOptions> = {
   cleanup: { retryLimit: 0 },
   'health.alert': { retryLimit: 0 },
   'invite.send': { retryLimit: 4, retryDelay: 10, retryBackoff: true },
+  // Cron-driven and idempotent — a failed run is simply re-done by the next
+  // tick, so a retry would only duplicate outbound AI Trainer calls.
+  'external-session.reconcile': { retryLimit: 0 },
 };

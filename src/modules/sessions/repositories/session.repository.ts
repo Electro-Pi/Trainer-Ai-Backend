@@ -409,4 +409,30 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
       orderBy: { scheduledStart: 'asc' },
     });
   }
+
+  /**
+   * Sessions the AI Trainer was dispatched to whose meeting should be long
+   * over, but which never received the completion webhook
+   * (`POST /external-sessions/:id/complete`). Feeds
+   * `queue/jobs/reconcile-external-sessions.job.ts`.
+   *
+   * Cross-tenant by nature — the reconciliation cron runs on no request and
+   * has no `organizationId` to seed `runWithTenant` with, so this reads
+   * unscoped via `$queryRaw` (same reasoning as `findByExternalSessionId`)
+   * and hands back the `organizationId` each caller needs to re-enter the
+   * tenant context with.
+   */
+  async findStuckExternalSessions(
+    endedBefore: Date,
+    limit: number,
+  ): Promise<{ id: string; organizationId: string; externalSessionId: string }[]> {
+    return prisma.$queryRaw<{ id: string; organizationId: string; externalSessionId: string }[]>`
+      SELECT "id", "organizationId", "externalSessionId"
+      FROM "sessions"
+      WHERE "externalSessionId" IS NOT NULL
+        AND "status" NOT IN ('COMPLETED', 'CANCELLED', 'NO_SHOW')
+        AND "scheduledEnd" < ${endedBefore}
+      ORDER BY "scheduledEnd" ASC
+      LIMIT ${limit}`;
+  }
 }
