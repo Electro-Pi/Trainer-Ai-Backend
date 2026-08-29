@@ -96,6 +96,75 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
   }
 
   /**
+   * Delete-then-recreate every suggested session for a plan as ONE
+   * transaction. `suggest()` has two independent frontend call sites (the
+   * schedule step's mount effect and the Continue button), so two calls for
+   * the same plan can overlap; running the delete and the creates as
+   * separate statements let one call's `deleteByPlan` land in the middle of
+   * the other's create loop, leaving the plan with a mix of both passes'
+   * rows (e.g. two sessions pointing at the same outcome). Wrapping the
+   * whole replace in a transaction makes each call atomic — the loser of the
+   * race simply overwrites the winner cleanly instead of interleaving.
+   */
+  async replaceSessionsForPlan(planId: string, inputs: CreateSessionInput[]): Promise<Session[]> {
+    return prisma.$transaction(async (tx) => {
+      // Serialize concurrent replaces for the same plan. A transaction alone
+      // isn't enough: two overlapping calls each delete (seeing the same
+      // pre-existing state), then each insert their own full set, so neither
+      // sees the other's rows and the plan ends up with both — the duplicate
+      // sessions that made the schedule list show the same skill twice.
+      // Taking a row lock on the plan makes the second call wait for the
+      // first to commit, so its delete then actually sees (and clears) those
+      // rows before inserting.
+      await tx.$queryRaw`SELECT id FROM "training_plans" WHERE id = ${planId} FOR UPDATE`;
+
+      // Same `graphEventId: null` guard as `deleteByPlan` — a session with a
+      // real Teams meeting is left for `meeting.update`'s cancel job to find.
+      await tx.session.deleteMany({ where: { planId, graphEventId: null } });
+
+      const created: Session[] = [];
+      for (const input of inputs) {
+        const session = await tx.session.create({
+          data: {
+            organizationId: input.organizationId,
+            planId: input.planId,
+            learnerId: input.learnerId,
+            primaryOutcomeId: input.primaryOutcomeId,
+            sequence: input.sequence,
+            scheduledStart: input.scheduledStart,
+            scheduledEnd: input.scheduledEnd,
+            durationMinutes: input.durationMinutes,
+            joinToken: generateJoinToken(),
+          },
+        });
+
+        const ownOutcomeIds = new Set([input.primaryOutcomeId, ...input.outcomeIds]);
+        const carriedOverIds = new Set(
+          input.carriedOverOutcomeIds.filter((id) => !ownOutcomeIds.has(id)),
+        );
+        for (const outcomeId of ownOutcomeIds) {
+          await tx.sessionOutcome.create({
+            data: { sessionId: session.id, outcomeId, isCarriedOver: false },
+          });
+        }
+        for (const outcomeId of carriedOverIds) {
+          await tx.sessionOutcome.create({
+            data: { sessionId: session.id, outcomeId, isCarriedOver: true },
+          });
+        }
+        for (const [index, contentItemId] of input.contentItemIds.entries()) {
+          await tx.sessionContent.create({
+            data: { sessionId: session.id, contentItemId, order: index, source: 'RECOMMENDED' },
+          });
+        }
+        created.push(session);
+      }
+
+      return created;
+    });
+  }
+
+  /**
    * The agent's entry point (`GET /agent/sessions/:joinToken/context`, P8-3)
    * resolves a session by its unique unguessable token — never by id
    * (`IV-04`, §7.5) — and arrives through the service-token guard, which has

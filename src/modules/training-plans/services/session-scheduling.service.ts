@@ -48,36 +48,38 @@ export class SessionSchedulingService {
     plan: { id: string; organizationId: string; learnerId: string; startDate: Date },
     suggested: SuggestedSession[],
   ): Promise<Session[]> {
-    await this.sessions.deleteByPlan(plan.id);
-
     const requiredOutcomes = await learnerOutcomeRepository.findByLearner(plan.learnerId);
     const carriedOverOutcomeIds = requiredOutcomes
       .filter((lo) => lo.attemptCount > 0 && lo.status !== 'ACHIEVED')
       .map((lo) => lo.outcomeId);
 
-    const created: Session[] = [];
-    for (const item of suggested) {
-      const scheduledStart = new Date(plan.startDate);
-      scheduledStart.setDate(scheduledStart.getDate() + (item.sequence - 1));
-      const scheduledEnd = new Date(scheduledStart.getTime() + item.durationMinutes * 60_000);
+    // One atomic delete-then-recreate (see `replaceSessionsForPlan`) — two
+    // overlapping `suggest()` calls for the same plan must not interleave
+    // their passes and leave a mix of both.
+    return this.sessions.replaceSessionsForPlan(
+      plan.id,
+      suggested.map((item) => {
+        const scheduledStart = new Date(plan.startDate);
+        scheduledStart.setDate(scheduledStart.getDate() + (item.sequence - 1));
+        const scheduledEnd = new Date(scheduledStart.getTime() + item.durationMinutes * 60_000);
 
-      const session = await this.sessions.createWithContent({
-        organizationId: plan.organizationId,
-        planId: plan.id,
-        learnerId: plan.learnerId,
-        primaryOutcomeId: item.primaryOutcomeId,
-        sequence: item.sequence,
-        scheduledStart,
-        scheduledEnd,
-        durationMinutes: item.durationMinutes,
-        outcomeIds: item.outcomeIds,
-        carriedOverOutcomeIds: carriedOverOutcomeIds.filter((id) => !item.outcomeIds.includes(id)),
-        contentItemIds: item.contentItemIds,
-      });
-      created.push(session);
-    }
-
-    return created;
+        return {
+          organizationId: plan.organizationId,
+          planId: plan.id,
+          learnerId: plan.learnerId,
+          primaryOutcomeId: item.primaryOutcomeId,
+          sequence: item.sequence,
+          scheduledStart,
+          scheduledEnd,
+          durationMinutes: item.durationMinutes,
+          outcomeIds: item.outcomeIds,
+          carriedOverOutcomeIds: carriedOverOutcomeIds.filter(
+            (id) => !item.outcomeIds.includes(id),
+          ),
+          contentItemIds: item.contentItemIds,
+        };
+      }),
+    );
   }
 
   async toTemplateStructure(sessions: Session[]): Promise<TemplateSessionStructure[]> {
