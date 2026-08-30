@@ -9,6 +9,7 @@ import { AiTrainerController } from './controllers/ai-trainer.controller.js';
 import { ExternalSessionController } from './controllers/external-session.controller.js';
 import {
   externalSessionIdParamsSchema,
+  generateTrackSlidesSchema,
   skillIdParamsSchema,
   startExternalSessionSchema,
   suggestDraftSkillOutcomesSchema,
@@ -38,7 +39,7 @@ export function createTrackAiTrainerRouter(): Router {
   router.post(
     '/slides',
     authorize(...WRITE_ROLES),
-    validate({ params: trackIdParamsSchema }),
+    validate({ params: trackIdParamsSchema, body: generateTrackSlidesSchema }),
     (req, res, next) => {
       aiTrainerController.generateTrackSlides(req, res).catch(next);
     },

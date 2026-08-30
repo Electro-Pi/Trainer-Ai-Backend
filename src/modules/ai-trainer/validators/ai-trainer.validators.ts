@@ -18,6 +18,16 @@ export const suggestTrackSkillsSchema = z.object({
   trackDescription: z.string().trim().min(1).max(2000).optional(),
 });
 
+/**
+ * `POST /tracks/:trackId/slides` — the deck's narration language. Optional so
+ * existing callers keep working; absent means `EN`. Callers pass the owning
+ * training plan's language, the only value that matches the session the deck
+ * will actually be narrated in.
+ */
+export const generateTrackSlidesSchema = z.object({
+  language: z.enum(['EN', 'AR']).optional(),
+});
+
 export const suggestSkillOutcomesSchema = z.object({
   trackDescription: z.string().trim().min(1).max(2000).optional(),
 });

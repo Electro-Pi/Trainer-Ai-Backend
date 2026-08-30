@@ -4,7 +4,6 @@ import { container } from '@/config/container.js';
 import { logger } from '@/logger/logger.service.js';
 import { contentItemRepository, mediaAssetRepository } from '@/modules/content/content.module.js';
 import { levelRepository } from '@/modules/levels/levels.module.js';
-import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
 import { trackRepository } from '@/modules/tracks/tracks.module.js';
@@ -65,6 +64,7 @@ export class AiTrainerService {
   async generateTrackSlides(
     actor: ActingUser,
     trackId: string,
+    language?: 'EN' | 'AR',
   ): Promise<GenerateTrackSlidesResponseDto> {
     const track = await trackRepository.findByIdScoped(trackId);
     if (!track) {
@@ -100,12 +100,14 @@ export class AiTrainerService {
 
     // `Track` carries no language of its own (both `nameEn`/`nameAr` are
     // always populated per this app's bilingual-columns convention), and
-    // leaving `language` off makes the AI service fall back to its own
-    // `en-US` default — which generated English decks for Arabic orgs. The
-    // org's `defaultLanguage` is the same fallback used by the session
-    // dispatch and the confirmation emails.
-    const organization = await organizationRepository.findById(actor.organizationId);
-    const language = organization?.defaultLanguage === 'AR' ? 'ar-SA' : 'en-US';
+    // leaving `language` off makes the AI service default to `en-US` — which
+    // produced English decks that an Arabic-instructed agent then narrated,
+    // since the narration scripts live inside the deck. The caller passes the
+    // owning training plan's language: that is the same value
+    // `dispatch-ai-trainer.ts` sends as the session's language, so the deck
+    // and the meeting always agree. `Organization.defaultLanguage` is
+    // deliberately NOT consulted — it has no UI and is permanently EN.
+    const aiLanguage = language === 'AR' ? 'ar-SA' : 'en-US';
 
     const results: SlideDeckResultDto[] = [];
     for (const skill of skills) {
@@ -116,7 +118,7 @@ export class AiTrainerService {
         track_description: track.descriptionEn || null,
         skill_name: skill.nameEn,
         outcomes: outcomesBySkillId.get(skill.id) ?? [],
-        language,
+        language: aiLanguage,
         file,
       });
 

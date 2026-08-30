@@ -17,10 +17,20 @@ function toActingUser(auth: AuthContext): ActingUser {
 export class AiTrainerController {
   private readonly service = new AiTrainerService();
 
-  /** `POST /tracks/:trackId/slides` — blocking, generates one slide deck per skill in the track. */
+  /**
+   * `POST /tracks/:trackId/slides` — blocking, generates one slide deck per
+   * skill in the track. `language` is the narration language of the decks;
+   * callers pass the owning training plan's language so the deck matches the
+   * session it will be narrated in.
+   */
   async generateTrackSlides(req: Request, res: Response): Promise<void> {
     const { trackId } = req.params as { trackId: string };
-    const result = await this.service.generateTrackSlides(toActingUser(req.auth!), trackId);
+    const { language } = req.body as { language?: 'EN' | 'AR' };
+    const result = await this.service.generateTrackSlides(
+      toActingUser(req.auth!),
+      trackId,
+      language,
+    );
     res.status(201).json(result);
   }
 
