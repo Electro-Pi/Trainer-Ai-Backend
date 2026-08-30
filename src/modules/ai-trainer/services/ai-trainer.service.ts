@@ -4,6 +4,7 @@ import { container } from '@/config/container.js';
 import { logger } from '@/logger/logger.service.js';
 import { contentItemRepository, mediaAssetRepository } from '@/modules/content/content.module.js';
 import { levelRepository } from '@/modules/levels/levels.module.js';
+import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { outcomeRepository } from '@/modules/outcomes/outcomes.module.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
 import { trackRepository } from '@/modules/tracks/tracks.module.js';
@@ -97,10 +98,15 @@ export class AiTrainerService {
       throw new ConflictError('No skill on this track has outcomes yet — nothing to generate');
     }
 
-    // No track-level language field exists on `Track` (both `nameEn`/`nameAr`
-    // are always populated per this app's bilingual-columns convention) — the
-    // `language` key is omitted so the AI service falls back to its own
-    // default (`en-US` per the API doc) rather than us guessing one.
+    // `Track` carries no language of its own (both `nameEn`/`nameAr` are
+    // always populated per this app's bilingual-columns convention), and
+    // leaving `language` off makes the AI service fall back to its own
+    // `en-US` default — which generated English decks for Arabic orgs. The
+    // org's `defaultLanguage` is the same fallback used by the session
+    // dispatch and the confirmation emails.
+    const organization = await organizationRepository.findById(actor.organizationId);
+    const language = organization?.defaultLanguage === 'AR' ? 'ar-SA' : 'en-US';
+
     const results: SlideDeckResultDto[] = [];
     for (const skill of skills) {
       const file = await this.resolveSkillAttachment(skill.id);
@@ -110,6 +116,7 @@ export class AiTrainerService {
         track_description: track.descriptionEn || null,
         skill_name: skill.nameEn,
         outcomes: outcomesBySkillId.get(skill.id) ?? [],
+        language,
         file,
       });
 

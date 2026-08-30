@@ -1,6 +1,7 @@
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
+import { organizationRepository } from '@/modules/organizations/organizations.module.js';
 import { skillRepository } from '@/modules/skills/skills.module.js';
 
 import type {
@@ -55,6 +56,14 @@ export class ExternalSessionService {
 
     const skillName = await this.resolveSkillName(slideDeck.skillId);
 
+    // Without an explicit `language` the AI service defaults to `en-US`, so an
+    // Arabic org's trainer would speak English. Unlike the scheduled-session
+    // path (`queue/jobs/dispatch-ai-trainer.ts`), which reads the owning
+    // training plan's language, this manual start has no plan to read — the
+    // org's `defaultLanguage` is the same fallback the session confirmation
+    // emails already use.
+    const organization = await organizationRepository.findById(actor.organizationId);
+
     const result = await this.client.startExternalSession({
       user_id: learner.id,
       user_name: learner.displayName,
@@ -63,6 +72,7 @@ export class ExternalSessionService {
       slide_deck_id: slideDeck.aiDeckId,
       skill_name: skillName,
       meeting_url: dto.meetingUrl,
+      language: organization?.defaultLanguage === 'AR' ? 'ar-SA' : 'en-US',
     });
 
     await this.sessions.create({
