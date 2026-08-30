@@ -87,7 +87,10 @@ export class OutcomeRepository extends BaseRepository<Outcome, OutcomeDelegate> 
         titleEn: `${source.titleEn} (copy)`,
         titleAr: `${source.titleAr} (نسخة)`,
         targetSkills: source.targetSkills,
-        order: siblings.length,
+        // Max + 1, not a count — see `OutcomeService.create`'s note: with
+        // `@@unique([levelId, order])`, a count collides as soon as the
+        // level's orders aren't a dense 0..n-1 run.
+        order: siblings.reduce((max, o) => Math.max(max, o.order + 1), 0),
         isEnabled: false,
       },
     });

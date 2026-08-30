@@ -63,7 +63,12 @@ export class OutcomeService {
       titleEn: dto.titleEn,
       titleAr: dto.titleAr,
       targetSkills: dto.targetSkills,
-      order: siblings.length,
+      // Max + 1, not `siblings.length`: `@@unique([levelId, order])` means a
+      // count only works while orders are a dense 0..n-1 run. Any gap — a
+      // deleted outcome, or a row created by
+      // `PlanSnapshotService`'s own max+1 numbering — makes the count land on
+      // an order that already exists, and the insert fails the constraint.
+      order: siblings.reduce((max, o) => Math.max(max, o.order + 1), 0),
       ...(dto.skillId !== undefined ? { skillId: dto.skillId } : {}),
     } as never);
 

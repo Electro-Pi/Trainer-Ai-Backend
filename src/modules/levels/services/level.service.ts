@@ -57,7 +57,10 @@ export class LevelService {
       nameAr: dto.nameAr,
       descriptionEn: dto.descriptionEn,
       descriptionAr: dto.descriptionAr,
-      order: siblings.length,
+      // Max + 1, not a count — `@@unique([trackId, order])` makes a count
+      // collide once a deleted level leaves a gap in the sequence. Same
+      // reasoning as `OutcomeService.create`.
+      order: siblings.reduce((max, l) => Math.max(max, l.order + 1), 0),
     } as never);
 
     await writeAuditLog({
