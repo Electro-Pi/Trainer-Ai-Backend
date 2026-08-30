@@ -63,6 +63,22 @@ export async function dispatchToAiTrainer(params: {
     }
 
     const plan = await trainingPlanRepository.findByIdScoped(session.planId);
+    const language = toAiTrainerLanguage(plan?.language);
+
+    // A missing plan silently degrades to `en-US` via the `plan?.` above, and
+    // reads identically to a plan that genuinely says EN — log which it was,
+    // so "I picked Arabic but the trainer speaks English" is answerable from
+    // the logs instead of a database query.
+    logger.info(
+      {
+        sessionId: session.id,
+        planId: session.planId,
+        planFound: Boolean(plan),
+        planLanguage: plan?.language ?? null,
+        language,
+      },
+      'Dispatching to AI Trainer',
+    );
 
     const result = await aiTrainerClient.startExternalSession({
       user_id: learner.id,
@@ -72,7 +88,7 @@ export async function dispatchToAiTrainer(params: {
       slide_deck_id: slideDeck.aiDeckId,
       skill_name: skill.nameEn,
       meeting_url: joinUrl,
-      language: toAiTrainerLanguage(plan?.language),
+      language,
     });
 
     await externalSessions.create({

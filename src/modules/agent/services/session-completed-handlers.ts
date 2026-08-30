@@ -1,5 +1,6 @@
 import { runWithTenant } from '@/database/tenant-context.js';
 import { eventBus } from '@/events/event-bus.js';
+import { logger } from '@/logger/logger.service.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
 import { RecommendationService } from '@/modules/recommendations/recommendations.module.js';
 import { reportRepository } from '@/modules/reports/reports.module.js';
@@ -37,11 +38,25 @@ export function registerSessionCompletedHandlers(): void {
   // no longer be handed the identical PDF the old grouping produced.
   eventBus.subscribe('session.completed', async (payload) => {
     await runWithTenant(payload.organizationId, async () => {
+      // These two lookups used to bail silently, which made "the session
+      // completed but no report appeared" undiagnosable from the logs alone.
       const session = await sessionRepository.findByIdScoped(payload.sessionId);
-      if (!session) return;
+      if (!session) {
+        logger.error(
+          { sessionId: payload.sessionId, organizationId: payload.organizationId },
+          'session.completed: no report generated — session not found in tenant scope',
+        );
+        return;
+      }
 
       const learner = await learnerRepository.findByIdScoped(payload.learnerId);
-      if (!learner) return;
+      if (!learner) {
+        logger.error(
+          { sessionId: payload.sessionId, learnerId: payload.learnerId },
+          'session.completed: no report generated — learner not found in tenant scope',
+        );
+        return;
+      }
 
       const team = await teamRepository.findByIdScoped(learner.teamId);
       const manager = team?.managerId
@@ -81,6 +96,16 @@ export function registerSessionCompletedHandlers(): void {
           reportId: report.id,
           organizationId: payload.organizationId,
         });
+
+        logger.info(
+          {
+            reportId: report.id,
+            sessionId: payload.sessionId,
+            role: recipient.role,
+            language,
+          },
+          'session.completed: report queued',
+        );
       }
     });
   });
