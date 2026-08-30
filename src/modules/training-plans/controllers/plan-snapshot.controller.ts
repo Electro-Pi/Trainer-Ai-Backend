@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 
 import { ValidationError } from '@/common/exceptions/app-error.js';
 import type { AuthContext } from '@/common/types/express.js';
+import { logger } from '@/logger/logger.service.js';
 
 import type {
   AddPlanContentSnapshotDto,
@@ -41,7 +42,18 @@ async function toMediaDto(media: PlanContentMedia): Promise<PlanContentMediaResp
     mimeType: media.mimeType,
     sizeBytes: media.sizeBytes,
     scanStatus: media.scanStatus,
-    downloadUrl: await mediaService.getDownloadUrl(media.id),
+    // Minting a signed URL is a second round trip to the storage provider,
+    // made after the upload and DB row already succeeded. Letting it throw
+    // failed the whole upload request — the caller then retried work that had
+    // actually worked. Degrade to null instead; the asset is persisted and
+    // any later read can mint a URL again.
+    downloadUrl: await mediaService.getDownloadUrl(media.id).catch((err: unknown) => {
+      logger.warn(
+        { planContentMediaId: media.id, err },
+        'Could not mint a download URL for a plan-content asset',
+      );
+      return null;
+    }),
     createdAt: media.createdAt.toISOString(),
   };
 }

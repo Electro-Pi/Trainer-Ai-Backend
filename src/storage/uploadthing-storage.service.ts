@@ -7,6 +7,8 @@ import type { StorageBlobListing, StorageService } from '@/shared-types.js';
 
 const UPLOAD_RETRY_ATTEMPTS = 5;
 const UPLOAD_RETRY_DELAY_MS = 500;
+/** Fewer than uploads: signing is cheap and sits in a response path, so a long retry chain would just stall the request. */
+const SIGN_RETRY_ATTEMPTS = 3;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -60,11 +62,30 @@ export class UploadThingStorageService implements StorageService {
     throw new ExternalServiceError(`UploadThing upload failed for ${blobKey}: ${lastMessage}`);
   }
 
+  /**
+   * Retried like `upload` above, and for the same reason — the same transient
+   * provider failures hit signing too. Callers that mint a URL as part of a
+   * write's response (media upload) must additionally tolerate a throw here:
+   * the write already succeeded, so failing the request would make the caller
+   * retry work that was actually done.
+   */
   async getDownloadUrl(blobKey: string, expiresInSeconds = 3600): Promise<string> {
-    const { ufsUrl } = await this.client.generateSignedURL(blobKey, {
-      expiresIn: expiresInSeconds,
-    });
-    return ufsUrl;
+    let lastMessage = 'no result returned';
+    for (let attempt = 1; attempt <= SIGN_RETRY_ATTEMPTS; attempt++) {
+      try {
+        const { ufsUrl } = await this.client.generateSignedURL(blobKey, {
+          expiresIn: expiresInSeconds,
+        });
+        return ufsUrl;
+      } catch (error) {
+        lastMessage = error instanceof Error ? error.message : 'unknown error';
+        if (attempt < SIGN_RETRY_ATTEMPTS) {
+          await sleep(UPLOAD_RETRY_DELAY_MS * 2 ** (attempt - 1));
+        }
+      }
+    }
+    logger.warn({ blobKey, error: lastMessage }, 'UploadThing signed-URL generation failed');
+    throw new ExternalServiceError(`UploadThing signing failed for ${blobKey}: ${lastMessage}`);
   }
 
   async delete(blobKey: string): Promise<void> {
