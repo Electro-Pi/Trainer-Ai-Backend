@@ -67,14 +67,6 @@ export interface ReportResponseDto {
   createdAt: string;
   learnerId: string | null;
   learnerName: string | null;
-  /**
-   * Who this copy of the report was produced for. A completed session emits
-   * one report per recipient (learner + department manager), and the two
-   * carry genuinely different content — `trainee_view` vs `manager_view`,
-   * the latter with `readiness`/`risk_areas` the learner never sees. Without
-   * this the list renders them as two identical-looking rows.
-   */
-  recipientRole: 'LEARNER' | 'DEPARTMENT_MANAGER';
   /** SESSION: that session's score. PLAN_SUMMARY: average of the plan's scored sessions. `null` when nothing is scored yet. */
   score: number | null;
   /**

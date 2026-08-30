@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { contentItemRepository } from '@/modules/content/content.module.js';
@@ -147,7 +149,64 @@ export class PlanSnapshotService {
     },
   ) {
     const tree = await this.getTree(trainingPlanId);
-    const created = await this.snapshots.addSkill(tree.id, { sourceSkillId: null, ...dto });
+    const levelId = await this.resolveAssignmentLevelId(trainingPlanId, actor.organizationId);
+
+    // A manager-authored skill gets a real backing `Skill` + `Outcome` rather
+    // than living only in the snapshot. `Session.primaryOutcomeId` is a hard
+    // FK to the master `Outcome` table, so a snapshot-only skill produced no
+    // schedulable session at all: `PlanBuilderService.generateFromSnapshotTree`
+    // drops every outcome whose `sourceOutcomeId` is null, leaving the wizard
+    // on a proposal row with no session behind it and no date/time pickers.
+    //
+    // Both rows are created `isEnabled: false` so they stay out of the org's
+    // Training Management catalogue — they exist to satisfy the FK and to
+    // carry this plan's own scheduling/reporting, not as reusable content.
+    const masterSkill = await skillRepository.create({
+      organizationId: actor.organizationId,
+      // Deliberately NOT attached to the level. `Skill.levelId` is what makes
+      // a skill part of a track's catalogue: `skillRepository.findByLevel`
+      // ignores `isEnabled` and is read both by the Track Wizard and by
+      // `PlanSnapshotService.create` when copying a level into a new plan —
+      // so setting it here published this plan's private skill to the track
+      // and to every future plan built from that level. Left null, the row
+      // exists only to satisfy `Session.primaryOutcomeId`'s FK and is
+      // reachable solely through this plan's own snapshot.
+      levelId: null,
+      // `Skill` is `@@unique([organizationId, key])`; a timestamp alone can
+      // repeat within the same millisecond on a fast double-add.
+      key: `plan-${trainingPlanId}-${randomUUID()}`,
+      nameEn: dto.nameEn,
+      nameAr: dto.nameAr,
+      descriptionEn: dto.descriptionEn,
+      descriptionAr: dto.descriptionAr,
+      levels: dto.levels,
+      isEnabled: false,
+    } as never);
+
+    const created = await this.snapshots.addSkill(tree.id, {
+      sourceSkillId: masterSkill.id,
+      ...dto,
+    });
+
+    // One outcome, owned by the skill (`Outcome.skillId`), created up front so
+    // the skill is schedulable before the manager authors any of their own.
+    // Adding outcomes later attaches them to this same master skill.
+    const defaultOutcome = await outcomeRepository.create({
+      levelId,
+      skillId: masterSkill.id,
+      titleEn: dto.nameEn,
+      titleAr: dto.nameAr,
+      targetSkills: [dto.nameEn],
+      order: await this.nextOutcomeOrder(levelId),
+      isEnabled: false,
+    } as never);
+
+    await this.snapshots.addOutcome(tree.id, created.id, {
+      sourceOutcomeId: defaultOutcome.id,
+      titleEn: dto.nameEn,
+      titleAr: dto.nameAr,
+      order: 1,
+    });
 
     await writeAuditLog({
       organizationId: actor.organizationId,
@@ -156,7 +215,7 @@ export class PlanSnapshotService {
       action: 'plan_skill_snapshot.added',
       entityType: 'PlanSkillSnapshot',
       entityId: created.id,
-      after: { trainingPlanId, nameEn: dto.nameEn },
+      after: { trainingPlanId, nameEn: dto.nameEn, masterSkillId: masterSkill.id },
     });
 
     return created;
@@ -219,8 +278,30 @@ export class PlanSnapshotService {
   ) {
     const tree = await this.getTree(trainingPlanId);
     await this.assertSkillBelongsToPlan(trainingPlanId, skillSnapshotId);
+
+    // Backed by a real `Outcome` owned by this snapshot skill's master skill
+    // (`Outcome.skillId`), for the same FK reason as `addSkill` above — a
+    // `sourceOutcomeId: null` outcome is skipped by the plan builder and can
+    // never drive a session. `isEnabled: false` keeps it out of the org's
+    // catalogue; it belongs to the skill, not to any one session.
+    const skillSnapshot = await this.snapshots.findSkillById(skillSnapshotId);
+    const levelId = await this.resolveAssignmentLevelId(trainingPlanId, actor.organizationId);
+    const masterOutcome = await outcomeRepository.create({
+      levelId,
+      skillId: skillSnapshot?.sourceSkillId ?? null,
+      titleEn: dto.titleEn,
+      titleAr: dto.titleAr,
+      targetSkills: skillSnapshot ? [skillSnapshot.nameEn] : [],
+      // Not `dto.order` — that is the snapshot's per-skill position (each
+      // skill numbers its own outcomes 1, 2, 3…), which collides on the
+      // master table's `@@unique([levelId, order])` as soon as two skills
+      // both have a first outcome.
+      order: await this.nextOutcomeOrder(levelId),
+      isEnabled: false,
+    } as never);
+
     const created = await this.snapshots.addOutcome(tree.id, skillSnapshotId, {
-      sourceOutcomeId: null,
+      sourceOutcomeId: masterOutcome.id,
       ...dto,
     });
 
@@ -345,6 +426,38 @@ export class PlanSnapshotService {
     });
 
     return updated;
+  }
+
+  /**
+   * Next free `Outcome.order` on a level. `@@unique([levelId, order])`
+   * (schema.prisma) means a hardcoded order collides with whatever the level's
+   * catalogue already uses — which surfaced as a bare 500 on
+   * `POST /plans/:id/snapshot/skills`.
+   */
+  private async nextOutcomeOrder(levelId: string): Promise<number> {
+    const existing = await outcomeRepository.findByLevel(levelId);
+    return existing.reduce((max, o) => Math.max(max, o.order), 0) + 1;
+  }
+
+  /**
+   * The `Level` this plan's learner is assigned to — where a manager-authored
+   * skill has to be created, since `Skill.levelId` is what
+   * `PlanSnapshotService.create` reads back when copying a level's catalogue.
+   */
+  private async resolveAssignmentLevelId(
+    trainingPlanId: string,
+    organizationId: string,
+  ): Promise<string> {
+    const plan = await this.plans.findByIdScoped(trainingPlanId);
+    if (!plan) throw new NotFoundError('Training plan not found');
+    const assignment = await learnerAssignmentRepository.findByIdScoped(
+      plan.assignmentId,
+      organizationId,
+    );
+    if (!assignment) {
+      throw new NotFoundError('This plan’s learner assignment no longer exists');
+    }
+    return assignment.levelId;
   }
 
   private async assertSkillBelongsToPlan(

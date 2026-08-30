@@ -17,18 +17,6 @@ function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
-/**
- * The role this report copy was generated for. `recipients` is a `Json`
- * column holding one entry per recipient, and the session-completed handler
- * writes exactly one report row per recipient — so the first entry is this
- * row's role. Defaults to LEARNER for older rows written before the
- * one-row-per-recipient split.
- */
-function recipientRoleOf(report: Report): 'LEARNER' | 'DEPARTMENT_MANAGER' {
-  const recipients = report.recipients as { role?: 'LEARNER' | 'DEPARTMENT_MANAGER' }[] | null;
-  return recipients?.[0]?.role ?? 'LEARNER';
-}
-
 function toResponseDto(report: Report, learnerAndScore: ReportLearnerAndScore): ReportResponseDto {
   return {
     id: report.id,
@@ -44,7 +32,6 @@ function toResponseDto(report: Report, learnerAndScore: ReportLearnerAndScore): 
     createdAt: report.createdAt.toISOString(),
     learnerId: learnerAndScore.learnerId,
     learnerName: learnerAndScore.learnerName,
-    recipientRole: recipientRoleOf(report),
     score: learnerAndScore.score,
     verdict: learnerAndScore.verdict as ReportResponseDto['verdict'],
     outcomeTitleEn: learnerAndScore.outcomeTitleEn,
@@ -56,16 +43,99 @@ function toResponseDto(report: Report, learnerAndScore: ReportLearnerAndScore): 
 
 export class ReportController {
   async list(req: Request, res: Response): Promise<void> {
-    const query = req.query as { sessionId?: string; planId?: string; status?: string };
+    const query = req.query as unknown as {
+      sessionId?: string;
+      planId?: string;
+      status?: string;
+      page: number;
+      limit: number;
+      q?: string;
+      verdict?: 'ACHIEVED' | 'PARTIALLY_ACHIEVED' | 'NOT_ACHIEVED';
+      type?: 'SESSION' | 'PLAN_SUMMARY';
+    };
     const results = await reports.list(query);
-    const data = await Promise.all(
-      results.map(async (report) =>
-        toResponseDto(report, await reports.getLearnerAndScore(report)),
-      ),
-    );
+
+    // A completed session emits one Report row per recipient (learner +
+    // manager). They differ only in which evaluation the emailed PDF carries,
+    // so listing both showed every session twice with identical score, verdict
+    // and date. Collapse to one row per session — the detail page serves both
+    // views as tabs from a single id. Non-SESSION reports (PLAN_SUMMARY) have
+    // no sessionId and are never collapsed; `list` is already ordered
+    // `createdAt desc`, so the row kept is the most recent for that session.
+    const seenSessionIds = new Set<string>();
+    const collapsed = results.filter((report) => {
+      if (report.type !== 'SESSION' || !report.sessionId) return true;
+      if (seenSessionIds.has(report.sessionId)) return false;
+      seenSessionIds.add(report.sessionId);
+      return true;
+    });
+
+    const typeFiltered = query.type
+      ? collapsed.filter((report) => report.type === query.type)
+      : collapsed;
+
+    // `q` and `verdict` match on learner name and outcome/skill title, which
+    // are resolved per row by `getLearnerAndScore` rather than stored on
+    // `Report` — so unlike `status`/`planId` they can't be pushed into the
+    // Prisma query, and every candidate row has to be hydrated before it can
+    // be matched. Only done when one of these filters is actually set; the
+    // unfiltered path still hydrates just the current page.
+    const needsHydratedFilter = Boolean(query.q || query.verdict);
+    const needle = query.q?.toLowerCase() ?? '';
+
+    let total: number;
+    let page: number;
+    let data: ReportResponseDto[];
+
+    if (needsHydratedFilter) {
+      const hydrated = await Promise.all(
+        typeFiltered.map(async (report) =>
+          toResponseDto(report, await reports.getLearnerAndScore(report)),
+        ),
+      );
+      const matched = hydrated.filter((row) => {
+        if (query.verdict && row.verdict !== query.verdict) return false;
+        if (!needle) return true;
+        return [
+          row.learnerName,
+          row.outcomeTitleEn,
+          row.outcomeTitleAr,
+          row.skillNameEn,
+          row.skillNameAr,
+        ].some((field) => field?.toLowerCase().includes(needle));
+      });
+
+      total = matched.length;
+      const totalPagesLocal = Math.max(1, Math.ceil(total / query.limit));
+      page = Math.min(query.page, totalPagesLocal);
+      data = matched.slice((page - 1) * query.limit, (page - 1) * query.limit + query.limit);
+    } else {
+      // Paged after collapsing, not before — slicing the raw rows first would
+      // hand back short, uneven pages once each session's two recipient rows
+      // fold into one. `getLearnerAndScore` runs per row, so only the current
+      // page is hydrated.
+      total = typeFiltered.length;
+      const totalPagesLocal = Math.max(1, Math.ceil(total / query.limit));
+      page = Math.min(query.page, totalPagesLocal);
+      const start = (page - 1) * query.limit;
+      data = await Promise.all(
+        typeFiltered
+          .slice(start, start + query.limit)
+          .map(async (report) => toResponseDto(report, await reports.getLearnerAndScore(report))),
+      );
+    }
+
+    const totalPages = Math.max(1, Math.ceil(total / query.limit));
     res.status(200).json({
       data,
-      pageInfo: { nextCursor: null, hasNextPage: false },
+      pageInfo: {
+        nextCursor: null,
+        hasNextPage: page < totalPages,
+        page,
+        limit: query.limit,
+        total,
+        totalPages,
+      },
     });
   }
 
@@ -94,11 +164,21 @@ export class ReportController {
   private async buildDetail(report: Report): Promise<ReportResponseDto['detail']> {
     if (report.type !== 'SESSION' || !report.sessionId) return undefined;
 
-    const recipientRole = recipientRoleOf(report);
     const isAr = report.language === 'AR';
 
     try {
-      const data = await reportDataService.buildSessionReport(report.sessionId, recipientRole);
+      // Always built as DEPARTMENT_MANAGER so the payload carries *both*
+      // evaluations: the portal shows one page per session with a Learner and
+      // a Manager tab, rather than two near-identical rows in the list. The
+      // role gate still applies where it matters — `generate-report.job.ts`
+      // passes each recipient's own role, so a learner's emailed PDF never
+      // contains the manager view. Learners have no portal access to this
+      // route at all: `requireTeamAccess` on `GET /reports/:id` admits only
+      // ADMIN and the DEPARTMENT_MANAGER who owns the team.
+      const data = await reportDataService.buildSessionReport(
+        report.sessionId,
+        'DEPARTMENT_MANAGER',
+      );
       const outcome = data.outcomes[0];
       const strengths = data.traineeEvaluation?.strengths.join('\n') ?? data.strengths;
       const gaps = data.traineeEvaluation?.areas_for_improvement.join('\n') ?? data.gaps;
