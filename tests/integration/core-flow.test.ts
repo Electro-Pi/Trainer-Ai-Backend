@@ -330,10 +330,16 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
       .query({ sessionId: sessionAfterMeeting.id })
       .set('Authorization', managerAuth);
     expect(reportsListRes.status).toBe(200);
-    expect(reportsListRes.body.data).toHaveLength(2);
-    for (const report of reportsListRes.body.data) {
-      expect(report.status).toBe('SENT');
-    }
+    // One row per session, not per recipient. A completed session writes two
+    // `Report` rows (learner + manager — asserted above at the DB level) whose
+    // emailed PDFs genuinely differ, but they share a score, verdict and date,
+    // so listing both rendered every session twice with visually identical
+    // rows. The list collapses them; the detail page serves both audiences as
+    // tabs from the surviving id.
+    expect(reportsListRes.body.data).toHaveLength(1);
+    expect(reportsListRes.body.data[0].status).toBe('SENT');
+    expect(reportsListRes.body.data[0].sessionId).toBe(sessionAfterMeeting.id);
+    expect(reportsListRes.body.pageInfo).toMatchObject({ page: 1, total: 1, totalPages: 1 });
 
     void manager;
   });

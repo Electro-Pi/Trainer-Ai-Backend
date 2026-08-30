@@ -82,6 +82,18 @@ export class TeamService {
         },
       ]);
     }
+    // A disabled department takes no new work — existing teams under it keep
+    // running untouched. Same rule as `TrackService.resolveDepartmentId` and
+    // `LearnerService.resolveDepartmentId`.
+    if (!department.isEnabled) {
+      throw new ValidationError([
+        {
+          path: 'departmentId',
+          code: 'disabled',
+          message: 'This department is disabled and cannot take new teams',
+        },
+      ]);
+    }
     return department.id;
   }
 

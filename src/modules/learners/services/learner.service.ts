@@ -67,6 +67,19 @@ export class LearnerService {
         },
       ]);
     }
+    // The "active" this method's doc comment promises was never actually
+    // enforced — `findByIdScoped` filters by id and org only, so a learner
+    // could be moved into a disabled department. Existing members stay put;
+    // this only blocks new ones.
+    if (!department.isEnabled) {
+      throw new ValidationError([
+        {
+          path: 'departmentId',
+          code: 'disabled',
+          message: 'This department is disabled and cannot take new members',
+        },
+      ]);
+    }
     return department.id;
   }
 

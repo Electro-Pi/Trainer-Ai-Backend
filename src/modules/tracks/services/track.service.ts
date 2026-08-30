@@ -90,6 +90,21 @@ export class TrackService {
       ]);
     }
 
+    // A disabled department takes no new work. Same rule `setEnabled`'s doc
+    // comment already states for a disabled Track — it "drops out of
+    // recommendation/assignment eligibility but keeps its history" — applied
+    // one level up: existing tracks under this department keep running, but
+    // nothing new can be filed under it.
+    if (!department.isEnabled) {
+      throw new ValidationError([
+        {
+          path: 'departmentId',
+          code: 'disabled',
+          message: 'This department is disabled and cannot take new tracks',
+        },
+      ]);
+    }
+
     if (actor.role === 'DEPARTMENT_MANAGER') {
       const managedDepartmentIds = await this.resolveManagedDepartmentIds(actor);
       if (!managedDepartmentIds.includes(department.id)) {
