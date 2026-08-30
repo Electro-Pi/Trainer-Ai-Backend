@@ -47,6 +47,16 @@ export class UploadThingStorageService implements StorageService {
       }
     }
 
+    logger.error(
+      {
+        blobKey,
+        contentType,
+        sizeBytes: data.length,
+        attempts: UPLOAD_RETRY_ATTEMPTS,
+        error: lastMessage,
+      },
+      'UploadThing upload failed after all retries',
+    );
     throw new ExternalServiceError(`UploadThing upload failed for ${blobKey}: ${lastMessage}`);
   }
 
