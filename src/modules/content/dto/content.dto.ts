@@ -36,6 +36,7 @@ export interface MediaResponseDto {
   extractedText: string | null;
   pageCount: number | null;
   scanStatus: 'PENDING' | 'CLEAN' | 'INFECTED' | 'FAILED';
-  downloadUrl: string;
+  /** Signed, time-limited. Null when the storage provider couldn't mint one — the asset still exists and a later read can retry. */
+  downloadUrl: string | null;
   createdAt: string;
 }

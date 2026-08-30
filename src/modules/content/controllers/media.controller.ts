@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 
 import { ValidationError } from '@/common/exceptions/app-error.js';
 import type { AuthContext } from '@/common/types/express.js';
+import { logger } from '@/logger/logger.service.js';
 
 import type { MediaResponseDto } from '../dto/content.dto.js';
 import type { MediaAsset } from '../repositories/media-asset.repository.js';
@@ -17,7 +18,18 @@ async function toMediaResponseDto(
   asset: MediaAsset,
   service_: MediaService,
 ): Promise<MediaResponseDto> {
-  const downloadUrl = await service_.getDownloadUrl(asset.id);
+  // Minting a signed URL is a second round trip to the storage provider,
+  // made *after* the upload and the DB row both succeeded. Letting it throw
+  // failed the whole request — and the caller retried an upload that had
+  // actually worked — so a failure here degrades to a null URL instead.
+  // The asset is already persisted; any later read can mint one again.
+  const downloadUrl = await service_.getDownloadUrl(asset.id).catch((err: unknown) => {
+    logger.warn(
+      { mediaAssetId: asset.id, err },
+      'Could not mint a download URL for a freshly uploaded asset',
+    );
+    return null;
+  });
   return {
     id: asset.id,
     contentItemId: asset.contentItemId,
