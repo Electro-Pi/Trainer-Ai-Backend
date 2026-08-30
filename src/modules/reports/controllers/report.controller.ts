@@ -17,6 +17,18 @@ function toActingUser(auth: AuthContext): ActingUser {
   return { id: auth.sub, organizationId: auth.orgId, role: auth.role };
 }
 
+/**
+ * The role this report copy was generated for. `recipients` is a `Json`
+ * column holding one entry per recipient, and the session-completed handler
+ * writes exactly one report row per recipient — so the first entry is this
+ * row's role. Defaults to LEARNER for older rows written before the
+ * one-row-per-recipient split.
+ */
+function recipientRoleOf(report: Report): 'LEARNER' | 'DEPARTMENT_MANAGER' {
+  const recipients = report.recipients as { role?: 'LEARNER' | 'DEPARTMENT_MANAGER' }[] | null;
+  return recipients?.[0]?.role ?? 'LEARNER';
+}
+
 function toResponseDto(report: Report, learnerAndScore: ReportLearnerAndScore): ReportResponseDto {
   return {
     id: report.id,
@@ -32,6 +44,7 @@ function toResponseDto(report: Report, learnerAndScore: ReportLearnerAndScore): 
     createdAt: report.createdAt.toISOString(),
     learnerId: learnerAndScore.learnerId,
     learnerName: learnerAndScore.learnerName,
+    recipientRole: recipientRoleOf(report),
     score: learnerAndScore.score,
     verdict: learnerAndScore.verdict as ReportResponseDto['verdict'],
     outcomeTitleEn: learnerAndScore.outcomeTitleEn,
@@ -81,8 +94,7 @@ export class ReportController {
   private async buildDetail(report: Report): Promise<ReportResponseDto['detail']> {
     if (report.type !== 'SESSION' || !report.sessionId) return undefined;
 
-    const recipients = report.recipients as { role: 'LEARNER' | 'DEPARTMENT_MANAGER' }[];
-    const recipientRole = recipients[0]?.role ?? 'LEARNER';
+    const recipientRole = recipientRoleOf(report);
     const isAr = report.language === 'AR';
 
     try {
