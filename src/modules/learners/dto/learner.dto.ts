@@ -8,6 +8,8 @@ export interface LearnerResponseDto {
   jobTitle: string | null;
   departmentId: string | null;
   departmentName: string | null;
+  /** Arabic counterpart of `departmentName` — falls back to the English name when the department has no `nameAr`. */
+  departmentNameAr: string | null;
   preferredLanguage: string;
   status: string;
   deactivatedAt: string | null;

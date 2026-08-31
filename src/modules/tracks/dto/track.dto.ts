@@ -8,6 +8,8 @@ export interface TrackResponseDto {
   descriptionAr: string;
   departmentId: string;
   departmentName: string;
+  /** Arabic counterpart of `departmentName` — falls back to the English name when the department has no `nameAr`. */
+  departmentNameAr: string;
   targetSkills: string[];
   trainingForm: string;
   impactIndicators: string[];

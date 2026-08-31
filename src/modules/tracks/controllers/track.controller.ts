@@ -20,7 +20,7 @@ function toActingUser(auth: AuthContext): ActingUser {
 }
 
 async function toResponseDto(track: Track): Promise<TrackResponseDto> {
-  const departmentName = await service.getDepartmentName(track.id);
+  const department = await service.getDepartmentNames(track.id);
   return {
     id: track.id,
     organizationId: track.organizationId,
@@ -30,7 +30,8 @@ async function toResponseDto(track: Track): Promise<TrackResponseDto> {
     descriptionEn: track.descriptionEn,
     descriptionAr: track.descriptionAr,
     departmentId: track.departmentId,
-    departmentName: departmentName ?? '',
+    departmentName: department?.nameEn ?? '',
+    departmentNameAr: department ? department.nameAr || department.nameEn : '',
     targetSkills: track.targetSkills,
     trainingForm: track.trainingForm,
     impactIndicators: track.impactIndicators,

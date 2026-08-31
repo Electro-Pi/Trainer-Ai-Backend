@@ -44,6 +44,20 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
     return row?.department.nameEn ?? null;
   }
 
+  /**
+   * Both localized names behind a team's `departmentId`. `findDepartmentName`
+   * above returns `nameEn` only, which left the Arabic portal rendering an
+   * English department in the sidebar profile card — callers that surface the
+   * name to a user should pick by the viewer's locale instead.
+   */
+  async findDepartmentNames(teamId: string): Promise<{ nameEn: string; nameAr: string } | null> {
+    const row = await prisma.team.findFirst({
+      where: { id: teamId },
+      select: { department: { select: { nameEn: true, nameAr: true } } },
+    });
+    return row?.department ?? null;
+  }
+
   /** The delete guard's basis for "empty" — the only thing that ever references a team. */
   async countLearners(teamId: string): Promise<number> {
     return prisma.learner.count({ where: { teamId } });

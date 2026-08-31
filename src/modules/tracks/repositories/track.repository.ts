@@ -52,11 +52,20 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
    * querying `Department` directly.
    */
   async findDepartmentName(trackId: string): Promise<string | null> {
+    return (await this.findDepartmentNames(trackId))?.nameEn ?? null;
+  }
+
+  /**
+   * Both localizations of the name `findDepartmentName` resolves — the portal
+   * renders this column to the viewer, so it has to pick by language rather
+   * than always showing the English name in the Arabic UI.
+   */
+  async findDepartmentNames(trackId: string): Promise<{ nameEn: string; nameAr: string } | null> {
     const row = await prisma.track.findFirst({
       where: { id: trackId },
-      select: { department: { select: { nameEn: true } } },
+      select: { department: { select: { nameEn: true, nameAr: true } } },
     });
-    return row?.department.nameEn ?? null;
+    return row?.department ?? null;
   }
 
   async findManyByTrack(where: Prisma.TrackWhereInput): Promise<Track[]> {
@@ -462,7 +471,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
 
       const departmentRow = await tx.department.findFirst({
         where: { id: track.departmentId },
-        select: { nameEn: true },
+        select: { nameEn: true, nameAr: true },
       });
 
       return {
@@ -476,6 +485,7 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
           descriptionAr: track.descriptionAr,
           departmentId: track.departmentId,
           departmentName: departmentRow?.nameEn ?? '',
+          departmentNameAr: departmentRow ? departmentRow.nameAr || departmentRow.nameEn : '',
           targetSkills: track.targetSkills,
           trainingForm: track.trainingForm,
           impactIndicators: track.impactIndicators,

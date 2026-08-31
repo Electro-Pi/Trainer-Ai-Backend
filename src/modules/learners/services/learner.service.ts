@@ -46,6 +46,11 @@ export class LearnerService {
     return this.learners.findDepartmentName(learnerId);
   }
 
+  /** Both localizations behind a learner's `departmentId`, for `LearnerResponseDto.departmentName`/`departmentNameAr`. */
+  async getDepartmentNames(learnerId: string): Promise<{ nameEn: string; nameAr: string } | null> {
+    return this.learners.findDepartmentNames(learnerId);
+  }
+
   /**
    * Validates that `departmentId` names an active `Department` in the
    * caller's org before it's written to `Learner.departmentId`. `Department`

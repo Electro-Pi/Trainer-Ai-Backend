@@ -20,7 +20,7 @@ function toActingUser(auth: AuthContext): ActingUser {
 }
 
 export async function toResponseDto(learner: Learner): Promise<LearnerResponseDto> {
-  const departmentName = await service.getDepartmentName(learner.id);
+  const department = await service.getDepartmentNames(learner.id);
   return {
     id: learner.id,
     organizationId: learner.organizationId,
@@ -30,7 +30,8 @@ export async function toResponseDto(learner: Learner): Promise<LearnerResponseDt
     displayName: learner.displayName,
     jobTitle: learner.jobTitle,
     departmentId: learner.departmentId,
-    departmentName,
+    departmentName: department?.nameEn ?? null,
+    departmentNameAr: department ? department.nameAr || department.nameEn : null,
     preferredLanguage: learner.preferredLanguage,
     status: learner.status,
     deactivatedAt: learner.deactivatedAt?.toISOString() ?? null,

@@ -49,13 +49,22 @@ export class LearnerRepository extends BaseRepository<Learner, LearnerDelegate> 
    * unset despite already being on a team with a real department.
    */
   async findDepartmentName(learnerId: string): Promise<string | null> {
+    return (await this.findDepartmentNames(learnerId))?.nameEn ?? null;
+  }
+
+  /**
+   * Both localizations of the same name `findDepartmentName` resolves. The
+   * portal renders this column to the viewer, so it has to be able to pick by
+   * language rather than always showing the English name in the Arabic UI.
+   */
+  async findDepartmentNames(learnerId: string): Promise<{ nameEn: string; nameAr: string } | null> {
     const row = await prisma.learner.findFirst({
       where: { id: learnerId },
       select: {
-        department: { select: { nameEn: true } },
-        team: { select: { department: { select: { nameEn: true } } } },
+        department: { select: { nameEn: true, nameAr: true } },
+        team: { select: { department: { select: { nameEn: true, nameAr: true } } } },
       },
     });
-    return row?.department?.nameEn ?? row?.team.department.nameEn ?? null;
+    return row?.department ?? row?.team.department ?? null;
   }
 }

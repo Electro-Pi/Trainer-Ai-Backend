@@ -42,6 +42,8 @@ export interface AuthenticatedUser {
   locale: string;
   /** DEPARTMENT_MANAGER only — populated by `getById` (backs `GET /auth/me`); empty on the sign-in paths, which don't need it. */
   managedDepartmentNames: string[];
+  /** Arabic counterpart of `managedDepartmentNames`, same order — the portal picks one by the viewer's language. */
+  managedDepartmentNamesAr: string[];
 }
 
 /**
@@ -319,10 +321,16 @@ export class AuthService {
       return authenticated;
     }
     const teams = await teamRepository.findByManager(user.id);
-    const names = await Promise.all(teams.map((t) => teamRepository.findDepartmentName(t.id)));
+    const names = await Promise.all(teams.map((t) => teamRepository.findDepartmentNames(t.id)));
+    const present = names.filter((n): n is { nameEn: string; nameAr: string } => Boolean(n));
     return {
       ...authenticated,
-      managedDepartmentNames: Array.from(new Set(names.filter((n): n is string => Boolean(n)))),
+      managedDepartmentNames: Array.from(new Set(present.map((n) => n.nameEn).filter(Boolean))),
+      // Falls back to the English name so a department created before `nameAr`
+      // was filled in still renders something in the Arabic portal.
+      managedDepartmentNamesAr: Array.from(
+        new Set(present.map((n) => n.nameAr || n.nameEn).filter(Boolean)),
+      ),
     };
   }
 }
@@ -346,5 +354,6 @@ function toAuthenticatedUser(
     role: user.role,
     locale: user.locale,
     managedDepartmentNames: [],
+    managedDepartmentNamesAr: [],
   };
 }

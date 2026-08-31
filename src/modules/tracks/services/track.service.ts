@@ -51,6 +51,11 @@ export class TrackService {
     return this.tracks.findDepartmentName(trackId);
   }
 
+  /** Both localizations behind a track's `departmentId`, for `TrackResponseDto.departmentName`/`departmentNameAr`. */
+  async getDepartmentNames(trackId: string): Promise<{ nameEn: string; nameAr: string } | null> {
+    return this.tracks.findDepartmentNames(trackId);
+  }
+
   /**
    * A DEPARTMENT_MANAGER has no `departmentId` field of their own — their
    * department(s) are derived from the team(s) they manage (`Team.managerId`
