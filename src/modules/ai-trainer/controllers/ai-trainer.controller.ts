@@ -37,8 +37,8 @@ export class AiTrainerController {
   /** `POST /tracks/:trackId/recommendations/skills` — stateless, advisory. */
   async suggestTrackSkills(req: Request, res: Response): Promise<void> {
     const { trackId } = req.params as { trackId: string };
-    const { trackDescription } = req.body as SuggestTrackSkillsRequestDto;
-    const result = await this.service.suggestTrackSkills(trackId, trackDescription);
+    const { trackDescription, level } = req.body as SuggestTrackSkillsRequestDto;
+    const result = await this.service.suggestTrackSkills(trackId, level, trackDescription);
     res.status(200).json(result);
   }
 
@@ -52,8 +52,8 @@ export class AiTrainerController {
 
   /** `POST /ai-trainer/recommendations/skills` — draft-mode, no track id required. */
   async suggestDraftTrackSkills(req: Request, res: Response): Promise<void> {
-    const { trackName, trackDescription } = req.body as SuggestDraftTrackSkillsRequestDto;
-    const result = await this.service.suggestDraftTrackSkills(trackName, trackDescription);
+    const { trackName, trackDescription, level } = req.body as SuggestDraftTrackSkillsRequestDto;
+    const result = await this.service.suggestDraftTrackSkills(trackName, level, trackDescription);
     res.status(200).json(result);
   }
 

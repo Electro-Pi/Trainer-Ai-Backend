@@ -20,8 +20,14 @@ export interface GenerateTrackSlidesResponseDto {
   skills: SlideDeckResultDto[];
 }
 
+/** Mirrors the AI service's `SkillLevel` enum; sent verbatim on the wire. */
+export type SkillLevelDto = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
+
 export interface SuggestTrackSkillsRequestDto {
   trackDescription?: string | undefined;
+  /** Required: a track spans several levels, so the caller says which one the
+   *  suggestions should be pitched at. */
+  level: SkillLevelDto;
 }
 
 export interface SuggestSkillOutcomesRequestDto {
@@ -32,6 +38,7 @@ export interface SuggestSkillOutcomesRequestDto {
 export interface SuggestDraftTrackSkillsRequestDto {
   trackName: string;
   trackDescription?: string | undefined;
+  level: SkillLevelDto;
 }
 
 export interface SuggestDraftSkillOutcomesRequestDto {

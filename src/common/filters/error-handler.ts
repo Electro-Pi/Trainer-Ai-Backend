@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import {
   AppError,
   InternalError,
+  OrganizationAlreadyProvisionedError,
   ValidationError,
   type ValidationIssue,
 } from '@/common/exceptions/app-error.js';
@@ -20,6 +21,10 @@ interface ProblemDetails {
   instance: string;
   requestId: string;
   errors?: ValidationIssue[];
+  /** `OrganizationAlreadyProvisionedError` only — lets the portal name the org in its blocked-sign-in screen. */
+  organizationName?: string;
+  /** `OrganizationAlreadyProvisionedError` only — the account that was refused. */
+  signedInEmail?: string;
 }
 
 function zodIssuesToValidationIssues(error: ZodError): ValidationIssue[] {
@@ -75,6 +80,11 @@ export function errorHandler(logger: Logger, errorTracker: ErrorTracker) {
 
     if (appError.errors && appError.errors.length > 0) {
       body.errors = appError.errors;
+    }
+
+    if (appError instanceof OrganizationAlreadyProvisionedError) {
+      body.organizationName = appError.organizationName;
+      body.signedInEmail = appError.signedInEmail;
     }
 
     res.status(appError.status).type('application/problem+json').json(body);

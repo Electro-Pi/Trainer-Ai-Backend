@@ -19,6 +19,7 @@ import type {
 import { SlideDeckRepository } from '../repositories/slide-deck.repository.js';
 
 import { AiTrainerClientService } from './ai-trainer-client.service.js';
+import type { SkillLevel } from './ai-trainer-client.types.js';
 
 export interface ActingUser {
   id: string;
@@ -206,6 +207,7 @@ export class AiTrainerService {
 
   async suggestTrackSkills(
     trackId: string,
+    level: SkillLevel,
     trackDescription?: string,
   ): Promise<SuggestTrackSkillsResponseDto> {
     const track = await trackRepository.findByIdScoped(trackId);
@@ -216,6 +218,7 @@ export class AiTrainerService {
     const result = await this.client.suggestSkills({
       track_name: track.nameEn,
       track_description: trackDescription ?? track.descriptionEn ?? null,
+      level,
     });
 
     const suggestedSkills: SuggestedSkillDto[] = result.suggested_skills.map((s) => ({
@@ -267,11 +270,13 @@ export class AiTrainerService {
    */
   async suggestDraftTrackSkills(
     trackName: string,
+    level: SkillLevel,
     trackDescription?: string,
   ): Promise<SuggestTrackSkillsResponseDto> {
     const result = await this.client.suggestSkills({
       track_name: trackName,
       track_description: trackDescription ?? null,
+      level,
     });
 
     const suggestedSkills: SuggestedSkillDto[] = result.suggested_skills.map((s) => ({

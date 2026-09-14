@@ -57,9 +57,15 @@ export interface GenerateSlideWithAttachmentResponse {
   download_url: string | null;
 }
 
+/** The AI service's `SkillLevel` enum — exact casing it accepts. */
+export type SkillLevel = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
+
 export interface SuggestSkillsRequest {
   track_name: string;
   track_description?: string | null;
+  /** Required by `POST /recommendations/skills` — every suggested skill and
+   *  its outcomes are pitched at exactly this level. */
+  level: SkillLevel;
 }
 
 export interface SuggestedSkill {

@@ -1,4 +1,8 @@
-import { ConflictError, UnauthorizedError } from '@/common/exceptions/app-error.js';
+import {
+  ConflictError,
+  OrganizationAlreadyProvisionedError,
+  UnauthorizedError,
+} from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { encrypt } from '@/common/utils/encryption.js';
 import { verifyPassword } from '@/common/utils/password-hash.js';
@@ -71,11 +75,23 @@ export class AuthService {
    *   own (only the invite's `email` has to match the signing-in account's
    *   email, checked below). Matching by tenant in this branch would either
    *   fail to find the org or — worse — silently create a duplicate one.
-   * - **Uninvited** (brand-new signup, no token): today's `entraTenantId`
-   *   upsert-or-create logic, provisioning as `DEPARTMENT_MANAGER` — the
-   *   least-privileged role, never elevated automatically (AU-04/AU-01: no
-   *   sign-in path may hand out `ADMIN` without an explicit invite). An
-   *   existing user (matched by `entraObjectId`, either path) never has
+   * - **Uninvited** (brand-new signup, no token): allowed ONLY when the
+   *   Entra tenant has no `Organization` yet. That first signer creates the
+   *   org and is provisioned `ADMIN` — it is their org, and they need to be
+   *   able to create the first department and invite everyone else.
+   *
+   *   This is a DELIBERATE, owner-approved narrowing of AU-04/AU-01 ("no
+   *   sign-in path may hand out `ADMIN` without an explicit invite"). It is
+   *   safe only because of the guard below: the org-creating sign-in is the
+   *   single uninvited path that still exists, and it can fire at most once
+   *   per Entra tenant — the moment the `Organization` row exists, every
+   *   further uninvited newcomer from that tenant is rejected. Removing that
+   *   guard would turn this into self-service `ADMIN` on an established org.
+   *
+   *   (The previous behaviour, `DEPARTMENT_MANAGER`, produced an unusable
+   *   account: no department, and no permission to create one.)
+   *
+   *   An existing user (matched by `entraObjectId`, either path) never has
    *   their role re-derived on repeat sign-in; role is set once, at first
    *   provisioning, full stop.
    */
@@ -98,13 +114,35 @@ export class AuthService {
       }
     }
 
-    const organizationId = invite
-      ? invite.organizationId
-      : await this.resolveOrCreateOrganizationByTenant(result.claims);
-
+    // Resolved before any provisioning below — the uninvited-signup guard has
+    // to distinguish a returning user from a brand-new one, and must run
+    // before an Organization would be created for them.
     const existingUser = await portalUserRepository.findByEntraObjectId(
       result.claims.entraObjectId,
     );
+
+    // Self-signup is only how an org is BORN, never how someone joins one
+    // that already exists: once a tenant has an Organization, a new user from
+    // that tenant needs an explicit invite. Without this, anyone in the
+    // tenant's Entra directory could sign in cold and provision themselves a
+    // DEPARTMENT_MANAGER seat in an established org. Returning users
+    // (`existingUser`) and invited users are unaffected.
+    if (!invite && !existingUser) {
+      const existingOrganization = await organizationRepository.findByEntraTenantId(
+        result.claims.entraTenantId,
+      );
+      if (existingOrganization) {
+        throw new OrganizationAlreadyProvisionedError(
+          'Your organization is already set up on this workspace — ask an administrator to invite you',
+          existingOrganization.name,
+          result.claims.email,
+        );
+      }
+    }
+
+    const organizationId = invite
+      ? invite.organizationId
+      : await this.resolveOrCreateOrganizationByTenant(result.claims);
 
     const graphTokenCacheEncrypted = encrypt(result.serializedTokenCache);
 
@@ -120,7 +158,13 @@ export class AuthService {
             entraObjectId: result.claims.entraObjectId,
             email: result.claims.email,
             name: result.claims.name,
-            role: invite ? invite.role : 'DEPARTMENT_MANAGER',
+            // Uninvited reaches here only for a tenant with no Organization
+            // (the guard above rejects every other uninvited case), so this
+            // user is the one creating the org and owns it: ADMIN, so they
+            // can create the first department and invite everyone else. A
+            // self-provisioned DEPARTMENT_MANAGER had no department and no
+            // way to make one — an unusable account.
+            role: invite ? invite.role : 'ADMIN',
             graphTokenCacheEncrypted,
             graphHomeAccountId: result.homeAccountId,
             lastLoginAt: new Date(),

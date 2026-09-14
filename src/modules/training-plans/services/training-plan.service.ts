@@ -210,6 +210,18 @@ export class TrainingPlanService {
       ...(sessionDurationMinutes !== undefined ? { sessionDurationMinutes } : {}),
     });
 
+    // `trainingDays` caps how many sessions the builder may produce, so a
+    // plan whose skill count exceeds it comes back covering only the first
+    // few — previously written to the DB as-is, leaving the manager with a
+    // schedule that looked complete but silently omitted skills. Refuse
+    // instead: the caller raises `trainingDays` (the portal sends one day
+    // per active skill) and retries.
+    if (breakdown.uncoveredSkillCount > 0) {
+      throw new ConflictError(
+        `This plan needs at least ${plan.trainingDays + breakdown.uncoveredSkillCount} training days to give every skill a session — it currently has ${plan.trainingDays}.`,
+      );
+    }
+
     await this.scheduling.replaceSuggestedSessions(plan, breakdown.sessions);
 
     await writeAuditLog({
@@ -222,6 +234,7 @@ export class TrainingPlanService {
       after: {
         sessionCount: breakdown.sessions.length,
         deferredItemCount: breakdown.deferredItemCount,
+        uncoveredSkillCount: breakdown.uncoveredSkillCount,
       },
     });
 

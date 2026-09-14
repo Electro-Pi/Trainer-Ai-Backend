@@ -58,6 +58,29 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+/**
+ * Uninvited Microsoft sign-in into a tenant that ALREADY has an
+ * `Organization` (see `AuthService.signInWithMicrosoft`). Distinct `type`
+ * from a plain `UnauthorizedError` so the portal can render the dedicated
+ * "ask an administrator for an invite" screen instead of a generic
+ * sign-in-failed message — clients discriminate on `type`, never on `detail`
+ * text, which is localized.
+ */
+export class OrganizationAlreadyProvisionedError extends AppError {
+  readonly type = `${ERROR_BASE_URL}/organization-already-provisioned`;
+  readonly titleKey = 'errors.unauthorized.title';
+  readonly status = 401;
+
+  /** Both are echoed so the portal can name the org and the refused account. */
+  constructor(
+    detail: string,
+    readonly organizationName: string,
+    readonly signedInEmail: string,
+  ) {
+    super('Unauthorized', { detail });
+  }
+}
+
 export class ForbiddenError extends AppError {
   readonly type = `${ERROR_BASE_URL}/forbidden`;
   readonly titleKey = 'errors.forbidden.title';

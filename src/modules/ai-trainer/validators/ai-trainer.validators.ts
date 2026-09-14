@@ -14,8 +14,12 @@ export const externalSessionIdParamsSchema = z.object({
   id: z.uuid(),
 });
 
+/** The AI service's `SkillLevel` enum — exact casing it accepts. */
+export const skillLevelSchema = z.enum(['Beginner', 'Intermediate', 'Advanced', 'Expert']);
+
 export const suggestTrackSkillsSchema = z.object({
   trackDescription: z.string().trim().min(1).max(2000).optional(),
+  level: skillLevelSchema,
 });
 
 /**
@@ -35,6 +39,7 @@ export const suggestSkillOutcomesSchema = z.object({
 export const suggestDraftTrackSkillsSchema = z.object({
   trackName: z.string().trim().min(1).max(200),
   trackDescription: z.string().trim().min(1).max(2000).optional(),
+  level: skillLevelSchema,
 });
 
 export const suggestDraftSkillOutcomesSchema = z.object({

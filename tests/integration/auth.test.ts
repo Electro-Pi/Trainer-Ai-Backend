@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -53,7 +55,9 @@ describe('auth: Microsoft Entra sign-in (on FakeMsalService)', () => {
       .set('Authorization', `Bearer ${callbackRes.body.accessToken}`);
 
     expect(meRes.status).toBe(200);
-    expect(meRes.body.role).toBe('DEPARTMENT_MANAGER'); // new Entra sign-ins provision as DEPARTMENT_MANAGER, never elevated
+    // The org-creating (first, uninvited) signer of a tenant owns that org, so
+    // provisions ADMIN — see AuthService.signInWithMicrosoft's doc comment.
+    expect(meRes.body.role).toBe('ADMIN');
   });
 
   it('no auth path can ever issue a token for a Learner (AU-04) — /auth/me never returns learner shape', async () => {
@@ -83,6 +87,71 @@ describe('auth: Microsoft Entra sign-in (on FakeMsalService)', () => {
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBeTruthy();
     // No `Learner` model was ever touched to satisfy this login.
+  });
+});
+
+/**
+ * Uninvited Microsoft sign-in is how an Organization is BORN, never how
+ * somebody joins one that already exists. `FakeMsalService` pins every claim
+ * to `entraTenantId: 'fake-tenant'` and derives `entraObjectId` from the
+ * email in the round-tripped code, so distinct emails = distinct new users in
+ * that one shared tenant — exactly the collision this rule governs.
+ */
+describe('auth: uninvited Entra sign-in is gated on the org already existing', () => {
+  /** Drives the full start -> callback round trip as `email`. */
+  async function signIn(email: string) {
+    const startRes = await request(app).get('/api/v1/auth/microsoft/start');
+    const url = new URL(startRes.body.url.replace('about:blank', 'http://x'));
+    const code = Buffer.from(JSON.stringify({ email })).toString('base64url');
+    return request(app)
+      .get('/api/v1/auth/microsoft/callback')
+      .query({ code, state: url.searchParams.get('state')! });
+  }
+
+  async function roleOf(accessToken: string) {
+    const meRes = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${accessToken}`);
+    return meRes.body.role;
+  }
+
+  it('the first uninvited signer creates the org and provisions ADMIN', async () => {
+    const res = await signIn(`founder-${randomUUID()}@demo.local`);
+
+    expect(res.status).toBe(200);
+    expect(await roleOf(res.body.accessToken)).toBe('ADMIN');
+  });
+
+  it('a DIFFERENT uninvited user from a tenant that already has an org is rejected', async () => {
+    // Establishes the org for `fake-tenant` (or reuses one a prior test made).
+    await signIn(`founder-${randomUUID()}@demo.local`);
+
+    const res = await signIn(`stranger-${randomUUID()}@demo.local`);
+
+    expect(res.status).toBe(401);
+    // No self-provisioned seat may be left behind by the rejected attempt.
+    expect(res.body.accessToken).toBeFalsy();
+  });
+
+  it('a returning user still signs in normally after the org exists', async () => {
+    const email = `regular-${randomUUID()}@demo.local`;
+    const first = await signIn(email);
+    expect(first.status).toBe(200);
+
+    const second = await signIn(email);
+
+    expect(second.status).toBe(200);
+    expect(second.body.accessToken).toBeTruthy();
+  });
+
+  it('a returning user never has their role re-derived on repeat sign-in', async () => {
+    const email = `stable-${randomUUID()}@demo.local`;
+    const first = await signIn(email);
+    const firstRole = await roleOf(first.body.accessToken);
+
+    const second = await signIn(email);
+
+    expect(await roleOf(second.body.accessToken)).toBe(firstRole);
   });
 });
 

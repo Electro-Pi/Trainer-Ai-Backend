@@ -33,6 +33,13 @@ export interface SuggestedBreakdown {
   sessions: SuggestedSession[];
   /** Ranked items that didn't fit into `trainingDays` sessions — surfaced, never silently dropped. */
   deferredItemCount: number;
+  /**
+   * Skills with outstanding outcomes that got no session at all, because
+   * `trainingDays` was smaller than the number of skills needing one. The
+   * caller reports this rather than returning a short schedule that looks
+   * complete.
+   */
+  uncoveredSkillCount: number;
 }
 
 /**
@@ -160,7 +167,25 @@ export class PlanBuilderService {
       }
     }
 
-    return { sessions, deferredItemCount: remainingItems.length };
+    // Recomputed after the backfill above — `trainingDays` caps the loop, so
+    // a plan with more skills than days leaves some skill with no session at
+    // all. Counting it here lets `suggest()` refuse rather than hand back a
+    // schedule that silently covers only the first N skills.
+    const finalCoveredSkillIds = new Set(
+      sessions.flatMap((s) => s.outcomeIds.map((id) => outcomeToSkill.get(id) ?? id)),
+    );
+    const uncoveredSkillIds = new Set(
+      requiredOutcomes
+        .filter((lo) => lo.status !== 'ACHIEVED')
+        .map((lo) => outcomeToSkill.get(lo.outcomeId) ?? lo.outcomeId)
+        .filter((skillId) => !finalCoveredSkillIds.has(skillId)),
+    );
+
+    return {
+      sessions,
+      deferredItemCount: remainingItems.length,
+      uncoveredSkillCount: uncoveredSkillIds.size,
+    };
   }
 
   /** Master-catalogue path — today's existing `PLAN_BUILD` pipeline, unchanged. */
@@ -328,10 +353,15 @@ export class PlanBuilderService {
         contentItemIds: [],
       }));
 
-    const deferredCount = [...bySkill.values()]
-      .slice(trainingDays)
-      .reduce((n, g) => n + g.length, 0);
-    return { sessions, deferredItemCount: deferredCount };
+    // Skills past `trainingDays` get no session here either — same cap, same
+    // reporting obligation as the content-driven path.
+    const droppedSkillGroups = [...bySkill.values()].slice(trainingDays);
+    const deferredCount = droppedSkillGroups.reduce((n, g) => n + g.length, 0);
+    return {
+      sessions,
+      deferredItemCount: deferredCount,
+      uncoveredSkillCount: droppedSkillGroups.length,
+    };
   }
 
   /** Earliest not-yet-scheduled skill, ranked by its best (lowest-priority-number) outstanding outcome — keeps session sequencing stable with the pipeline's own priority ordering. */
