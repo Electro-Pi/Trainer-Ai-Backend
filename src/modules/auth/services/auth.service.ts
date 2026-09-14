@@ -26,11 +26,15 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 // - Trainer-Ai/lib/portal/viewmodels/auth-screens.vm.ts's onDemoSignIn* handlers
 // - Trainer-Ai/components/portal/screens/SignIn.tsx's "Demo login" button block
 // - Trainer-Ai/components/portal/PortalHost.tsx's onDemoSignIn* prop wiring
-export type DemoRole = 'ADMIN' | 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR';
+export type DemoRole = 'ADMIN' | 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR' | 'NODETECH_ADMIN';
+// Keys are button identities, not `PortalRole` values: NODETECH_ADMIN is a
+// second ADMIN account, in the Nodetech org rather than the ElectroPi one the
+// other three share.
 const DEMO_ACCOUNT_IDS: Record<DemoRole, string> = {
   ADMIN: 'rlp40lbu70pan7d7evte1fhf',
   DEPARTMENT_MANAGER: 'cu69xxy8z56hkj8j2p17vlhg',
   CONTENT_CREATOR: 'pswmbb0kdzu4tw5qel74o0er',
+  NODETECH_ADMIN: 'rajx900xbwfehh7vn6m1n4fd',
 };
 
 export interface AuthenticatedUser {

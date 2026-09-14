@@ -18,5 +18,5 @@ export const refreshTokenSchema = z.object({
 
 /** Demo-login feature — see `AuthService.signInAsDemoAccount`'s doc comment for the full removal list. */
 export const demoLoginSchema = z.object({
-  role: z.enum(['ADMIN', 'DEPARTMENT_MANAGER', 'CONTENT_CREATOR']),
+  role: z.enum(['ADMIN', 'DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'NODETECH_ADMIN']),
 });
