@@ -1,6 +1,7 @@
 import { ConflictError, NotFoundError } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import { container } from '@/config/container.js';
+import { logger } from '@/logger/logger.service.js';
 import {
   aiTrainerClientService,
   externalSessionRepository,
@@ -68,9 +69,16 @@ export class SessionService {
     await writeNotification({ organizationId, recipientPortalUserId: team.managerId, ...entry });
   }
 
+  /**
+   * `teamIds` is the caller's authorization scope, set by
+   * `requireTeamScopedList` — distinct from the optional `teamId` FILTER,
+   * which the client chooses. Without it this listed every session in the
+   * organization to any signed-in user.
+   */
   async list(filters: {
     learnerId?: string;
     teamId?: string;
+    teamIds?: string[];
     status?: string;
     from?: string;
     to?: string;
@@ -82,6 +90,7 @@ export class SessionService {
     const sessions = await this.sessions.findForCalendar({
       ...(filters.learnerId ? { learnerId: filters.learnerId } : {}),
       ...(learnerIds ? { learnerIds } : {}),
+      ...(filters.teamIds === undefined ? {} : { teamIds: filters.teamIds }),
       ...(filters.from ? { from: new Date(filters.from) } : {}),
       ...(filters.to ? { to: new Date(filters.to) } : {}),
     });
@@ -93,6 +102,7 @@ export class SessionService {
   async calendar(filters: {
     learnerId?: string;
     teamId?: string;
+    teamIds?: string[];
     from?: string;
     to?: string;
   }): Promise<Session[]> {
@@ -220,6 +230,38 @@ export class SessionService {
     });
 
     return cancelled;
+  }
+
+  /**
+   * Cancels every still-live session a learner holds, whatever plan it
+   * belongs to. Called when a learner is deactivated, after their plans have
+   * been cancelled — plan cancellation only reaches plan-attached sessions,
+   * and a detached or plan-less session with a real `graphEventId` would
+   * otherwise leave a Teams meeting on the calendar for someone no longer in
+   * training.
+   *
+   * Sessions already cancelled by the plan sweep are simply not returned by
+   * `findLiveByLearner`, so this is a no-op for them rather than a double
+   * cancel. One session failing does not abort the rest — a stuck session
+   * must not block the learner's deactivation.
+   */
+  async cancelAllForLearner(actor: ActingUser, learnerId: string): Promise<string[]> {
+    const live = await this.sessions.findLiveByLearner(learnerId);
+
+    const cancelledIds: string[] = [];
+    for (const session of live) {
+      try {
+        await this.cancel(actor, session.id);
+        cancelledIds.push(session.id);
+      } catch (error) {
+        logger.warn(
+          { err: error, learnerId, sessionId: session.id },
+          'Could not cancel session while withdrawing a deactivated learner from training',
+        );
+      }
+    }
+
+    return cancelledIds;
   }
 
   /**

@@ -431,6 +431,55 @@ export class TrainingPlanService {
   }
 
   /**
+   * `TM-05` cascade — withdraws a learner from active training when they are
+   * deactivated. Cancels every non-terminal plan they hold (which, through
+   * `cancel()`, also cancels each plan's live sessions, withdraws the Teams
+   * meeting via Graph and drops the reminder/dispatch/confirmation jobs) and
+   * retires their active `LearnerAssignment` rows.
+   *
+   * Lives here rather than in `LearnerService` on purpose: the import
+   * direction is `training-plans -> sessions -> learners`, and reaching back
+   * from `learners` into either would close a cycle through the module
+   * barrels. `learners` stays a leaf; the controller calls both.
+   *
+   * Nothing is deleted — plans become CANCELLED, assignments become inactive,
+   * completed sessions and reports are untouched (non-negotiable 17), so the
+   * learner's training history survives reactivation.
+   *
+   * Sessions not attached to any plan are swept separately by
+   * `SessionService.cancelAllForLearner` — a session can outlive its plan
+   * (`remove()` detaches rather than deletes past sessions).
+   */
+  async withdrawLearnerFromTraining(
+    actor: ActingUser,
+    learnerId: string,
+  ): Promise<{ cancelledPlanIds: string[]; retiredAssignmentCount: number }> {
+    const plans = await this.plans.findActivePlansByLearner(learnerId);
+
+    const cancelledPlanIds: string[] = [];
+    for (const plan of plans) {
+      // `cancel()` re-checks terminality and throws on an already-terminal
+      // plan; the query above only returns non-terminal ones, but a
+      // concurrent cancel could land between the two, and one such race must
+      // not abort the rest of the withdrawal.
+      try {
+        await this.cancel(actor, plan.id);
+        cancelledPlanIds.push(plan.id);
+      } catch (error) {
+        logger.warn(
+          { err: error, learnerId, planId: plan.id },
+          'Could not cancel plan while withdrawing a deactivated learner from training',
+        );
+      }
+    }
+
+    const retiredAssignmentCount =
+      await learnerAssignmentRepository.deactivateAllForLearner(learnerId);
+
+    return { cancelledPlanIds, retiredAssignmentCount };
+  }
+
+  /**
    * Permanent removal of a plan, unlike `cancel()` which keeps it as a
    * CANCELLED record. A plan is regenerable work product, so deleting one is
    * not the history loss that deleting a learner is — but the sessions

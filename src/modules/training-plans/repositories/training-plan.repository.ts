@@ -24,6 +24,20 @@ export class TrainingPlanRepository extends BaseRepository<TrainingPlan, Trainin
     });
   }
 
+  /**
+   * EVERY non-terminal plan for a learner, oldest first — the plural
+   * counterpart to `findActiveByLearner`, which deliberately returns only the
+   * most recent one. Deactivating a learner has to sweep all of them: nothing
+   * in the schema enforces one active plan per learner, and a leftover
+   * DRAFT/CONFIRMED plan keeps its Teams meetings live.
+   */
+  async findActivePlansByLearner(learnerId: string): Promise<TrainingPlan[]> {
+    return this.delegate.findMany({
+      where: { learnerId, status: { in: ['DRAFT', 'CONFIRMED', 'ACTIVE'] } },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   /** `findUnique` isn't tenant-scopable (MEMORY, findById cross-tenant leak trap) — use this for any request-supplied id. */
   async findByIdScoped(id: string): Promise<TrainingPlan | null> {
     return this.delegate.findFirst({ where: { id } });

@@ -223,6 +223,23 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
   }
 
   /**
+   * Every still-live session for a learner, whatever plan it belongs to (or
+   * none — `deleteWithSnapshots`/`remove()` detach past sessions rather than
+   * deleting them, so a session can outlive its plan).
+   *
+   * Used when a learner is deactivated: cancelling their plans covers only
+   * plan-attached sessions, and a detached or plan-less session with a real
+   * `graphEventId` would otherwise keep a Teams meeting on the calendar for
+   * someone no longer in training.
+   */
+  async findLiveByLearner(learnerId: string): Promise<Session[]> {
+    return this.delegate.findMany({
+      where: { learnerId, status: { in: ['SCHEDULED', 'INVITED', 'IN_PROGRESS'] } },
+      orderBy: { scheduledStart: 'asc' },
+    });
+  }
+
+  /**
    * Batched delete for replacing a plan's suggested sessions — one query
    * instead of one `delete()` per session.
    *
@@ -430,10 +447,20 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
     return session;
   }
 
-  /** `TP-08` calendar view — filterable by learner/team-via-learnerIds/date range, tenant-scoped via `findMany`. */
+  /**
+   * `TP-08` calendar view — filterable by learner/team-via-learnerIds/date
+   * range, tenant-scoped via `findMany`.
+   *
+   * `teamIds` is the AUTHORIZATION scope (from `requireTeamScopedList`), not
+   * a user-supplied filter like `learnerId`/`learnerIds`: it restricts the
+   * result to learners on those teams and is applied on top of whatever the
+   * caller asked for. Undefined means unscoped (ADMIN); an empty array means
+   * the manager has no teams and must see nothing.
+   */
   async findForCalendar(params: {
     learnerId?: string;
     learnerIds?: string[];
+    teamIds?: string[];
     from?: Date;
     to?: Date;
   }): Promise<Session[]> {
@@ -441,6 +468,7 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
       where: {
         ...(params.learnerId ? { learnerId: params.learnerId } : {}),
         ...(params.learnerIds ? { learnerId: { in: params.learnerIds } } : {}),
+        ...(params.teamIds === undefined ? {} : { learner: { teamId: { in: params.teamIds } } }),
         ...(params.from || params.to
           ? {
               scheduledStart: {

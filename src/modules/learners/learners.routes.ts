@@ -80,15 +80,13 @@ export function createLearnersRouter(): Router {
     },
   );
 
-  router.post(
-    '/:id/deactivate',
-    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
-    validate({ params: learnerIdParamsSchema }),
-    requireTeamAccess(resolveManagerIdByLearner),
-    (req, res, next) => {
-      learnerController.deactivate(req, res).catch(next);
-    },
-  );
+  // `POST /:id/deactivate` is NOT mounted here. Deactivating a learner has to
+  // cancel their active plans and Teams meetings first, which needs
+  // `training-plans`/`sessions` — importing either from this module would
+  // close a cycle through `sessions.module.ts` and race the two modules'
+  // top-level singleton init. The route lives in
+  // `training-plans.routes.ts`'s `createLearnerDeactivationRouter`, mounted
+  // on `/learners` alongside this router, exactly as the active-plan route is.
 
   // Permanent, unlike `/deactivate` above — see `LearnerService.remove`.
   // `requireTeamAccess` keeps a DEPARTMENT_MANAGER to their own team's

@@ -82,6 +82,14 @@ export class LearnerController {
     res.status(200).json(await toResponseDto(learner));
   }
 
+  /**
+   * Flips the learner's own status only. The training-withdrawal cascade
+   * (cancel active plans + their Teams meetings, retire assignments) is NOT
+   * here: it needs `training-plans`/`sessions`, and `learners` must not
+   * import either — see `createLearnerDeactivationRouter` in
+   * `training-plans.routes.ts`, which owns `POST /learners/:id/deactivate`
+   * and calls this through `LearnerService` after the cascade.
+   */
   async deactivate(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const learner = await service.deactivate(toActingUser(req.auth!), id);

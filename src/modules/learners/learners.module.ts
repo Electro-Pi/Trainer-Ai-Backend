@@ -12,6 +12,15 @@ export type { LearnerExperience } from './repositories/learner-experience.reposi
 export type { Learner } from './repositories/learner.repository.js';
 export { learnerIdParamsSchema } from './validators/learner.validators.js';
 
+// Exported for `training-plans.routes.ts`'s `createLearnerDeactivationRouter`,
+// which owns `POST /learners/:id/deactivate` (this module can't: the cascade
+// needs `training-plans`/`sessions`, and importing either here would close a
+// module cycle). Export-only — the dependency still points INTO `learners`,
+// so this module stays a leaf.
+export { toResponseDto as toLearnerResponseDto } from './controllers/learner.controller.js';
+export { LearnerService } from './services/learner.service.js';
+export type { ActingUser as LearnerActingUser } from './services/learner.service.js';
+
 export const learnersRouter = createLearnersRouter();
 export const teamMembersRouter = createTeamMembersRouter();
 

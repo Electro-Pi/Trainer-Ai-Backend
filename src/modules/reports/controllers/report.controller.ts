@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 
+import { listScopeFilter } from '@/common/guards/list-scope.js';
 import type { AuthContext } from '@/common/types/express.js';
 import { container } from '@/config/container.js';
 import type { StorageService } from '@/shared-types.js';
@@ -53,7 +54,10 @@ export class ReportController {
       verdict?: 'ACHIEVED' | 'PARTIALLY_ACHIEVED' | 'NOT_ACHIEVED';
       type?: 'SESSION' | 'PLAN_SUMMARY';
     };
-    const results = await reports.list(query);
+    // `requireTeamScopedList` put the caller's scope on the request; this
+    // turns it into the query filter and fails closed if the guard is
+    // missing. A DEPARTMENT_MANAGER gets their own teams, an ADMIN org-wide.
+    const results = await reports.list({ ...query, ...listScopeFilter(req) });
 
     // A completed session emits one Report row per recipient (learner +
     // manager). They differ only in which evaluation the emailed PDF carries,

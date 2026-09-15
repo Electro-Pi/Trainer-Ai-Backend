@@ -46,6 +46,7 @@ import { teamsRouter } from '@/modules/teams/teams.module.js';
 import { tracksRouter } from '@/modules/tracks/tracks.module.js';
 import {
   learnerActivePlanRouter,
+  learnerDeactivationRouter,
   trainingPlansRouter,
 } from '@/modules/training-plans/training-plans.module.js';
 import { usersRouter } from '@/modules/users/users.module.js';
@@ -101,6 +102,7 @@ export function createApp(): Express {
   v1.use('/media', mediaRouter);
   v1.use('/plans', trainingPlansRouter);
   v1.use('/learners', learnerActivePlanRouter);
+  v1.use('/learners', learnerDeactivationRouter);
   v1.use('/sessions', sessionsRouter);
   v1.use('/webhooks', rsvpWebhookRouter);
   v1.use('/agent', agentRouter);

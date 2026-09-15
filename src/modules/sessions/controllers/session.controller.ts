@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 
+import { listScopeFilter } from '@/common/guards/list-scope.js';
 import type { AuthContext } from '@/common/types/express.js';
 
 import type {
@@ -62,7 +63,7 @@ export class SessionController {
       from?: string;
       to?: string;
     };
-    const results = await sessions.list(query);
+    const results = await sessions.list({ ...query, ...listScopeFilter(req) });
     res.status(200).json({
       data: results.map(toResponseDto),
       pageInfo: { nextCursor: null, hasNextPage: false },
@@ -76,7 +77,7 @@ export class SessionController {
       from?: string;
       to?: string;
     };
-    const results = await sessions.calendar(query);
+    const results = await sessions.calendar({ ...query, ...listScopeFilter(req) });
     res.status(200).json({
       data: results.map(toResponseDto),
       pageInfo: { nextCursor: null, hasNextPage: false },

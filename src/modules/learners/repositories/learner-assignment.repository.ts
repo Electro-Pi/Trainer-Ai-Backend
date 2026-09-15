@@ -46,6 +46,23 @@ export class LearnerAssignmentRepository extends BaseRepository<
   }
 
   /**
+   * Retires every active assignment a learner holds, using the same
+   * `isActive: false` + `completedAt` idiom `assignWithOutcomes` uses when a
+   * new assignment supersedes an old one — history is preserved, never
+   * deleted (non-negotiable 17). Used when a learner is deactivated: leaving
+   * `isActive: true` behind keeps them counted as in active training.
+   *
+   * Returns the number of rows retired so the caller can audit it.
+   */
+  async deactivateAllForLearner(learnerId: string): Promise<number> {
+    const { count } = await this.delegate.updateMany({
+      where: { learnerId, isActive: true },
+      data: { isActive: false, completedAt: new Date() },
+    });
+    return count;
+  }
+
+  /**
    * `LV-01`…`LV-04`, `LV-06`, `TM-07` — one atomic write: retires the
    * learner's current active assignment (history preserved, never deleted —
    * non-negotiable 17), creates the new one, and materializes a

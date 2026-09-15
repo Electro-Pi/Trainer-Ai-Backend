@@ -2,11 +2,16 @@ import type { Request, Response } from 'express';
 
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
 import type { AuthContext } from '@/common/types/express.js';
-import { learnerRepository } from '@/modules/learners/learners.module.js';
+import {
+  LearnerService,
+  learnerRepository,
+  toLearnerResponseDto,
+} from '@/modules/learners/learners.module.js';
 import {
   createPlanSummaryReports,
   type PlanSummaryRecipient,
 } from '@/modules/reports/reports.module.js';
+import { SessionService } from '@/modules/sessions/sessions.module.js';
 import { teamRepository } from '@/modules/teams/teams.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
 
@@ -23,6 +28,8 @@ import { SessionSchedulingService } from '../services/session-scheduling.service
 import { type ActingUser, TrainingPlanService } from '../services/training-plan.service.js';
 
 const plans = new TrainingPlanService();
+const learners = new LearnerService();
+const sessionService = new SessionService();
 const scheduling = new SessionSchedulingService();
 
 function toActingUser(auth: AuthContext): ActingUser {
@@ -78,6 +85,42 @@ export class TrainingPlanController {
     const { id } = req.params as { id: string };
     const plan = await plans.getActiveByLearner(id);
     res.status(200).json(plan ? await toResponseDto(plan) : null);
+  }
+
+  /**
+   * POST /learners/:id/deactivate — `TM-05`.
+   *
+   * Owned by this controller rather than `LearnerController` because
+   * deactivation has to withdraw the learner from active training first, and
+   * that needs `training-plans`/`sessions`; `learners` can't import either
+   * without closing a module cycle (see `createLearnerDeactivationRouter`).
+   *
+   * Order is deliberate: the cascade runs BEFORE the status flip. If it
+   * throws, the request fails and the learner stays ACTIVE — recoverable and
+   * visible. Flipping first and then failing would leave an INACTIVE learner
+   * holding live Teams meetings with nothing in the UI to show it.
+   *
+   * Idempotent: an already-INACTIVE learner skips the cascade and returns
+   * unchanged, matching `LearnerService.deactivate`'s own early return.
+   */
+  async deactivateLearner(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const actor = toActingUser(req.auth!);
+
+    // Resolves and tenant-scopes the learner before anything is cancelled —
+    // an unknown id must 404 rather than half-execute the cascade.
+    const existing = await learners.getById(id);
+
+    if (existing.status !== 'INACTIVE') {
+      await plans.withdrawLearnerFromTraining(actor, id);
+      // Sweeps sessions the plan cancellation didn't reach — a session can
+      // outlive its plan, and one with a live `graphEventId` would otherwise
+      // keep a Teams meeting on the calendar.
+      await sessionService.cancelAllForLearner(actor, id);
+    }
+
+    const learner = await learners.deactivate(actor, id);
+    res.status(200).json(await toLearnerResponseDto(learner));
   }
 
   async update(req: Request, res: Response): Promise<void> {

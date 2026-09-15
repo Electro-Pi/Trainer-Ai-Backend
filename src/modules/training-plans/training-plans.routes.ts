@@ -337,3 +337,36 @@ export function createLearnerActivePlanRouter(): Router {
 
   return router;
 }
+
+/**
+ * Owns `POST /learners/:id/deactivate` — mounted on `/learners` alongside
+ * `learnersRouter`, same pattern and same reason as
+ * `createLearnerActivePlanRouter` above.
+ *
+ * The route can't live in `learners.routes.ts`: deactivating a learner has to
+ * cancel their active plans and the Teams meetings behind their live
+ * sessions, which needs `TrainingPlanService`/`SessionService`. Importing
+ * either from `learners` would close a cycle through `sessions.module.ts`
+ * (training-plans -> sessions -> learners already exists) and race the
+ * modules' top-level singleton initialization.
+ *
+ * Guard stack is identical to the route it replaces — `DEPARTMENT_MANAGER`
+ * or `ADMIN`, `requireTeamAccess` keeping a manager to their own team.
+ */
+export function createLearnerDeactivationRouter(): Router {
+  const router = Router();
+
+  router.use(authenticate(), tenantScope());
+
+  router.post(
+    '/:id/deactivate',
+    authorize(...WRITE_ROLES),
+    validate({ params: learnerIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByLearnerParam),
+    (req, res, next) => {
+      controller.deactivateLearner(req, res).catch(next);
+    },
+  );
+
+  return router;
+}

@@ -6,6 +6,7 @@ import { PlanTrackSnapshotRepository } from './repositories/plan-track-snapshot.
 import { TrainingPlanRepository } from './repositories/training-plan.repository.js';
 import {
   createLearnerActivePlanRouter,
+  createLearnerDeactivationRouter,
   createTrainingPlansRouter,
 } from './training-plans.routes.js';
 
@@ -23,6 +24,9 @@ export type {
 
 export const trainingPlansRouter = createTrainingPlansRouter();
 export const learnerActivePlanRouter = createLearnerActivePlanRouter();
+// `POST /learners/:id/deactivate` — see the router's own doc comment for why
+// it lives in this module and not in `learners`.
+export const learnerDeactivationRouter = createLearnerDeactivationRouter();
 
 // Sanctioned cross-module surface (ARCHITECTURE §4/AGENTS §5) — `sessions`
 // (reschedule/cancel/attendance) resolves a session's plan through this

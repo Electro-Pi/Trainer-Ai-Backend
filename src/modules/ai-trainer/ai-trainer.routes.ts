@@ -24,6 +24,8 @@ const externalSessionController = new ExternalSessionController();
 
 /** Content/track-creation write roles, matching `tracks`/`skills`/`outcomes`' existing convention. */
 const WRITE_ROLES = ['DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'] as const;
+/** Learner-session reads — no CONTENT_CREATOR (§7.2). */
+const READ_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
 
 /**
  * Nested under `/tracks/:trackId` — `POST .../slides` (blocking slide-deck
@@ -121,12 +123,26 @@ export function createExternalSessionsRouter(): Router {
     },
   );
 
-  router.get('/:id', validate({ params: externalSessionIdParamsSchema }), (req, res, next) => {
-    externalSessionController.getStatus(req, res).catch(next);
-  });
+  // Live status/transcript/evaluation of a learner's session. These carry
+  // learner data, so they need at least a role gate — they had none, leaving
+  // them open to any authenticated principal. Ownership is not checked here:
+  // the id is the AI Trainer's own `externalSessionId`, which does not
+  // resolve to a team through `requireTeamAccess`'s session-id contract.
+  // Narrowing these to the owning manager needs an
+  // externalSessionId -> Session -> learner -> team lookup; flagged rather
+  // than guessed, since it changes who can watch a running session.
+  router.get(
+    '/:id',
+    authorize(...READ_ROLES),
+    validate({ params: externalSessionIdParamsSchema }),
+    (req, res, next) => {
+      externalSessionController.getStatus(req, res).catch(next);
+    },
+  );
 
   router.get(
     '/:id/transcript',
+    authorize(...READ_ROLES),
     validate({ params: externalSessionIdParamsSchema }),
     (req, res, next) => {
       externalSessionController.getTranscript(req, res).catch(next);
@@ -135,6 +151,7 @@ export function createExternalSessionsRouter(): Router {
 
   router.get(
     '/:id/evaluation',
+    authorize(...READ_ROLES),
     validate({ params: externalSessionIdParamsSchema }),
     (req, res, next) => {
       externalSessionController.getEvaluation(req, res).catch(next);

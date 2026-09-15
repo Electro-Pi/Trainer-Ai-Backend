@@ -30,15 +30,23 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
 // - Trainer-Ai/lib/portal/viewmodels/auth-screens.vm.ts's onDemoSignIn* handlers
 // - Trainer-Ai/components/portal/screens/SignIn.tsx's "Demo login" button block
 // - Trainer-Ai/components/portal/PortalHost.tsx's onDemoSignIn* prop wiring
-export type DemoRole = 'ADMIN' | 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR' | 'NODETECH_ADMIN';
+export type DemoRole =
+  'ADMIN' | 'DEPARTMENT_MANAGER' | 'CONTENT_CREATOR' | 'NODETECH_ADMIN' | 'MANAGER_MAHMOUD';
 // Keys are button identities, not `PortalRole` values: NODETECH_ADMIN is a
 // second ADMIN account, in the Nodetech org rather than the ElectroPi one the
-// other three share.
+// other three share, and MANAGER_MAHMOUD is a second DEPARTMENT_MANAGER.
 const DEMO_ACCOUNT_IDS: Record<DemoRole, string> = {
   ADMIN: 'rlp40lbu70pan7d7evte1fhf',
   DEPARTMENT_MANAGER: 'cu69xxy8z56hkj8j2p17vlhg',
   CONTENT_CREATOR: 'pswmbb0kdzu4tw5qel74o0er',
   NODETECH_ADMIN: 'rajx900xbwfehh7vn6m1n4fd',
+  // mahmoud khaled <mahmoudkhaled@electropi.ai> — the Electro Pi manager
+  // who owns the "Heros" team. Requested for testing team-scoped reads
+  // (MODRB-15): he manages exactly one team, so anything from another
+  // department showing up under his login is a scoping bug.
+  // NOTE: a second, teamless `mahmoud khaled` account exists on the same org
+  // (mahmoudkhaled51299@outlook.com); this is deliberately the one WITH a team.
+  MANAGER_MAHMOUD: 'sig92s39wd6159u0kn52kpta',
 };
 
 export interface AuthenticatedUser {

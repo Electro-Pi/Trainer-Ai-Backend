@@ -11,6 +11,13 @@ export interface ReportListFilters {
   sessionId?: string;
   planId?: string;
   status?: string;
+  /**
+   * Restricts the result to reports about learners on these teams. Set by the
+   * controller for a DEPARTMENT_MANAGER; left undefined for an ADMIN, who
+   * reads org-wide. An EMPTY array means "no teams", which must return
+   * nothing — never treat it as "unscoped" (see `list`).
+   */
+  teamIds?: string[];
 }
 
 export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
@@ -31,12 +38,39 @@ export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
     return this.delegate.findFirst({ where: { id } });
   }
 
+  /**
+   * `tenantScope()` narrows this to one organization, which is NOT enough for
+   * a DEPARTMENT_MANAGER — every other report read (`GET /reports/:id`,
+   * `/resend`) goes through `requireTeamAccess`, and without `teamIds` here
+   * the list exposed every learner in the org to any manager.
+   *
+   * A report reaches its learner two ways — `session.learnerId` for a SESSION
+   * report and `plan.learnerId` for a PLAN_SUMMARY — so both relations are
+   * matched. A report joined to neither (possible: both columns are nullable)
+   * is deliberately excluded from a scoped read: it can't be attributed to a
+   * team, so no manager owns it.
+   *
+   * `teamIds: []` is distinct from `teamIds: undefined`. Undefined means
+   * unscoped (ADMIN); an empty array means the manager has no teams and must
+   * see nothing — collapsing the two would turn "no teams" into "all reports".
+   */
   async list(filters: ReportListFilters): Promise<Report[]> {
+    const teamScope =
+      filters.teamIds === undefined
+        ? {}
+        : {
+            OR: [
+              { session: { learner: { teamId: { in: filters.teamIds } } } },
+              { plan: { learner: { teamId: { in: filters.teamIds } } } },
+            ],
+          };
+
     return this.delegate.findMany({
       where: {
         ...(filters.sessionId ? { sessionId: filters.sessionId } : {}),
         ...(filters.planId ? { planId: filters.planId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
+        ...teamScope,
       } as never,
       orderBy: { createdAt: 'desc' } as never,
     } as never);

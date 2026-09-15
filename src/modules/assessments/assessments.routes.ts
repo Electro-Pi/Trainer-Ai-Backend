@@ -24,8 +24,13 @@ export function createOutcomeAssessmentsRouter(): Router {
 
   router.use(authenticate(), tenantScope());
 
+  // Question banks are authoring content, not learner results, so this
+  // matches the PUT below (CONTENT_CREATOR included) rather than the
+  // learner-data rule. It still needs a role gate: without one, any
+  // authenticated principal could read it.
   router.get(
     '/question-bank',
+    authorize(...WRITE_ROLES),
     validate({
       params: outcomeIdParamsSchema,
       query: upsertQuestionBankSchema.pick({ language: true }),
