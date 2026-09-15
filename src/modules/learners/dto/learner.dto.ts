@@ -21,6 +21,12 @@ export interface ImportLearnerDto {
   email: string;
   displayName: string;
   jobTitle?: string;
+  /**
+   * The directory's own free-text department string. Accepted (Graph and the
+   * CSV both carry it) but it does **not** set `Learner.departmentId` — a
+   * learner belongs to their team's department. See
+   * `LearnerImportService.departmentIdForTeam`.
+   */
   department?: string;
   preferredLanguage?: 'EN' | 'AR';
 }
@@ -38,6 +44,7 @@ export interface InviteLearnerDto {
   email: string;
   displayName?: string;
   jobTitle?: string;
+  /** Free text, not a department assignment — same as `ImportLearnerDto.department`. */
   department?: string;
 }
 

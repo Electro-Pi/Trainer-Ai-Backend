@@ -112,6 +112,12 @@ export class TrainingPlanController {
     res.status(200).json(await toResponseDto(plan));
   }
 
+  async remove(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    await plans.remove(toActingUser(req.auth!), id);
+    res.status(204).send();
+  }
+
   async saveAsTemplate(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const dto = req.body as SavePlanTemplateDto;

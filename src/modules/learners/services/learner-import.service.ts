@@ -8,8 +8,7 @@ import { decrypt } from '@/common/utils/encryption.js';
 import { container } from '@/config/container.js';
 import { env } from '@/config/env.js';
 import { msalService } from '@/modules/auth/auth.module.js';
-import { departmentRepository } from '@/modules/departments/departments.module.js';
-import { teamRepository } from '@/modules/teams/teams.module.js';
+import { teamRepository, type Team } from '@/modules/teams/teams.module.js';
 import { portalUserRepository } from '@/modules/users/users.module.js';
 
 import type { ImportLearnerDto, InviteLearnerDto } from '../dto/learner.dto.js';
@@ -55,31 +54,24 @@ export class LearnerImportService {
   private readonly learners = new LearnerRepository();
 
   /**
-   * The directory/CSV import only ever supplies a free-text department name
-   * (`ImportLearnerDto.department`, unlike `Track`/`UpdateLearnerDto` which
-   * already take a resolved `departmentId` from an authenticated caller) —
-   * this resolves it to the org's existing `Department` row by name, or
-   * creates one on first sight, same "resolve or create" shape as
-   * `TeamService.resolveManagerId` but for a value that has no guaranteed
-   * prior row. `Department` isn't a tenant-scoped model on the Prisma
-   * extension (ARCHITECTURE §7.3), so `organizationId` is filtered/stamped
-   * explicitly.
+   * A learner's department is the department of the team they're imported
+   * into — nothing else. The directory/CSV import supplies a *free-text*
+   * department name (`ImportLearnerDto.department`, unlike
+   * `Track`/`UpdateLearnerDto` which take a resolved `departmentId` from an
+   * authenticated caller), and that text is whatever the person's Entra
+   * profile happens to say — a job description ("Developer"), a legacy org
+   * unit, a typo. This used to resolve-or-*create* a `Department` from it,
+   * which silently minted org departments nobody had chosen and stamped
+   * learners with them, so a learner on the "Support" team (Quality and
+   * Product Support) displayed as "Developer". Departments are now created
+   * only by an Admin, through the departments module.
+   *
+   * The free-text value is still carried on the DTO — `jobTitle` and the
+   * audit log keep the directory's own wording — it just no longer decides
+   * org structure.
    */
-  private async resolveDepartmentIdByName(
-    organizationId: string,
-    name: string | undefined,
-  ): Promise<string | null> {
-    if (!name) return null;
-
-    const existing = await departmentRepository.findByNameEn(organizationId, name);
-    if (existing) return existing.id;
-
-    const created = await departmentRepository.create({
-      organizationId,
-      nameEn: name,
-      nameAr: name,
-    } as never);
-    return created.id;
+  private departmentIdForTeam(team: Team): string | null {
+    return team.departmentId ?? null;
   }
 
   private parseCsv(csv: string): ImportLearnerDto[] {
@@ -130,7 +122,7 @@ export class LearnerImportService {
    */
   private async createLearnerRow(
     actor: ActingUser,
-    teamId: string,
+    team: Team,
     entry: {
       entraObjectId: string;
       email: string;
@@ -142,13 +134,10 @@ export class LearnerImportService {
     },
     auditAction: string,
   ): Promise<Learner> {
-    const departmentId = await this.resolveDepartmentIdByName(
-      actor.organizationId,
-      entry.department,
-    );
+    const departmentId = this.departmentIdForTeam(team);
 
     const created = await this.learners.create({
-      teamId,
+      teamId: team.id,
       entraObjectId: entry.entraObjectId,
       email: entry.email,
       displayName: entry.displayName,
@@ -165,7 +154,7 @@ export class LearnerImportService {
       action: auditAction,
       entityType: 'Learner',
       entityId: created.id,
-      after: { teamId, email: created.email },
+      after: { teamId: team.id, email: created.email },
     });
 
     return created;
@@ -191,7 +180,7 @@ export class LearnerImportService {
         continue;
       }
 
-      const created = await this.createLearnerRow(actor, teamId, entry, 'learner.imported');
+      const created = await this.createLearnerRow(actor, team, entry, 'learner.imported');
 
       imported.push(created);
     }
@@ -246,10 +235,7 @@ export class LearnerImportService {
     const displayName = dto.displayName || invitation.invitedUserDisplayName || dto.email;
 
     if (existing) {
-      const departmentId = await this.resolveDepartmentIdByName(
-        actor.organizationId,
-        dto.department,
-      );
+      const departmentId = this.departmentIdForTeam(team);
       const reactivated = await this.learners.update(existing.id, {
         teamId,
         email: dto.email,
@@ -276,7 +262,7 @@ export class LearnerImportService {
 
     return this.createLearnerRow(
       actor,
-      teamId,
+      team,
       {
         entraObjectId: invitation.invitedUserId,
         email: dto.email,

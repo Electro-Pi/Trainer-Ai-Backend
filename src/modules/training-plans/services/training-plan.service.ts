@@ -430,6 +430,62 @@ export class TrainingPlanService {
     return cancelled;
   }
 
+  /**
+   * Permanent removal of a plan, unlike `cancel()` which keeps it as a
+   * CANCELLED record. A plan is regenerable work product, so deleting one is
+   * not the history loss that deleting a learner is — but the sessions
+   * underneath it can be.
+   *
+   * `Session.planId` is non-nullable, so a session cannot outlive its plan by
+   * being detached; it is delete-or-refuse. The split:
+   *
+   *   - COMPLETED / NO_SHOW — a record of something that actually happened.
+   *     The delete is refused; `cancel()` is the right action for a plan with
+   *     history behind it.
+   *   - SCHEDULED / INVITED / IN_PROGRESS — cancelled first, through
+   *     `SessionService.cancel`, so the Teams meeting is properly withdrawn
+   *     rather than vanishing from the database while staying in calendars.
+   *   - CANCELLED — already dead, removed with the plan.
+   */
+  async remove(actor: ActingUser, id: string): Promise<void> {
+    const plan = await this.getById(id);
+    const sessions = await this.scheduling.findSessionsByPlan(plan.id);
+
+    const historical = sessions.filter(
+      (session) => session.status === 'COMPLETED' || session.status === 'NO_SHOW',
+    );
+    if (historical.length > 0) {
+      throw new ConflictError(
+        `This plan has ${historical.length} completed session(s) and can’t be deleted — cancel it instead to keep the training record.`,
+      );
+    }
+
+    const cancellableStatuses = new Set(['SCHEDULED', 'INVITED', 'IN_PROGRESS']);
+    for (const session of sessions) {
+      if (cancellableStatuses.has(session.status)) {
+        await this.sessionService.cancel(actor, session.id);
+      }
+    }
+
+    // Written before the delete — afterwards there is no row left to describe.
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'training_plan.deleted',
+      entityType: 'TrainingPlan',
+      entityId: plan.id,
+      before: {
+        learnerId: plan.learnerId,
+        status: plan.status,
+        deletedSessionCount: sessions.length,
+      },
+    });
+
+    await this.scheduling.deleteSessionsByPlan(plan.id);
+    await this.plans.deleteWithSnapshots(plan.id);
+  }
+
   async saveAsTemplate(actor: ActingUser, id: string, name: string) {
     const plan = await this.getById(id);
     const assignment = await learnerAssignmentRepository.findActiveByLearner(plan.learnerId);

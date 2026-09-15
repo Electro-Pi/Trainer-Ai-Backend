@@ -1,5 +1,9 @@
 import { NotFoundError } from '@/common/exceptions/app-error.js';
-import { learnerOutcomeRepository, learnerRepository } from '@/modules/learners/learners.module.js';
+import {
+  learnerAssignmentRepository,
+  learnerOutcomeRepository,
+  learnerRepository,
+} from '@/modules/learners/learners.module.js';
 
 import type { LearnerSkillsResponseDto, SkillCoverageRow } from '../dto/analytics.dto.js';
 import { analyticsRepository } from '../repositories/analytics.repository.js';
@@ -16,8 +20,19 @@ export class SkillsService {
     const learner = await learnerRepository.findByIdScoped(learnerId);
     if (!learner) throw new NotFoundError('Learner not found');
 
+    // Scoped to the learner's ACTIVE assignment, not their whole history.
+    // `findByLearner` returns every outcome they have ever been assigned
+    // across every past track/level, so a learner who previously sat a .NET
+    // plan showed ASP.NET and Entity Framework rows (all 0/N) under their
+    // current Front-end plan, reading as if those skills belonged to it.
+    // Falls back to the full set when there is no active assignment, so a
+    // learner between plans still sees their history rather than an empty
+    // panel.
+    const activeAssignment = await learnerAssignmentRepository.findActiveByLearner(learnerId);
     const [learnerOutcomes, sessions] = await Promise.all([
-      learnerOutcomeRepository.findByLearner(learnerId),
+      activeAssignment
+        ? learnerOutcomeRepository.findByAssignment(activeAssignment.id)
+        : learnerOutcomeRepository.findByLearner(learnerId),
       analyticsRepository.sessionsForLearners([learnerId]),
     ]);
 

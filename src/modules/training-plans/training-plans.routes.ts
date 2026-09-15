@@ -107,6 +107,18 @@ export function createTrainingPlansRouter(): Router {
     },
   );
 
+  // Permanent, unlike `/:id/cancel` — refused when the plan has completed
+  // sessions behind it. See `TrainingPlanService.remove`.
+  router.delete(
+    '/:id',
+    authorize(...WRITE_ROLES),
+    validate({ params: planIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      controller.remove(req, res).catch(next);
+    },
+  );
+
   router.post(
     '/:id/suggest',
     authorize(...WRITE_ROLES),

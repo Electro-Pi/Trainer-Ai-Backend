@@ -242,6 +242,50 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
     await prisma.session.deleteMany({ where: { planId, graphEventId: null } });
   }
 
+  /**
+   * Unconditional counterpart to `deleteByPlan`, for deleting a plan
+   * outright. `deleteByPlan`'s `graphEventId: null` guard exists so a
+   * re-`suggest()` never yanks a session that still has a live Teams meeting
+   * behind it; on the delete path the service has already cancelled those
+   * sessions (withdrawing the meeting) before calling here, so the guard
+   * would only leave orphans blocking the plan's own delete.
+   *
+   * `session_outcomes` and `session_contents` cascade from `Session`;
+   * `assessments` and `reports` do not and are handled by the caller.
+   */
+  async deleteAllByPlan(planId: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      const sessions = await tx.session.findMany({ where: { planId }, select: { id: true } });
+      const sessionIds = sessions.map((session) => session.id);
+      if (sessionIds.length === 0) return;
+
+      const assessments = await tx.assessment.findMany({
+        where: { sessionId: { in: sessionIds } },
+        select: { id: true },
+      });
+      await tx.assessmentAnswer.deleteMany({
+        where: { assessmentId: { in: assessments.map((row) => row.id) } },
+      });
+      await tx.assessment.deleteMany({ where: { sessionId: { in: sessionIds } } });
+
+      // `Report.sessionId` is nullable, so a report is detached rather than
+      // destroyed — it is an organizational record that outlives the session
+      // it was generated from.
+      await tx.report.updateMany({
+        where: { sessionId: { in: sessionIds } },
+        data: { sessionId: null },
+      });
+
+      await tx.invitation.deleteMany({ where: { sessionId: { in: sessionIds } } });
+      await tx.recommendation.updateMany({
+        where: { sessionId: { in: sessionIds } },
+        data: { sessionId: null },
+      });
+
+      await tx.session.deleteMany({ where: { planId } });
+    });
+  }
+
   /** `findUnique` isn't tenant-scopable (MEMORY, findById cross-tenant leak trap) — use this for any request-supplied id. */
   async findByIdScoped(id: string): Promise<Session | null> {
     return this.delegate.findFirst({ where: { id } });

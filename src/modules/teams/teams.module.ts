@@ -10,6 +10,10 @@ export const teamsRouter = createTeamsRouter();
 // `modules/teams/repositories/*`.
 export const teamRepository = new TeamRepository();
 
+// Re-exported alongside the repository so consumers can type against the
+// rows it hands back without deep-importing `repositories/*`.
+export type { Team } from './repositories/team.repository.js';
+
 openApiRegistry.registerPath({
   method: 'get',
   path: '/teams',

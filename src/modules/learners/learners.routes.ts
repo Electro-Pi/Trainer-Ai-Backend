@@ -90,6 +90,19 @@ export function createLearnersRouter(): Router {
     },
   );
 
+  // Permanent, unlike `/deactivate` above — see `LearnerService.remove`.
+  // `requireTeamAccess` keeps a DEPARTMENT_MANAGER to their own team's
+  // learners; an ADMIN passes it for any learner in the org.
+  router.delete(
+    '/:id',
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
+    validate({ params: learnerIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByLearner),
+    (req, res, next) => {
+      learnerController.remove(req, res).catch(next);
+    },
+  );
+
   router.get(
     '/:id/experience',
     validate({ params: learnerIdParamsSchema }),

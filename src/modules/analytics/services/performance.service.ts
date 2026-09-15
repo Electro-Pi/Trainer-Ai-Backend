@@ -75,8 +75,10 @@ export class PerformanceService {
       }
     }
     const latestPlanStatusByLearner = new Map<string, LearnerPerformanceRow['planStatus']>();
+    const latestPlanIdByLearner = new Map<string, string>();
     for (const [learnerId, plan] of bestPlanByLearner) {
       latestPlanStatusByLearner.set(learnerId, plan.status as LearnerPerformanceRow['planStatus']);
+      latestPlanIdByLearner.set(learnerId, plan.id);
     }
 
     const assignmentByLearner = new Map(assignments.map((a) => [a.learnerId, a]));
@@ -125,6 +127,7 @@ export class PerformanceService {
           outcomesTotal: outcomes.total,
           status: statusFor(attended.length, avgScore),
           planStatus: latestPlanStatusByLearner.get(learner.id) ?? null,
+          planId: latestPlanIdByLearner.get(learner.id) ?? null,
         };
       });
   }

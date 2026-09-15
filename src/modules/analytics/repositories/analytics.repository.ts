@@ -111,11 +111,13 @@ export class AnalyticsRepository {
    */
   async latestPlansForLearners(
     learnerIds: string[],
-  ): Promise<{ learnerId: string; status: string; createdAt: Date }[]> {
+  ): Promise<{ id: string; learnerId: string; status: string; createdAt: Date }[]> {
     if (learnerIds.length === 0) return [];
     return prisma.trainingPlan.findMany({
       where: { learnerId: { in: learnerIds } },
-      select: { learnerId: true, status: true, createdAt: true },
+      // `id` so callers can act on the plan (open/cancel/delete) straight
+      // from the performance aggregate rather than refetching per learner.
+      select: { id: true, learnerId: true, status: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     });
   }

@@ -88,6 +88,12 @@ export class LearnerController {
     res.status(200).json(await toResponseDto(learner));
   }
 
+  async remove(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    await service.remove(toActingUser(req.auth!), id);
+    res.status(204).send();
+  }
+
   async getExperience(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     const experience = await service.getExperience(id);

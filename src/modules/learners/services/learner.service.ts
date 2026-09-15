@@ -142,6 +142,39 @@ export class LearnerService {
     return updated;
   }
 
+  /**
+   * Permanent removal — the counterpart to `deactivate()`, which is still the
+   * reversible option and the one non-negotiable 17 prescribes. This exists
+   * because a manager needs to be able to take someone out of the app
+   * entirely (they can be re-imported from Microsoft later as a fresh
+   * learner). It deletes only MODRB's own records: the person's Microsoft
+   * account is untouched.
+   *
+   * The audit row is written *before* the delete — `writeAuditLog` records
+   * the learner's identity, and once the row is gone there is nothing left
+   * to describe who was removed.
+   */
+  async remove(actor: ActingUser, id: string): Promise<void> {
+    const learner = await this.getById(id);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'learner.deleted',
+      entityType: 'Learner',
+      entityId: id,
+      before: {
+        email: learner.email,
+        displayName: learner.displayName,
+        teamId: learner.teamId,
+        status: learner.status,
+      },
+    });
+
+    await this.learners.deleteWithDependents(id);
+  }
+
   async getExperience(learnerId: string): Promise<LearnerExperience | null> {
     await this.getById(learnerId);
     return this.experiences.findByLearner(learnerId);

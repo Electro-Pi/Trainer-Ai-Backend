@@ -32,6 +32,16 @@ export class SessionSchedulingService {
     return this.sessions.findByPlan(planId);
   }
 
+  /**
+   * Tears down every session on a plan, for the plan-delete path. Unlike the
+   * `suggest()` replace, this ignores the `graphEventId` guard — the service
+   * cancels Teams-backed sessions before calling, so the meeting is already
+   * withdrawn and the row is safe to remove.
+   */
+  async deleteSessionsByPlan(planId: string): Promise<void> {
+    await this.sessions.deleteAllByPlan(planId);
+  }
+
   async findRequiredOutcomes(assignmentId: string): Promise<LearnerOutcome[]> {
     return learnerOutcomeRepository.findByAssignment(assignmentId);
   }

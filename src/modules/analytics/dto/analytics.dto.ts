@@ -14,6 +14,12 @@ export interface LearnerPerformanceRow {
   status: 'ON_TRACK' | 'AT_RISK' | 'NO_ACTIVITY';
   /** The learner's most recently created `TrainingPlan.status`, or `null` if they have no plan at all. Distinct concept from `status` above. */
   planStatus: 'DRAFT' | 'CONFIRMED' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | null;
+  /**
+   * Id of the same plan `planStatus` describes, so a caller can act on it
+   * (open, cancel, delete) without a second round-trip per learner. Null when
+   * the learner has no plan yet.
+   */
+  planId: string | null;
 }
 
 export interface TeamPerformanceResponseDto {
