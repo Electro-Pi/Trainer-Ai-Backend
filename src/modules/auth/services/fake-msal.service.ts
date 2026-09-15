@@ -23,23 +23,39 @@ export class FakeMsalService implements IMsalService {
     });
   }
 
+  /**
+   * The round-tripped "code" may carry an optional `tenant` alongside
+   * `email`. Every sign-in used to report the same hardcoded
+   * `entraTenantId`, which made the uninvited-signup tests order-dependent:
+   * that guard fires only for the FIRST signer of a tenant, so once any
+   * earlier test had signed in, a later test asserting "the first signer
+   * creates the org" got a 401 instead — correct behaviour, wrong premise.
+   * Naming a tenant lets a test have one to itself, while tests that need
+   * two users in the SAME tenant (the rejection case) still just pass the
+   * same value. Omitting it keeps the original default for dev sign-ins.
+   */
   async acquireTokenByCode(code: string, _codeVerifier: string): Promise<EntraSignInResult> {
     const decoded = JSON.parse(Buffer.from(code, 'base64url').toString('utf8')) as {
       email?: string;
+      tenant?: string;
     };
     const email = decoded.email ?? 'fake.manager@demo.local';
     const seed = email.split('@')[0] ?? 'fake-user';
+    const tenant = decoded.tenant ?? 'fake-tenant';
 
     return Promise.resolve({
       claims: {
-        entraTenantId: 'fake-tenant',
-        entraObjectId: `fake-oid-${seed}`,
+        entraTenantId: tenant,
+        // Scoped to the tenant too — the same email in two tenants is two
+        // distinct directory identities, and `entraObjectId` is what
+        // `findByEntraObjectId` uses to recognise a returning user.
+        entraObjectId: `fake-oid-${seed}.${tenant}`,
         email,
         name: seed,
         organizationName: 'Demo Organization',
         mfaSatisfied: true,
       },
-      homeAccountId: `fake-oid-${seed}.fake-tenant`,
+      homeAccountId: `fake-oid-${seed}.${tenant}`,
       serializedTokenCache: JSON.stringify({ fake: true }),
     });
   }

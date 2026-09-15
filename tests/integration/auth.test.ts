@@ -92,17 +92,23 @@ describe('auth: Microsoft Entra sign-in (on FakeMsalService)', () => {
 
 /**
  * Uninvited Microsoft sign-in is how an Organization is BORN, never how
- * somebody joins one that already exists. `FakeMsalService` pins every claim
- * to `entraTenantId: 'fake-tenant'` and derives `entraObjectId` from the
- * email in the round-tripped code, so distinct emails = distinct new users in
- * that one shared tenant — exactly the collision this rule governs.
+ * somebody joins one that already exists. That guard only fires for the FIRST
+ * signer of an Entra tenant, so each test here takes a tenant of its own
+ * (`FakeMsalService` reads an optional `tenant` from the round-tripped code)
+ * and passes the same value twice when it deliberately needs two users to
+ * collide. Sharing one hardcoded tenant made these tests order-dependent:
+ * sign-ins earlier in this file already created that tenant's org, so
+ * "the first signer" was not first and correctly got a 401.
  */
 describe('auth: uninvited Entra sign-in is gated on the org already existing', () => {
-  /** Drives the full start -> callback round trip as `email`. */
-  async function signIn(email: string) {
+  /** A tenant no other test has signed into yet. */
+  const freshTenant = () => `tenant-${randomUUID()}`;
+
+  /** Drives the full start -> callback round trip as `email` within `tenant`. */
+  async function signIn(email: string, tenant: string) {
     const startRes = await request(app).get('/api/v1/auth/microsoft/start');
     const url = new URL(startRes.body.url.replace('about:blank', 'http://x'));
-    const code = Buffer.from(JSON.stringify({ email })).toString('base64url');
+    const code = Buffer.from(JSON.stringify({ email, tenant })).toString('base64url');
     return request(app)
       .get('/api/v1/auth/microsoft/callback')
       .query({ code, state: url.searchParams.get('state')! });
@@ -116,17 +122,18 @@ describe('auth: uninvited Entra sign-in is gated on the org already existing', (
   }
 
   it('the first uninvited signer creates the org and provisions ADMIN', async () => {
-    const res = await signIn(`founder-${randomUUID()}@demo.local`);
+    const res = await signIn(`founder-${randomUUID()}@demo.local`, freshTenant());
 
     expect(res.status).toBe(200);
     expect(await roleOf(res.body.accessToken)).toBe('ADMIN');
   });
 
   it('a DIFFERENT uninvited user from a tenant that already has an org is rejected', async () => {
-    // Establishes the org for `fake-tenant` (or reuses one a prior test made).
-    await signIn(`founder-${randomUUID()}@demo.local`);
+    // Both sign-ins name the SAME tenant — the collision this rule governs.
+    const tenant = freshTenant();
+    await signIn(`founder-${randomUUID()}@demo.local`, tenant);
 
-    const res = await signIn(`stranger-${randomUUID()}@demo.local`);
+    const res = await signIn(`stranger-${randomUUID()}@demo.local`, tenant);
 
     expect(res.status).toBe(401);
     // No self-provisioned seat may be left behind by the rejected attempt.
@@ -135,10 +142,11 @@ describe('auth: uninvited Entra sign-in is gated on the org already existing', (
 
   it('a returning user still signs in normally after the org exists', async () => {
     const email = `regular-${randomUUID()}@demo.local`;
-    const first = await signIn(email);
+    const tenant = freshTenant();
+    const first = await signIn(email, tenant);
     expect(first.status).toBe(200);
 
-    const second = await signIn(email);
+    const second = await signIn(email, tenant);
 
     expect(second.status).toBe(200);
     expect(second.body.accessToken).toBeTruthy();
@@ -146,10 +154,11 @@ describe('auth: uninvited Entra sign-in is gated on the org already existing', (
 
   it('a returning user never has their role re-derived on repeat sign-in', async () => {
     const email = `stable-${randomUUID()}@demo.local`;
-    const first = await signIn(email);
+    const tenant = freshTenant();
+    const first = await signIn(email, tenant);
     const firstRole = await roleOf(first.body.accessToken);
 
-    const second = await signIn(email);
+    const second = await signIn(email, tenant);
 
     expect(await roleOf(second.body.accessToken)).toBe(firstRole);
   });
