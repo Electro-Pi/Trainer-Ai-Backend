@@ -457,20 +457,27 @@ export class TrainingPlanService {
     const plans = await this.plans.findActivePlansByLearner(learnerId);
 
     const cancelledPlanIds: string[] = [];
+    const failures: unknown[] = [];
     for (const plan of plans) {
       // `cancel()` re-checks terminality and throws on an already-terminal
       // plan; the query above only returns non-terminal ones, but a
-      // concurrent cancel could land between the two, and one such race must
-      // not abort the rest of the withdrawal.
+      // concurrent cancel could land between the two. Keep sweeping the
+      // remaining plans, then report every failure to the caller.
       try {
         await this.cancel(actor, plan.id);
         cancelledPlanIds.push(plan.id);
       } catch (error) {
+        failures.push(error);
         logger.warn(
           { err: error, learnerId, planId: plan.id },
           'Could not cancel plan while withdrawing a deactivated learner from training',
         );
       }
+    }
+
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) {
+      throw new AggregateError(failures, 'Could not cancel every active plan for this learner');
     }
 
     const retiredAssignmentCount =

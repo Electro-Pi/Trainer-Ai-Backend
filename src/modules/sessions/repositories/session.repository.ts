@@ -223,19 +223,33 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
   }
 
   /**
-   * Every still-live session for a learner, whatever plan it belongs to (or
-   * none — `deleteWithSnapshots`/`remove()` detach past sessions rather than
-   * deleting them, so a session can outlive its plan).
-   *
-   * Used when a learner is deactivated: cancelling their plans covers only
-   * plan-attached sessions, and a detached or plan-less session with a real
-   * `graphEventId` would otherwise keep a Teams meeting on the calendar for
-   * someone no longer in training.
+   * Every still-live session for a learner plus cancelled sessions whose
+   * Teams cleanup has not yet been confirmed. The second group makes a
+   * partially failed cancellation retryable instead of leaving an external
+   * meeting behind a terminal database record.
    */
-  async findLiveByLearner(learnerId: string): Promise<Session[]> {
+  async findCancellationCandidatesByLearner(learnerId: string): Promise<Session[]> {
     return this.delegate.findMany({
-      where: { learnerId, status: { in: ['SCHEDULED', 'INVITED', 'IN_PROGRESS'] } },
+      where: {
+        learnerId,
+        OR: [
+          { status: { in: ['SCHEDULED', 'INVITED', 'IN_PROGRESS'] } },
+          {
+            status: 'CANCELLED',
+            graphEventId: { not: null },
+            meetingCancelledAt: null,
+          },
+        ],
+      },
       orderBy: { scheduledStart: 'asc' },
+    });
+  }
+
+  /** Records successful (or already-satisfied) removal of the external Teams event. */
+  async markMeetingCancelled(sessionId: string): Promise<void> {
+    await this.delegate.update({
+      where: { id: sessionId } as never,
+      data: { meetingCancelledAt: new Date() } as never,
     });
   }
 
@@ -329,13 +343,6 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
   }
 
   /**
-   * `IV-01`, `IV-02` — one atomic write: marks the session `INVITED` with its
-   * Graph meeting details, and creates the matching `Invitation` row.
-   * Without a transaction, a mid-write failure could leave a session with
-   * `graphEventId` set but no `Invitation` (or vice versa) — a real Teams
-   * meeting the portal doesn't know how to track RSVP/attendance for.
-   */
-  /**
    * Stamps just `graphEventId`, nothing else — for the case where Graph's
    * calendar event was created but its Teams `joinUrl` never showed up
    * (`GraphMeetingCreatedWithoutJoinUrlError`). Deliberately doesn't touch
@@ -346,8 +353,8 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
    * the event already exists on the next retry, instead of calling
    * `POST /me/events` again and creating a duplicate.
    */
-  async recordGraphEventOnly(sessionId: string, graphEventId: string): Promise<void> {
-    await this.delegate.update({
+  async recordGraphEventOnly(sessionId: string, graphEventId: string): Promise<Session> {
+    return this.delegate.update({
       where: { id: sessionId } as never,
       data: { graphEventId } as never,
     });
@@ -367,25 +374,42 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
     });
   }
 
+  /**
+   * Atomically records the invite unless cancellation won the race with the
+   * external Graph call. A null result means the event was attached to the
+   * cancelled session solely so the caller can queue its removal.
+   */
   async recordMeetingCreated(
     sessionId: string,
     learnerId: string,
     meeting: { graphEventId: string; joinUrl: string },
-  ): Promise<Session> {
-    const [session] = await prisma.$transaction([
-      this.delegate.update({
-        where: { id: sessionId } as never,
+  ): Promise<Session | null> {
+    return prisma.$transaction(async (tx) => {
+      // Graph creation is external I/O, so cancellation can land after the
+      // worker's initial status read. Never let the later worker write revive
+      // a CANCELLED session as INVITED.
+      const claimed = await tx.session.updateMany({
+        where: { id: sessionId, status: { not: 'CANCELLED' } },
         data: {
           graphEventId: meeting.graphEventId,
           joinUrl: meeting.joinUrl,
           status: 'INVITED',
-        } as never,
-      }),
-      prisma.invitation.create({
+        },
+      });
+
+      if (claimed.count === 0) {
+        await tx.session.update({
+          where: { id: sessionId },
+          data: { graphEventId: meeting.graphEventId, joinUrl: meeting.joinUrl },
+        });
+        return null;
+      }
+
+      await tx.invitation.create({
         data: { sessionId, learnerId, graphEventId: meeting.graphEventId },
-      }),
-    ]);
-    return session;
+      });
+      return tx.session.findUniqueOrThrow({ where: { id: sessionId } });
+    });
   }
 
   /**

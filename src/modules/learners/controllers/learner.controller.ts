@@ -96,6 +96,12 @@ export class LearnerController {
     res.status(200).json(await toResponseDto(learner));
   }
 
+  async reactivate(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as { id: string };
+    const learner = await service.reactivate(toActingUser(req.auth!), id);
+    res.status(200).json(await toResponseDto(learner));
+  }
+
   async remove(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
     await service.remove(toActingUser(req.auth!), id);

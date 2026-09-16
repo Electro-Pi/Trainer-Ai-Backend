@@ -1082,33 +1082,37 @@ model PlanTemplate {
 }
 
 model Session {
-  id               String          @id @default(cuid(2))
-  organizationId   String
-  planId           String
-  learnerId        String
-  primaryOutcomeId String
-  sequence         Int
-  scheduledStart   DateTime
-  scheduledEnd     DateTime
-  durationMinutes  Int
-  status           SessionStatus   @default(SCHEDULED)
-  verdict          SessionVerdict?
-  score            Int?
-  graphEventId     String?
-  joinUrl          String?
-  joinToken        String          @unique
+  id                 String          @id @default(cuid(2))
+  organizationId     String
+  planId             String
+  learnerId          String
+  primaryOutcomeId   String
+  sequence           Int
+  scheduledStart     DateTime
+  scheduledEnd       DateTime
+  durationMinutes    Int
+  status             SessionStatus   @default(SCHEDULED)
+  verdict            SessionVerdict?
+  score              Int?
+  graphEventId       String?
+  joinUrl            String?
+  joinToken          String          @unique
   /// The AI Trainer microservice's own session id (`ExternalSession.id`),
   /// stamped once `create-meeting.job.ts` successfully dispatches this
   /// session to it. Nullable — dispatch is best-effort (a slide-deck/dispatch
   /// failure leaves this session without one) and older sessions predate this
   /// link entirely. The only way `ReportDataService` can resolve which
   /// `GET /sessions/{id}/evaluation` payload belongs to this session.
-  externalSessionId String?        @unique
-  startedAt        DateTime?
-  endedAt          DateTime?
-  cancelledAt      DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  externalSessionId  String?         @unique
+  startedAt          DateTime?
+  endedAt            DateTime?
+  cancelledAt        DateTime?
+  /// Set only after Microsoft Graph confirms that the backing calendar event
+  /// is gone. A CANCELLED session with a graphEventId and no timestamp is a
+  /// retryable meeting-cleanup candidate.
+  meetingCancelledAt DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id])
   plan           TrainingPlan @relation(fields: [planId], references: [id])

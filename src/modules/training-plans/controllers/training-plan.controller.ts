@@ -100,8 +100,9 @@ export class TrainingPlanController {
    * visible. Flipping first and then failing would leave an INACTIVE learner
    * holding live Teams meetings with nothing in the UI to show it.
    *
-   * Idempotent: an already-INACTIVE learner skips the cascade and returns
-   * unchanged, matching `LearnerService.deactivate`'s own early return.
+   * Idempotent: an already-INACTIVE learner runs cleanup again, so a Teams
+   * cancellation that exhausted its queue retries can be re-enqueued, then
+   * `LearnerService.deactivate` returns the unchanged learner.
    */
   async deactivateLearner(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
@@ -109,14 +110,25 @@ export class TrainingPlanController {
 
     // Resolves and tenant-scopes the learner before anything is cancelled —
     // an unknown id must 404 rather than half-execute the cascade.
-    const existing = await learners.getById(id);
+    await learners.getById(id);
 
-    if (existing.status !== 'INACTIVE') {
+    const failures: unknown[] = [];
+    try {
       await plans.withdrawLearnerFromTraining(actor, id);
-      // Sweeps sessions the plan cancellation didn't reach — a session can
-      // outlive its plan, and one with a live `graphEventId` would otherwise
-      // keep a Teams meeting on the calendar.
+    } catch (error) {
+      failures.push(error);
+    }
+    // Sweeps sessions the plan cancellation didn't reach and retries any
+    // cancelled meeting whose Graph cleanup is still unconfirmed.
+    try {
       await sessionService.cancelAllForLearner(actor, id);
+    } catch (error) {
+      failures.push(error);
+    }
+
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) {
+      throw new AggregateError(failures, 'Could not withdraw learner from active training');
     }
 
     const learner = await learners.deactivate(actor, id);

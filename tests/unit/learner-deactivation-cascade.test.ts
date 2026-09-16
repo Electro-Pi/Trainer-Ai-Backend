@@ -90,6 +90,7 @@ describe('POST /learners/:id/deactivate — training withdrawal cascade', () => 
     withdrawLearnerFromTraining.mockRejectedValue(new Error('graph down'));
 
     await expect(controller.deactivateLearner(req(), res())).rejects.toThrow('graph down');
+    expect(cancelAllForLearner).toHaveBeenCalledOnce();
     expect(deactivate).not.toHaveBeenCalled();
   });
 
@@ -97,16 +98,27 @@ describe('POST /learners/:id/deactivate — training withdrawal cascade', () => 
     cancelAllForLearner.mockRejectedValue(new Error('graph down'));
 
     await expect(controller.deactivateLearner(req(), res())).rejects.toThrow('graph down');
+    expect(withdrawLearnerFromTraining).toHaveBeenCalledOnce();
     expect(deactivate).not.toHaveBeenCalled();
   });
 
-  it('is idempotent — an already-INACTIVE learner skips the cascade', async () => {
+  it('attempts both cleanup paths but stays ACTIVE when both fail', async () => {
+    withdrawLearnerFromTraining.mockRejectedValue(new Error('plan cleanup failed'));
+    cancelAllForLearner.mockRejectedValue(new Error('session cleanup failed'));
+
+    await expect(controller.deactivateLearner(req(), res())).rejects.toThrow(
+      'Could not withdraw learner from active training',
+    );
+    expect(deactivate).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent — an already-INACTIVE learner retries pending cleanup', async () => {
     getById.mockResolvedValue({ id: 'learner-1', status: 'INACTIVE' });
 
     await controller.deactivateLearner(req(), res());
 
-    expect(withdrawLearnerFromTraining).not.toHaveBeenCalled();
-    expect(cancelAllForLearner).not.toHaveBeenCalled();
+    expect(withdrawLearnerFromTraining).toHaveBeenCalledOnce();
+    expect(cancelAllForLearner).toHaveBeenCalledOnce();
     expect(deactivate).toHaveBeenCalledOnce();
   });
 

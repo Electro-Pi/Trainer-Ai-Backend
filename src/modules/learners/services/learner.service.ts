@@ -142,6 +142,32 @@ export class LearnerService {
     return updated;
   }
 
+  /** Restores active membership only; cancelled plans and retired assignments remain historical. */
+  async reactivate(actor: ActingUser, id: string): Promise<Learner> {
+    const before = await this.getById(id);
+    if (before.status !== 'INACTIVE') {
+      return before;
+    }
+
+    const updated = await this.learners.update(id, {
+      status: 'ACTIVE',
+      deactivatedAt: null,
+    } as never);
+
+    await writeAuditLog({
+      organizationId: actor.organizationId,
+      actorId: actor.id,
+      actorType: 'USER',
+      action: 'learner.reactivated',
+      entityType: 'Learner',
+      entityId: id,
+      before: { status: before.status },
+      after: { status: updated.status },
+    });
+
+    return updated;
+  }
+
   /**
    * Permanent removal — the counterpart to `deactivate()`, which is still the
    * reversible option and the one non-negotiable 17 prescribes. This exists

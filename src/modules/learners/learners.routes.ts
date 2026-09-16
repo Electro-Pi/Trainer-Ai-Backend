@@ -88,6 +88,18 @@ export function createLearnersRouter(): Router {
   // `training-plans.routes.ts`'s `createLearnerDeactivationRouter`, mounted
   // on `/learners` alongside this router, exactly as the active-plan route is.
 
+  // Reactivation restores membership only, so it does not need the
+  // cross-module training cascade owned by the deactivate route.
+  router.post(
+    '/:id/reactivate',
+    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
+    validate({ params: learnerIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByLearner),
+    (req, res, next) => {
+      learnerController.reactivate(req, res).catch(next);
+    },
+  );
+
   // Permanent, unlike `/deactivate` above — see `LearnerService.remove`.
   // `requireTeamAccess` keeps a DEPARTMENT_MANAGER to their own team's
   // learners; an ADMIN passes it for any learner in the org.

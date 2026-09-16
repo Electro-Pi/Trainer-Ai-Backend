@@ -186,25 +186,31 @@ export class SessionService {
     return updated;
   }
 
-  /** Cancels the session and, if a Teams meeting already exists, cancels it too (best-effort — a Graph failure doesn't block the cancel). */
+  /** Cancels the session and durably queues removal of any existing Teams meeting. */
   async cancel(actor: ActingUser, id: string): Promise<Session> {
     const session = await this.getById(id);
-    if (TERMINAL_STATUSES.has(session.status)) {
+    if (TERMINAL_STATUSES.has(session.status) && session.status !== 'CANCELLED') {
       throw new ConflictError('Session is already in a terminal state');
     }
 
-    const cancelled = await this.sessions.update(session.id, {
-      status: 'CANCELLED',
-      cancelledAt: new Date(),
-    } as never);
+    const wasAlreadyCancelled = session.status === 'CANCELLED';
+    const cancelled = wasAlreadyCancelled
+      ? session
+      : await this.sessions.update(session.id, {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+        } as never);
 
-    if (session.graphEventId) {
+    // Use the updated row, not the pre-update read: a meeting-create worker
+    // may have attached a Graph event while this cancellation was waiting.
+    if (cancelled.graphEventId && !cancelled.meetingCancelledAt) {
       await queueService.enqueue('meeting.update', {
         sessionId: session.id,
         organizationId: actor.organizationId,
       });
     }
 
+    await queueService.removeJob('meeting.create', `meeting-create-${session.id}`);
     await queueService.removeJob('session.reminder', `session-reminder-${session.id}`);
     await queueService.removeJob('agent.dispatch', `agent-dispatch-${session.id}`);
     await queueService.removeJob(
@@ -212,22 +218,24 @@ export class SessionService {
       `session-confirmation-email-${session.id}`,
     );
 
-    await writeAuditLog({
-      organizationId: actor.organizationId,
-      actorId: actor.id,
-      actorType: 'USER',
-      action: 'session.cancelled',
-      entityType: 'Session',
-      entityId: cancelled.id,
-    });
+    if (!wasAlreadyCancelled) {
+      await writeAuditLog({
+        organizationId: actor.organizationId,
+        actorId: actor.id,
+        actorType: 'USER',
+        action: 'session.cancelled',
+        entityType: 'Session',
+        entityId: cancelled.id,
+      });
 
-    await this.notifySessionManager(actor.organizationId, cancelled, {
-      type: 'SESSION_CANCELLED',
-      entityType: 'Session',
-      entityId: cancelled.id,
-      titleEn: 'Session cancelled',
-      titleAr: 'تم إلغاء الجلسة',
-    });
+      await this.notifySessionManager(actor.organizationId, cancelled, {
+        type: 'SESSION_CANCELLED',
+        entityType: 'Session',
+        entityId: cancelled.id,
+        titleEn: 'Session cancelled',
+        titleAr: 'تم إلغاء الجلسة',
+      });
+    }
 
     return cancelled;
   }
@@ -240,25 +248,32 @@ export class SessionService {
    * otherwise leave a Teams meeting on the calendar for someone no longer in
    * training.
    *
-   * Sessions already cancelled by the plan sweep are simply not returned by
-   * `findLiveByLearner`, so this is a no-op for them rather than a double
-   * cancel. One session failing does not abort the rest — a stuck session
-   * must not block the learner's deactivation.
+   * A previously-CANCELLED session whose Graph cleanup was never confirmed
+   * is returned too, making a partially failed deactivation safe to retry.
+   * All candidates are attempted, but any failure is reported so the caller
+   * cannot mark the learner inactive while a meeting may still be live.
    */
   async cancelAllForLearner(actor: ActingUser, learnerId: string): Promise<string[]> {
-    const live = await this.sessions.findLiveByLearner(learnerId);
+    const candidates = await this.sessions.findCancellationCandidatesByLearner(learnerId);
 
     const cancelledIds: string[] = [];
-    for (const session of live) {
+    const failures: unknown[] = [];
+    for (const session of candidates) {
       try {
         await this.cancel(actor, session.id);
         cancelledIds.push(session.id);
       } catch (error) {
+        failures.push(error);
         logger.warn(
           { err: error, learnerId, sessionId: session.id },
           'Could not cancel session while withdrawing a deactivated learner from training',
         );
       }
+    }
+
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) {
+      throw new AggregateError(failures, 'Could not cancel every session for this learner');
     }
 
     return cancelledIds;

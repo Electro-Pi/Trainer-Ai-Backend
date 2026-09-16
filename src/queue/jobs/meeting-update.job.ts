@@ -66,6 +66,7 @@ export async function processMeetingUpdateJob(
           'meeting-update: event already gone, treating cancel as satisfied',
         );
       }
+      await sessions.markMeetingCancelled(session.id);
       await writeAuditLog({
         organizationId: payload.organizationId,
         actorType: 'SYSTEM',
@@ -91,7 +92,7 @@ export async function processMeetingUpdateJob(
      * `meeting.create` never ran) and the "event was deleted directly in
      * Outlook" case below. Same call shape as `create-meeting.job.ts`.
      */
-    async function recreateMeeting(): Promise<{ joinUrl: string }> {
+    async function recreateMeeting(): Promise<{ joinUrl: string } | null> {
       if (!learner) {
         logger.error(
           { sessionId },
@@ -105,10 +106,18 @@ export async function processMeetingUpdateJob(
         endDateTime: scheduledEnd.toISOString(),
         attendeeEmails: [learner.email],
       });
-      await sessions.recordMeetingCreated(sessionId, sessionLearnerId, {
+      const invitedSession = await sessions.recordMeetingCreated(sessionId, sessionLearnerId, {
         graphEventId: recreated.id,
         joinUrl: recreated.joinWebUrl,
       });
+      if (!invitedSession) {
+        await queueService.enqueue('meeting.update', payload);
+        logger.info(
+          { sessionId, graphEventId: recreated.id },
+          'meeting-update: session was cancelled during meeting recreation, queued removal',
+        );
+        return null;
+      }
       await writeAuditLog({
         organizationId: payload.organizationId,
         actorType: 'SYSTEM',
@@ -128,7 +137,9 @@ export async function processMeetingUpdateJob(
         { sessionId },
         'meeting-update: session had no meeting yet, creating one at the new time',
       );
-      ({ joinUrl: currentJoinUrl } = await recreateMeeting());
+      const recreated = await recreateMeeting();
+      if (!recreated) return;
+      currentJoinUrl = recreated.joinUrl;
     } else {
       try {
         await graphMeetingsService.updateMeeting(planCreatedById, originalGraphEventId, {
@@ -146,7 +157,9 @@ export async function processMeetingUpdateJob(
           { sessionId, staleGraphEventId: originalGraphEventId },
           'meeting-update: event was deleted, recreating meeting at the new time',
         );
-        ({ joinUrl: currentJoinUrl } = await recreateMeeting());
+        const recreated = await recreateMeeting();
+        if (!recreated) return;
+        currentJoinUrl = recreated.joinUrl;
       }
     }
 

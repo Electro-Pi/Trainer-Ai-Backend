@@ -65,6 +65,14 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'post',
+  path: '/learners/{id}/reactivate',
+  tags: ['Learners'],
+  summary: 'Reactivates a learner without restoring cancelled training',
+  responses: { 200: { description: 'Reactivated learner' } },
+});
+
+openApiRegistry.registerPath({
   method: 'get',
   path: '/learners/{id}/experience',
   tags: ['Learners'],

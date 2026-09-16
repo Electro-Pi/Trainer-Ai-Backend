@@ -34,6 +34,20 @@ export async function processCreateMeetingJob(
       return;
     }
 
+    if (session.status === 'CANCELLED') {
+      if (session.graphEventId && !session.meetingCancelledAt) {
+        await queueService.enqueue('meeting.update', {
+          sessionId: session.id,
+          organizationId: payload.organizationId,
+        });
+      }
+      logger.info(
+        { sessionId: session.id },
+        'create-meeting: session was cancelled before meeting creation, skipping',
+      );
+      return;
+    }
+
     // A prior attempt can have left `graphEventId` set with no `joinUrl` —
     // `GraphMeetingCreatedWithoutJoinUrlError`'s recovery path below records
     // the event id precisely so this retry doesn't call `POST /me/events`
@@ -115,16 +129,35 @@ export async function processCreateMeetingJob(
         });
       } catch (error) {
         if (error instanceof GraphMeetingCreatedWithoutJoinUrlError) {
-          await sessions.recordGraphEventOnly(session.id, error.eventId);
+          const recorded = await sessions.recordGraphEventOnly(session.id, error.eventId);
+          if (recorded.status === 'CANCELLED') {
+            await queueService.enqueue('meeting.update', {
+              sessionId: session.id,
+              organizationId: payload.organizationId,
+            });
+            return;
+          }
         }
         throw error;
       }
     }
 
-    await sessions.recordMeetingCreated(session.id, session.learnerId, {
+    const invitedSession = await sessions.recordMeetingCreated(session.id, session.learnerId, {
       graphEventId: meeting.id,
       joinUrl: meeting.joinWebUrl,
     });
+
+    if (!invitedSession) {
+      await queueService.enqueue('meeting.update', {
+        sessionId: session.id,
+        organizationId: payload.organizationId,
+      });
+      logger.info(
+        { sessionId: session.id, graphEventId: meeting.id },
+        'create-meeting: session was cancelled during Graph creation, queued meeting removal',
+      );
+      return;
+    }
 
     // `TrainingPlanService.confirm()` sends one combined overview email the
     // moment the manager confirms, but that fires before any of these
