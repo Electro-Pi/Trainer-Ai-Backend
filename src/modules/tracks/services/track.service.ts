@@ -128,6 +128,65 @@ export class TrackService {
     return department.id;
   }
 
+  /**
+   * `MODRB-21` — refuses a track name already used in the same department.
+   *
+   * `Track.key` is the only unique column and `createFull` derives it from the
+   * name with a `-2`, `-3`… suffix until it's free, so the database constraint
+   * was always satisfied while two tracks called "AI" were published side by
+   * side. The name is what a manager actually reads in the catalogue and in
+   * the assignment/recommendation pickers, so it's checked here.
+   *
+   * Both localisations are checked independently: sharing just the Arabic name
+   * still looks like a duplicate to an Arabic-speaking manager. The error is
+   * reported against whichever field actually collided, so the wizard can put
+   * the message on the right input.
+   */
+  private async assertNameAvailable(params: {
+    departmentId: string;
+    nameEn?: string;
+    nameAr?: string;
+    excludeTrackId?: string;
+  }): Promise<void> {
+    const clash = await this.tracks.findByNameInDepartment(params);
+    if (!clash) return;
+
+    const sameEn =
+      params.nameEn !== undefined && clash.nameEn.toLowerCase() === params.nameEn.toLowerCase();
+    // One issue, so the error filter surfaces this message as the response's
+    // `detail` rather than the generic "One or more fields failed validation"
+    // — which is what puts it in the wizard's own error banner. Same shape as
+    // `DepartmentService.create`'s duplicate check.
+    throw new ValidationError([
+      {
+        path: sameEn ? 'nameEn' : 'nameAr',
+        code: 'duplicate',
+        message: 'A track with this name already exists in this department',
+      },
+    ]);
+  }
+
+  /**
+   * "<name> (copy)", then "(copy 2)", "(copy 3)"… until the department has no
+   * track using it — the name-level counterpart to
+   * `generateUniqueTrackKey`'s `-2`/`-3` suffixes, so duplicating twice gives
+   * two distinguishable tracks rather than failing the second time.
+   */
+  private async deriveCopyName(
+    departmentId: string,
+    sourceName: string,
+    field: 'nameEn' | 'nameAr',
+  ): Promise<string> {
+    for (let attempt = 1; ; attempt += 1) {
+      const candidate = attempt === 1 ? `${sourceName} (copy)` : `${sourceName} (copy ${attempt})`;
+      const clash = await this.tracks.findByNameInDepartment({
+        departmentId,
+        [field]: candidate,
+      });
+      if (!clash) return candidate;
+    }
+  }
+
   async create(actor: ActingUser, dto: CreateTrackDto): Promise<Track> {
     const existing = await this.tracks.findByKey(dto.key);
     if (existing) {
@@ -137,6 +196,7 @@ export class TrackService {
     }
 
     const departmentId = await this.resolveDepartmentId(actor, dto.departmentId);
+    await this.assertNameAvailable({ departmentId, nameEn: dto.nameEn, nameAr: dto.nameAr });
 
     const created = await this.tracks.create({
       key: dto.key,
@@ -170,6 +230,20 @@ export class TrackService {
       dto.departmentId !== undefined
         ? await this.resolveDepartmentId(actor, dto.departmentId)
         : undefined;
+
+    // A rename can collide, and so can a move: carrying an existing name into
+    // a department that already has it is the same duplicate from the reader's
+    // side. Both names are re-checked whenever either they or the department
+    // change, against the track's destination department rather than its
+    // current one.
+    if (dto.nameEn !== undefined || dto.nameAr !== undefined || departmentId !== undefined) {
+      await this.assertNameAvailable({
+        departmentId: departmentId ?? before.departmentId,
+        nameEn: dto.nameEn ?? before.nameEn,
+        nameAr: dto.nameAr ?? before.nameAr,
+        excludeTrackId: id,
+      });
+    }
 
     const updated = await this.tracks.update(id, {
       ...(dto.nameEn !== undefined ? { nameEn: dto.nameEn } : {}),
@@ -217,8 +291,13 @@ export class TrackService {
   }
 
   /** `TC-07` — deep copy of levels + outcomes; the copy starts disabled so it can be reviewed before going live. */
-  async duplicate(actor: ActingUser, id: string, newKey: string): Promise<Track> {
-    await this.getById(id);
+  async duplicate(
+    actor: ActingUser,
+    id: string,
+    newKey: string,
+    names?: { nameEn?: string; nameAr?: string },
+  ): Promise<Track> {
+    const source = await this.getById(id);
 
     const existing = await this.tracks.findByKey(newKey);
     if (existing) {
@@ -227,7 +306,18 @@ export class TrackService {
       ]);
     }
 
-    const copy = await this.tracks.duplicate(id, newKey);
+    // The copy used to inherit the source's names verbatim, which produced two
+    // identically named tracks in one department — the `MODRB-21` symptom, and
+    // reachable straight from the catalogue's own Duplicate action. The portal
+    // already intends "<name> (copy)" but only ever slugified it into the key,
+    // so the name is derived here when the caller doesn't supply one.
+    const nameEn =
+      names?.nameEn ?? (await this.deriveCopyName(source.departmentId, source.nameEn, 'nameEn'));
+    const nameAr =
+      names?.nameAr ?? (await this.deriveCopyName(source.departmentId, source.nameAr, 'nameAr'));
+    await this.assertNameAvailable({ departmentId: source.departmentId, nameEn, nameAr });
+
+    const copy = await this.tracks.duplicate(id, newKey, { nameEn, nameAr });
 
     await writeAuditLog({
       organizationId: actor.organizationId,
@@ -290,6 +380,9 @@ export class TrackService {
    */
   async createFull(actor: ActingUser, dto: CreateFullTrackDto): Promise<FullTrackResponseDto> {
     const departmentId = await this.resolveDepartmentId(actor, dto.departmentId);
+    // The track wizard's own save path, and the one `MODRB-21` was reported
+    // against — it had no uniqueness check of any kind, unlike `create` above.
+    await this.assertNameAvailable({ departmentId, nameEn: dto.nameEn, nameAr: dto.nameAr });
 
     const result = await this.tracks.createFull({ ...dto, departmentId }, actor.id);
 

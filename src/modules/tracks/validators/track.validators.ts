@@ -47,6 +47,14 @@ export const reorderTracksSchema = z.object({
 
 export const duplicateTrackSchema = z.object({
   key: slugSchema,
+  /**
+   * Names for the copy. Optional so existing clients keep working, but a copy
+   * that reuses the source's name is exactly the duplicate `MODRB-21` reports
+   * — when these are omitted the service derives a "(copy)" name instead of
+   * cloning the original verbatim.
+   */
+  nameEn: bilingualTextSchema.optional(),
+  nameAr: bilingualTextSchema.optional(),
 });
 
 // ---- POST /tracks/full — bulk track-creation wizard ----

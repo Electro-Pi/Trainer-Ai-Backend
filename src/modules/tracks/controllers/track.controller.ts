@@ -89,8 +89,15 @@ export class TrackController {
 
   async duplicate(req: Request, res: Response): Promise<void> {
     const { id } = req.params as { id: string };
-    const { key } = req.body as { key: string };
-    const track = await service.duplicate(toActingUser(req.auth!), id, key);
+    const { key, nameEn, nameAr } = req.body as {
+      key: string;
+      nameEn?: string;
+      nameAr?: string;
+    };
+    const track = await service.duplicate(toActingUser(req.auth!), id, key, {
+      ...(nameEn !== undefined ? { nameEn } : {}),
+      ...(nameAr !== undefined ? { nameAr } : {}),
+    });
     res.status(201).json(await toResponseDto(track));
   }
 

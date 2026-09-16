@@ -45,6 +45,47 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
   }
 
   /**
+   * A track in the same department already using either name — `MODRB-21`,
+   * where two tracks called "AI" were published side by side. `Track.key` is
+   * the only unique column, and `createFull` derives it from the name via
+   * `generateUniqueTrackKey`, which appends `-2` until it's free; the
+   * constraint was therefore always satisfied and the duplicate NAME never
+   * looked at.
+   *
+   * Matched case-insensitively — "AI" and "ai" read as the same track in the
+   * catalogue table — and against BOTH localisations, so a track can't
+   * duplicate the Arabic name while differing in English or vice versa.
+   * Disabled tracks still hold their name: re-enabling one that had been
+   * archived should never produce two identical rows.
+   *
+   * `excludeTrackId` lets an update skip the row being edited.
+   */
+  async findByNameInDepartment(params: {
+    departmentId: string;
+    nameEn?: string;
+    nameAr?: string;
+    excludeTrackId?: string;
+  }): Promise<Track | null> {
+    const names = [
+      ...(params.nameEn
+        ? [{ nameEn: { equals: params.nameEn, mode: 'insensitive' as const } }]
+        : []),
+      ...(params.nameAr
+        ? [{ nameAr: { equals: params.nameAr, mode: 'insensitive' as const } }]
+        : []),
+    ];
+    if (names.length === 0) return null;
+
+    return this.delegate.findFirst({
+      where: {
+        departmentId: params.departmentId,
+        OR: names,
+        ...(params.excludeTrackId ? { id: { not: params.excludeTrackId } } : {}),
+      },
+    } as never);
+  }
+
+  /**
    * `Track.departmentId` read-through for `TrackResponseDto.departmentName`.
    * `Department` isn't a tenant-scoped model on the Prisma extension (it
    * carries no direct `organizationId`-filtered query need elsewhere yet),
@@ -96,7 +137,12 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
    * of the master catalogue, not a per-track-duplicate concern (mirrors how
    * `Outcome`'s `skillId` FK is also left unset on the copy, below).
    */
-  async duplicate(sourceId: string, newKey: string): Promise<Track> {
+  /** `names` overrides the copy's own names — without it a copy is indistinguishable from its source in the catalogue (`MODRB-21`). */
+  async duplicate(
+    sourceId: string,
+    newKey: string,
+    names?: { nameEn: string; nameAr: string },
+  ): Promise<Track> {
     const organizationId = getCurrentOrganizationId();
     if (!organizationId) {
       throw new Error('duplicate() called outside runWithTenant()');
@@ -117,8 +163,8 @@ export class TrackRepository extends BaseRepository<Track, TrackDelegate> {
         data: {
           organizationId,
           key: newKey,
-          nameEn: source.nameEn,
-          nameAr: source.nameAr,
+          nameEn: names?.nameEn ?? source.nameEn,
+          nameAr: names?.nameAr ?? source.nameAr,
           descriptionEn: source.descriptionEn,
           descriptionAr: source.descriptionAr,
           departmentId: source.departmentId,
