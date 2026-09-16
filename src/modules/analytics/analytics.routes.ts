@@ -1,7 +1,11 @@
 import { Router } from 'express';
 
 import { authenticate } from '@/common/guards/authenticate.guard.js';
-import { authorize, requireTeamAccess } from '@/common/guards/authorize.guard.js';
+import {
+  authorize,
+  requireTeamAccess,
+  requireTeamScopedList,
+} from '@/common/guards/authorize.guard.js';
 import { tenantScope } from '@/common/guards/tenant.guard.js';
 import { validate } from '@/common/pipes/validate.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
@@ -18,6 +22,18 @@ import {
 
 const controller = new AnalyticsController();
 const READ_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN', 'CONTENT_CREATOR'] as const;
+
+/**
+ * Learner-performance reads — no CONTENT_CREATOR (§7.2, same rule as
+ * `sessions`/`reports`/`learners`). `READ_ROLES` above stays wider because it
+ * also covers content-oriented analytics, which carry no learner identity.
+ */
+const LEARNER_READ_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
+
+async function resolveManagedTeamIds(managerId: string): Promise<string[]> {
+  const teams = await teamRepository.findByManager(managerId);
+  return teams.map((team) => team.id);
+}
 
 async function resolveManagerIdByTeamParam(req: {
   params: { teamId?: string };
@@ -69,10 +85,15 @@ export function createAnalyticsRouter(): Router {
     },
   );
 
+  // `teamId` here is a client-chosen FILTER, so omitting it fell through to
+  // `learnerIdsForOrganization()` — every team's performance trend, to any
+  // DEPARTMENT_MANAGER. Same collection-route gap as `GET /learners`, and the
+  // same remedy: resolve the caller's own scope and intersect the filter with
+  // it in the handler.
   router.get(
     '/trends',
-    authorize(...READ_ROLES),
     validate({ query: trendsQuerySchema }),
+    requireTeamScopedList(resolveManagedTeamIds, LEARNER_READ_ROLES),
     (req, res, next) => {
       controller.trends(req, res).catch(next);
     },

@@ -1,5 +1,7 @@
 import type { Request, Response } from 'express';
 
+import { listScopeFilter } from '@/common/guards/list-scope.js';
+
 import { contentUsageService } from '../services/content-usage.service.js';
 import { exportService } from '../services/export.service.js';
 import { performanceService } from '../services/performance.service.js';
@@ -37,8 +39,14 @@ export class AnalyticsController {
       to?: string;
       granularity: 'week' | 'month';
     };
+    // `requireTeamScopedList` put the caller's scope on the request; this turns
+    // it into the query filter and fails closed if the guard is missing. A
+    // DEPARTMENT_MANAGER gets their own teams, an ADMIN org-wide. Distinct from
+    // the optional `teamId` FILTER, which the client chooses.
+    const { teamIds } = listScopeFilter(req);
     const result = await trendsService.trends({
       ...(query.teamId ? { teamId: query.teamId } : {}),
+      ...(teamIds !== undefined ? { teamIds } : {}),
       ...(query.trackId ? { trackId: query.trackId } : {}),
       ...(query.levelId ? { levelId: query.levelId } : {}),
       ...(query.from ? { from: new Date(query.from) } : {}),

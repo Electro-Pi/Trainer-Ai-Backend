@@ -109,27 +109,86 @@ describe('route authorization — ARCHITECTURE §7.2', () => {
 
   it('learner-data collections are team-scoped, not merely role-gated', () => {
     // A role gate alone still lets one manager read another manager's team,
-    // which is the exact bug reported against GET /reports.
-    const mustBeScoped = [
-      { file: 'reports.routes.ts', route: '/' },
-      { file: 'sessions.routes.ts', route: '/' },
-      { file: 'sessions.routes.ts', route: '/calendar' },
-    ];
+    // which is the exact bug reported against GET /reports — and again, later,
+    // against GET /learners, which this test missed because it only checked a
+    // hardcoded list of three routes. The modules holding learner data are
+    // enumerated instead, and every collection route in them must carry the
+    // scoping guard, so a new one cannot ship role-gated only.
+    const LEARNER_DATA_MODULES = ['analytics', 'learners', 'reports', 'sessions'];
 
-    for (const target of mustBeScoped) {
-      const src = fs.readFileSync(
-        path.join(ROUTES_DIR, target.file.replace('.routes.ts', ''), target.file),
-        'utf8',
-      );
+    /**
+     * Collections in these modules that are legitimately not team-scoped.
+     * Each is a decision, not an oversight.
+     */
+    const NOT_TEAM_SCOPED = new Set([
+      // ADMIN-only org-wide reads (§7.2's HR row, `AU-05`/`PF-02`/`PF-08`) —
+      // there is no narrower scope to apply.
+      'analytics.routes.ts GET /organization/performance',
+      'analytics.routes.ts GET /export',
+      // Catalog analytics — content usage counts, carrying no learner identity.
+      'analytics.routes.ts GET /content-usage',
+    ]);
+
+    const offenders: string[] = [];
+    for (const moduleName of LEARNER_DATA_MODULES) {
+      const moduleDir = path.join(ROUTES_DIR, moduleName);
+      for (const file of fs.readdirSync(moduleDir)) {
+        if (!file.endsWith('.routes.ts')) continue;
+        const src = fs.readFileSync(path.join(moduleDir, file), 'utf8');
+
+        for (const factory of src.split(/export function create/).slice(1)) {
+          const routeRe = /router\.(get)\(\s*([\s\S]*?)\n {2}\);|router\.(get)\(([^\n]*)\);/g;
+          let match: RegExpExecArray | null;
+          while ((match = routeRe.exec(factory)) !== null) {
+            const body = match[2] ?? match[4] ?? '';
+            const route = body.match(/['"]([^'"]*)['"]/)?.[1] ?? '?';
+            // Only collections: a route with an `:id` is a single resource and
+            // is covered by `requireTeamAccess` instead.
+            if (route.includes(':')) continue;
+            const id = `${file} GET ${route}`;
+            if (NOT_TEAM_SCOPED.has(id)) continue;
+            if (!/requireTeamScopedList\(/.test(body)) {
+              offenders.push(id);
+            }
+          }
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      `These learner-data collection routes are not team-scoped. A role gate ` +
+        `alone still lets one DEPARTMENT_MANAGER read another's team — add ` +
+        `requireTeamScopedList() and apply listScopeFilter() in the handler.\n`,
+    ).toEqual([]);
+  });
+
+  it('scopes the live external-session reads to the owning manager', () => {
+    // These proxy a learner's live transcript/evaluation straight to the AI
+    // service without reading our own database, so a role gate alone left the
+    // caller-supplied `externalSessionId` unchecked against their team — or
+    // their organization.
+    const src = fs.readFileSync(
+      path.join(ROUTES_DIR, 'ai-trainer', 'ai-trainer.routes.ts'),
+      'utf8',
+    );
+    const factory = src.split('export function createExternalSessionsRouter')[1] ?? '';
+
+    for (const route of ['/:id', '/:id/transcript', '/:id/evaluation']) {
+      const body =
+        factory.match(
+          new RegExp(`router\\.get\\(\\s*'${route.replace(/[/:]/g, '\\$&')}'[\\s\\S]*?\\n {2}\\);`),
+        )?.[0] ?? '';
+      expect(body, `${route} should be declared`).not.toBe('');
       expect(
-        src.includes('requireTeamScopedList'),
-        `${target.file} must scope its collections with requireTeamScopedList`,
+        /requireTeamAccess\(/.test(body),
+        `GET /external-sessions${route} must resolve ownership with requireTeamAccess`,
       ).toBe(true);
     }
   });
 
   it('does not grant CONTENT_CREATOR access to learner-data reads', () => {
-    for (const file of ['reports.routes.ts', 'sessions.routes.ts']) {
+    for (const file of ['learners.routes.ts', 'reports.routes.ts', 'sessions.routes.ts']) {
       const src = fs.readFileSync(
         path.join(ROUTES_DIR, file.replace('.routes.ts', ''), file),
         'utf8',

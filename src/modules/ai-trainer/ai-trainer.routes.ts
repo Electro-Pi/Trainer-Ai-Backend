@@ -1,12 +1,15 @@
 import { Router } from 'express';
 
 import { authenticate } from '@/common/guards/authenticate.guard.js';
-import { authorize } from '@/common/guards/authorize.guard.js';
+import { authorize, requireTeamAccess } from '@/common/guards/authorize.guard.js';
 import { tenantScope } from '@/common/guards/tenant.guard.js';
 import { validate } from '@/common/pipes/validate.js';
 
 import { AiTrainerController } from './controllers/ai-trainer.controller.js';
-import { ExternalSessionController } from './controllers/external-session.controller.js';
+import {
+  ExternalSessionController,
+  resolveManagerIdByExternalSession,
+} from './controllers/external-session.controller.js';
 import {
   externalSessionIdParamsSchema,
   generateTrackSlidesSchema,
@@ -123,18 +126,22 @@ export function createExternalSessionsRouter(): Router {
     },
   );
 
-  // Live status/transcript/evaluation of a learner's session. These carry
-  // learner data, so they need at least a role gate — they had none, leaving
-  // them open to any authenticated principal. Ownership is not checked here:
-  // the id is the AI Trainer's own `externalSessionId`, which does not
-  // resolve to a team through `requireTeamAccess`'s session-id contract.
-  // Narrowing these to the owning manager needs an
-  // externalSessionId -> Session -> learner -> team lookup; flagged rather
-  // than guessed, since it changes who can watch a running session.
+  // Live status/transcript/evaluation of a learner's session — learner data,
+  // so role-gated AND ownership-checked. These proxy straight through to the
+  // AI service without reading our own database, so before
+  // `requireTeamAccess` the `externalSessionId` was never checked against the
+  // caller's team, or even their organization: any manager holding an id could
+  // read that session's live transcript.
+  //
+  // `resolveManagerIdByExternalSession` does the
+  // externalSessionId -> Session -> learner -> team lookup through a
+  // tenant-scoped query, so an id from another organization resolves to null
+  // and is refused.
   router.get(
     '/:id',
     authorize(...READ_ROLES),
     validate({ params: externalSessionIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByExternalSession),
     (req, res, next) => {
       externalSessionController.getStatus(req, res).catch(next);
     },
@@ -144,6 +151,7 @@ export function createExternalSessionsRouter(): Router {
     '/:id/transcript',
     authorize(...READ_ROLES),
     validate({ params: externalSessionIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByExternalSession),
     (req, res, next) => {
       externalSessionController.getTranscript(req, res).catch(next);
     },
@@ -153,6 +161,7 @@ export function createExternalSessionsRouter(): Router {
     '/:id/evaluation',
     authorize(...READ_ROLES),
     validate({ params: externalSessionIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByExternalSession),
     (req, res, next) => {
       externalSessionController.getEvaluation(req, res).catch(next);
     },

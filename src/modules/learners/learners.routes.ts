@@ -1,7 +1,11 @@
 import { Router } from 'express';
 
 import { authenticate } from '@/common/guards/authenticate.guard.js';
-import { authorize, requireTeamAccess } from '@/common/guards/authorize.guard.js';
+import {
+  authorize,
+  requireTeamAccess,
+  requireTeamScopedList,
+} from '@/common/guards/authorize.guard.js';
 import { tenantScope } from '@/common/guards/tenant.guard.js';
 import { validate } from '@/common/pipes/validate.js';
 import { paginationSchema } from '@/common/validators/primitives.js';
@@ -30,6 +34,18 @@ const assignmentController = new LearnerAssignmentController();
 const memberController = new TeamMemberController();
 const learners = new LearnerRepository();
 
+/**
+ * Learners are learner data — a CONTENT_CREATOR has no learner visibility
+ * (ARCHITECTURE §7.2), so it is deliberately absent.
+ */
+const READ_ROLES = ['DEPARTMENT_MANAGER', 'ADMIN'] as const;
+
+/** Authorization scope for the `GET /learners` collection — the teams this manager actually manages. */
+async function resolveManagedTeamIds(managerId: string): Promise<string[]> {
+  const teams = await teamRepository.findByManager(managerId);
+  return teams.map((team) => team.id);
+}
+
 async function resolveManagerIdByTeam(req: { params: { id?: string } }): Promise<string | null> {
   const teamId = req.params.id;
   if (!teamId) return null;
@@ -52,10 +68,17 @@ export function createLearnersRouter(): Router {
 
   router.use(authenticate(), tenantScope());
 
+  // `authorize` alone gated the role but not ownership: the `teamId` query
+  // param is a client-chosen FILTER, so omitting it returned every learner in
+  // the organization — including foreign departments' emails, job titles and
+  // `entraObjectId`s — to any DEPARTMENT_MANAGER. The `/:id` routes below were
+  // already covered by `requireTeamAccess`, which cannot apply to a list (no
+  // single id to resolve); `requireTeamScopedList` is its collection
+  // counterpart and fails closed via `listScopeFilter` in the controller.
   router.get(
     '/',
-    authorize('DEPARTMENT_MANAGER', 'ADMIN'),
     validate({ query: learnerFilterSchema }),
+    requireTeamScopedList(resolveManagedTeamIds, READ_ROLES),
     (req, res, next) => {
       learnerController.list(req, res).catch(next);
     },

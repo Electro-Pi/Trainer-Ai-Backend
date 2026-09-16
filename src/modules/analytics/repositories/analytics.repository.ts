@@ -20,6 +20,21 @@ export class AnalyticsRepository {
     return learners.map((l) => l.id);
   }
 
+  /**
+   * Authorization-scoped counterpart to `learnerIdsForTeam` — the learners
+   * across every team the caller manages. An empty `teamIds` is a real answer
+   * (a manager with no team) and correctly yields no learners, rather than
+   * falling back to the whole organization.
+   */
+  async learnerIdsForTeams(teamIds: string[]): Promise<string[]> {
+    if (teamIds.length === 0) return [];
+    const learners = await prisma.learner.findMany({
+      where: { teamId: { in: teamIds }, status: { not: 'REMOVED' } },
+      select: { id: true },
+    });
+    return learners.map((l) => l.id);
+  }
+
   async learnerIdsForOrganization(): Promise<string[]> {
     const learners = await prisma.learner.findMany({
       where: { status: { not: 'REMOVED' } },

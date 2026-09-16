@@ -16,20 +16,44 @@ export interface ActingUser {
   role: string;
 }
 
-/** `learners` module — P3-4, P3-5. Row-level team ownership is enforced by the router (`requireTeamAccess`), same pattern as `teams`. */
+/**
+ * `learners` module — P3-4, P3-5. Row-level team ownership is enforced by the
+ * router (`requireTeamAccess`), same pattern as `teams`. The `list` collection
+ * has no single id to resolve, so it is scoped by `requireTeamScopedList`
+ * instead and takes that scope as an explicit argument.
+ */
 export class LearnerService {
   private readonly learners = new LearnerRepository();
   private readonly experiences = new LearnerExperienceRepository();
 
+  /**
+   * `teamIds` is the caller's authorization scope, set by
+   * `requireTeamScopedList` — distinct from the optional `teamId` FILTER,
+   * which the client chooses. Without it this listed every learner in the
+   * organization to any DEPARTMENT_MANAGER.
+   *
+   * The two are INTERSECTED, never merged: asking for a `teamId` outside the
+   * scope must return nothing rather than widening it. `undefined` means
+   * org-wide (ADMIN); `[]` is a real answer — a manager with no team sees an
+   * empty list, which `{ teamId: { in: [] } }` yields correctly.
+   */
   async list(
     limit: number,
     cursor: string | undefined,
     teamId: string | undefined,
+    teamIds: string[] | undefined,
   ): Promise<PageResult<Learner>> {
+    const scoped = teamIds !== undefined;
+    const where = scoped
+      ? { teamId: { in: teamId ? teamIds.filter((id) => id === teamId) : teamIds } }
+      : teamId
+        ? { teamId }
+        : undefined;
+
     return this.learners.findMany({
       limit,
       ...(cursor ? { cursor } : {}),
-      ...(teamId ? { where: { teamId } } : {}),
+      ...(where ? { where } : {}),
     });
   }
 

@@ -2,7 +2,14 @@ import type { TrendPointDto, TrendsResponseDto } from '../dto/analytics.dto.js';
 import { analyticsRepository } from '../repositories/analytics.repository.js';
 
 export interface TrendsQuery {
+  /** Client-chosen FILTER — one team to narrow to, within whatever `teamIds` allows. */
   teamId?: string;
+  /**
+   * The caller's authorization scope, from `requireTeamScopedList`. `undefined`
+   * is org-wide (ADMIN); `[]` is a manager with no teams and must yield an
+   * empty result, never an unscoped one.
+   */
+  teamIds?: string[];
   trackId?: string;
   levelId?: string;
   from?: Date;
@@ -25,9 +32,23 @@ function periodStart(date: Date, granularity: 'week' | 'month'): string {
 /** `PF-06`, `PF-09` — score trend over time, filterable by team/track/level/date range (`analyticsFilterQuerySchema`). */
 export class TrendsService {
   async trends(query: TrendsQuery): Promise<TrendsResponseDto> {
-    const learnerIds = query.teamId
-      ? await analyticsRepository.learnerIdsForTeam(query.teamId)
-      : await analyticsRepository.learnerIdsForOrganization();
+    // Scope and filter are INTERSECTED: asking for a `teamId` outside the
+    // caller's scope returns nothing rather than widening it. Only an
+    // unscoped caller (ADMIN, `teamIds === undefined`) reaches the org-wide
+    // read.
+    const scopedTeamIds =
+      query.teamIds === undefined
+        ? undefined
+        : query.teamId
+          ? query.teamIds.filter((id) => id === query.teamId)
+          : query.teamIds;
+
+    const learnerIds =
+      scopedTeamIds !== undefined
+        ? await analyticsRepository.learnerIdsForTeams(scopedTeamIds)
+        : query.teamId
+          ? await analyticsRepository.learnerIdsForTeam(query.teamId)
+          : await analyticsRepository.learnerIdsForOrganization();
 
     let scopedLearnerIds = learnerIds;
     if (query.trackId || query.levelId) {

@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 
+import { listScopeFilter } from '@/common/guards/list-scope.js';
 import { toCollectionResponse } from '@/common/interceptors/response-envelope.interceptor.js';
 import type { AuthContext } from '@/common/types/express.js';
 
@@ -59,7 +60,11 @@ export class LearnerController {
       cursor?: string;
       teamId?: string;
     };
-    const page = await service.list(limit, cursor, teamId);
+    // `requireTeamScopedList` put the caller's scope on the request; this turns
+    // it into the query filter and fails closed if the guard is missing. A
+    // DEPARTMENT_MANAGER gets their own teams, an ADMIN org-wide. Distinct from
+    // the optional `teamId` FILTER above, which the client chooses.
+    const page = await service.list(limit, cursor, teamId, listScopeFilter(req).teamIds);
     const data = await Promise.all(page.data.map(toResponseDto));
     res.status(200).json(
       toCollectionResponse(data, {
