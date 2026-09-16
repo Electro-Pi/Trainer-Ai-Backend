@@ -8,7 +8,10 @@ import {
 } from '@/modules/ai-trainer/ai-trainer.module.js';
 import type { WebhookTranscriptTurn } from '@/modules/ai-trainer/ai-trainer.module.js';
 import { learnerRepository } from '@/modules/learners/learners.module.js';
-import { formatLocalDateAndTime } from '@/modules/notifications/format-local-time.js';
+import {
+  formatLocalDateAndTime,
+  localDayBounds,
+} from '@/modules/notifications/format-local-time.js';
 import {
   writeNotification,
   type WriteNotificationEntry,
@@ -125,6 +128,8 @@ export class SessionService {
     const durationMinutes = Math.round(
       (scheduledEnd.getTime() - scheduledStart.getTime()) / 60_000,
     );
+
+    await this.assertNoSameDaySession(session.learnerId, scheduledStart, session.id);
 
     const updated = await this.sessions.update(session.id, {
       scheduledStart,
@@ -395,6 +400,42 @@ export class SessionService {
     });
 
     return updated;
+  }
+
+  /**
+   * `MODRB-19` — a learner takes at most one session per calendar day, so
+   * moving a session onto a day that already holds one is refused. The wizard
+   * greys those days out, but the rule has to hold for any client: the
+   * reported case drove two sessions onto the identical date and time.
+   *
+   * "Day" is the manager's local day, not the UTC one — a 12:00 AM local start
+   * is the previous date in UTC, which is precisely the boundary the report
+   * sat on. The offset comes from `localDayBounds`, which reuses the same
+   * hardcoded-Cairo convention (and the same caveat) as the notification
+   * emails' `formatLocalDateAndTime`.
+   *
+   * Applies to `silent` wizard picks too: unlike the past-time check, a
+   * same-day collision is never a transient mid-pick value the user is still
+   * typing their way out of, so letting it through would just defer the
+   * failure to confirm time.
+   */
+  private async assertNoSameDaySession(
+    learnerId: string,
+    scheduledStart: Date,
+    excludeSessionId: string,
+  ): Promise<void> {
+    const { from, to } = localDayBounds(scheduledStart);
+    const sameDay = await this.sessions.findForLearnerInRange({
+      learnerId,
+      from,
+      to,
+      excludeSessionId,
+    });
+    if (sameDay.length > 0) {
+      throw new ConflictError(
+        'This learner already has a session on that day. Each session needs its own day — pick another date.',
+      );
+    }
   }
 
   /** Ownership resolution for `requireTeamAccess` — a session's manager is its learner's team manager. */

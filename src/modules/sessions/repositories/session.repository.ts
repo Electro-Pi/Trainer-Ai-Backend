@@ -223,6 +223,32 @@ export class SessionRepository extends BaseRepository<Session, SessionDelegate> 
   }
 
   /**
+   * A learner's other live sessions inside a half-open window
+   * `[from, to)` — the day-collision check behind `MODRB-19`, where the plan
+   * wizard accepted two sessions at the identical date and time.
+   *
+   * `excludeSessionId` keeps the session being rescheduled from colliding
+   * with its own current row. CANCELLED sessions are excluded: a cancelled
+   * slot is free, same reasoning as `findByPlan` above.
+   */
+  async findForLearnerInRange(params: {
+    learnerId: string;
+    from: Date;
+    to: Date;
+    excludeSessionId?: string;
+  }): Promise<Session[]> {
+    return this.delegate.findMany({
+      where: {
+        learnerId: params.learnerId,
+        status: { not: 'CANCELLED' },
+        scheduledStart: { gte: params.from, lt: params.to },
+        ...(params.excludeSessionId ? { id: { not: params.excludeSessionId } } : {}),
+      },
+      orderBy: { scheduledStart: 'asc' },
+    });
+  }
+
+  /**
    * Every still-live session for a learner plus cancelled sessions whose
    * Teams cleanup has not yet been confirmed. The second group makes a
    * partially failed cancellation retryable instead of leaving an external
