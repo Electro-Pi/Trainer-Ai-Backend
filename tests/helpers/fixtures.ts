@@ -197,7 +197,14 @@ export async function createTeam(
   const resolvedDepartmentId = departmentId ?? (await createDepartment(organizationId)).id;
   return runWithTenant(organizationId, () =>
     prisma.team.create({
-      data: { organizationId, managerId, name, departmentId: resolvedDepartmentId },
+      data: {
+        organizationId,
+        managerId,
+        name,
+        nameEn: name,
+        nameAr: name,
+        departmentId: resolvedDepartmentId,
+      },
     }),
   );
 }

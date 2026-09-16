@@ -72,7 +72,7 @@ async function repairOrganization(organizationId: string, orgName: string): Prom
         fromDepartmentName: learner.department?.nameEn ?? '(none)',
         toDepartmentId: teamDepartmentId,
         toDepartmentName: learner.team?.department?.nameEn ?? '(none)',
-        teamName: learner.team?.name ?? '(unknown team)',
+        teamName: learner.team?.nameEn ?? learner.team?.name ?? '(unknown team)',
       });
     }
 

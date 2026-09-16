@@ -11,9 +11,26 @@ import {
 import { upsertRubricSchema } from '@/modules/assessments/validators/assessment.validators.js';
 import { createContentSchema } from '@/modules/content/validators/content.validators.js';
 import { patchLearnerOutcomesSchema } from '@/modules/learners/validators/learner.validators.js';
+import { createTeamSchema } from '@/modules/teams/validators/team.validators.js';
 import { updateTrainingPlanSchema } from '@/modules/training-plans/validators/training-plan.validators.js';
 
 const cuid = 'ckv8x2j9w0000gzuc9j8w5g5m'; // syntactically valid cuid2 shape
+
+describe('team validators — localized names', () => {
+  it.each([
+    { label: 'localized names', input: { nameEn: 'Support', nameAr: 'الدعم', departmentId: cuid } },
+    { label: 'legacy single name', input: { name: 'Support', departmentId: cuid } },
+  ])('accepts $label input', ({ input }) => {
+    expect(() => createTeamSchema.parse(input)).not.toThrow();
+  });
+
+  it.each([
+    { label: 'Arabic', input: { nameEn: 'Support', departmentId: cuid } },
+    { label: 'English', input: { nameAr: 'الدعم', departmentId: cuid } },
+  ])('rejects a localized create request when $label is missing', ({ input }) => {
+    expect(() => createTeamSchema.parse(input)).toThrow();
+  });
+});
 
 describe('common/validators/primitives — shared field rules', () => {
   describe('emailSchema', () => {

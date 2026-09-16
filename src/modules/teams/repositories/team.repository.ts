@@ -32,7 +32,7 @@ export class TeamRepository extends BaseRepository<Team, TeamDelegate> {
 
   /** `PF-02` org-wide analytics rollup — every team in the caller's org, unpaginated (bounded by org size, same reasoning as `OrganizationRepository.findAllIds`). */
   async findAllInOrganization(): Promise<Team[]> {
-    return this.delegate.findMany({ take: 100_000, orderBy: { name: 'asc' } as never });
+    return this.delegate.findMany({ take: 100_000, orderBy: { name: 'asc' } });
   }
 
   /** `TeamResponseDto.departmentName` read-through — resolves the readable name behind a team's `departmentId`. */

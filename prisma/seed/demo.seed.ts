@@ -73,6 +73,8 @@ export async function seedDemo(organizationId: string): Promise<void> {
             managerId: manager.id,
             departmentId: salesTrack.departmentId,
             name: 'Cairo Sales Team',
+            nameEn: 'Cairo Sales Team',
+            nameAr: 'فريق مبيعات القاهرة',
           },
         }),
     );

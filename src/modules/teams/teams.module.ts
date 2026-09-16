@@ -26,7 +26,7 @@ openApiRegistry.registerPath({
   method: 'post',
   path: '/teams',
   tags: ['Teams'],
-  summary: 'Creates a team (DEPARTMENT_MANAGER, ADMIN)',
+  summary: 'Creates a team with Arabic and English names (DEPARTMENT_MANAGER, ADMIN)',
   responses: { 201: { description: 'Created team' } },
 });
 
@@ -42,7 +42,7 @@ openApiRegistry.registerPath({
   method: 'patch',
   path: '/teams/{id}',
   tags: ['Teams'],
-  summary: 'Updates a team’s name/description/manager',
+  summary: 'Updates a team’s localized names/description/manager',
   responses: { 200: { description: 'Updated team' } },
 });
 

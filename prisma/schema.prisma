@@ -344,7 +344,11 @@ model Team {
   /// until `AuthService.signInWithMicrosoft` resolves the invite on accept,
   /// at which point it fills in `managerId` and clears this field.
   pendingManagerInviteId String?  @unique
+  /// English compatibility field retained for zero-downtime rollout to
+  /// existing API instances. New clients receive `nameEn` and `nameAr` too.
   name                   String
+  nameEn                 String?
+  nameAr                 String?
   description            String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt

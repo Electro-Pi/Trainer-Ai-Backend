@@ -166,12 +166,18 @@ export class TeamService {
       ? await this.resolvePendingManagerInviteId(actor, dto.pendingManagerInviteId)
       : null;
     const departmentId = await this.resolveDepartmentId(actor, dto.departmentId);
+    // Keep the legacy single-name request compatible while localized clients
+    // submit an explicit value for each supported language.
+    const nameEn = dto.nameEn ?? dto.name!;
+    const nameAr = dto.nameAr ?? dto.name!;
 
     const created = await this.teams.create({
       managerId,
       pendingManagerInviteId,
       departmentId,
-      name: dto.name,
+      name: nameEn,
+      nameEn,
+      nameAr,
       description: dto.description ?? null,
     } as never);
 
@@ -183,7 +189,8 @@ export class TeamService {
       entityType: 'Team',
       entityId: created.id,
       after: {
-        name: created.name,
+        nameEn: created.nameEn,
+        nameAr: created.nameAr,
         managerId: created.managerId,
         pendingManagerInviteId: created.pendingManagerInviteId,
       },
@@ -205,7 +212,9 @@ export class TeamService {
         : undefined;
 
     const updated = await this.teams.update(id, {
-      ...(dto.name !== undefined ? { name: dto.name } : {}),
+      ...(dto.name !== undefined ? { name: dto.name, nameEn: dto.name, nameAr: dto.name } : {}),
+      ...(dto.nameEn !== undefined ? { name: dto.nameEn, nameEn: dto.nameEn } : {}),
+      ...(dto.nameAr !== undefined ? { nameAr: dto.nameAr } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
       ...(departmentId !== undefined ? { departmentId } : {}),
       // Picking a real manager clears any stale pending invite, and vice versa.
@@ -220,8 +229,8 @@ export class TeamService {
       action: 'team.updated',
       entityType: 'Team',
       entityId: id,
-      before: { name: before.name, managerId: before.managerId },
-      after: { name: updated.name, managerId: updated.managerId },
+      before: { nameEn: before.nameEn, nameAr: before.nameAr, managerId: before.managerId },
+      after: { nameEn: updated.nameEn, nameAr: updated.nameAr, managerId: updated.managerId },
     });
 
     return updated;
@@ -239,7 +248,7 @@ export class TeamService {
     const learnerCount = await this.teams.countLearners(id);
     if (learnerCount > 0) {
       throw new ConflictError(
-        `Can’t delete “${before.name}” — it still has ${learnerCount} learner(s) on it. Move or deactivate them first.`,
+        `Can’t delete “${before.nameEn ?? before.name}” — it still has ${learnerCount} learner(s) on it. Move or deactivate them first.`,
       );
     }
 
@@ -252,7 +261,7 @@ export class TeamService {
       action: 'team.deleted',
       entityType: 'Team',
       entityId: id,
-      before: { name: before.name },
+      before: { nameEn: before.nameEn, nameAr: before.nameAr },
     });
   }
 

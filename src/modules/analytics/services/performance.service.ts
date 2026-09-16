@@ -160,7 +160,7 @@ export class PerformanceService {
     const perTeam = await Promise.all(
       teams.map(async (team) => {
         const perf = await this.teamPerformance(team.id);
-        return { ...perf, teamName: team.name };
+        return { ...perf, teamName: team.nameEn ?? team.name };
       }),
     );
 
