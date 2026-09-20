@@ -81,6 +81,28 @@ export class OrganizationAlreadyProvisionedError extends AppError {
   }
 }
 
+/**
+ * Sign-in with a personal/consumer Microsoft account (outlook.com, hotmail.com,
+ * gmail.com via an MSA, etc.) rather than a work-or-school (Entra ID / Azure AD)
+ * account. Every personal account shares Microsoft's one well-known "consumers"
+ * tenant id (`9188040d-6c67-4c5b-b112-36a304b66dad`) — treating that GUID like
+ * a real tenant let the first-ever personal sign-in silently provision an
+ * `Organization` for it and become its ADMIN, after which every OTHER personal
+ * account was rejected as `organization-already-provisioned` with a raw GUID
+ * standing in for an org name nobody actually has. Caught here, before that
+ * guard runs, with its own `type` so the portal shows "sign in with your work
+ * account" instead of a nonsensical "your org is already set up".
+ */
+export class PersonalMicrosoftAccountError extends AppError {
+  readonly type = `${ERROR_BASE_URL}/personal-microsoft-account`;
+  readonly titleKey = 'errors.unauthorized.title';
+  readonly status = 401;
+
+  constructor(detail: string) {
+    super('Unauthorized', { detail });
+  }
+}
+
 export class ForbiddenError extends AppError {
   readonly type = `${ERROR_BASE_URL}/forbidden`;
   readonly titleKey = 'errors.forbidden.title';

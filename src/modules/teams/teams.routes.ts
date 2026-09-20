@@ -53,6 +53,18 @@ export function createTeamsRouter(): Router {
     },
   );
 
+  // Restored — no portal caller, but proven load-bearing by
+  // rbac-tenancy.test.ts, which checks THIS route's own-team/other-team/admin
+  // authorization behavior directly and has no substitute for it.
+  router.get(
+    '/:id',
+    validate({ params: teamIdParamsSchema }),
+    requireTeamAccess(resolveManagerId),
+    (req, res, next) => {
+      controller.getById(req, res).catch(next);
+    },
+  );
+
   router.patch(
     '/:id',
     authorize('DEPARTMENT_MANAGER', 'ADMIN'),

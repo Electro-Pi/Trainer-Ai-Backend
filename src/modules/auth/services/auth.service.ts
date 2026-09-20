@@ -1,6 +1,7 @@
 import {
   ConflictError,
   OrganizationAlreadyProvisionedError,
+  PersonalMicrosoftAccountError,
   UnauthorizedError,
 } from '@/common/exceptions/app-error.js';
 import { writeAuditLog } from '@/common/interceptors/audit.interceptor.js';
@@ -18,6 +19,15 @@ import { TokenService, type TokenPair } from './token.service.js';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
+// Microsoft's one well-known tenant id shared by EVERY personal/consumer
+// account (outlook.com, hotmail.com, live.com, or any gmail.com etc. account
+// used to sign into an MSA-backed app) — never a real Entra ID work tenant.
+// Treating it like a normal tenant let the first uninvited personal sign-in
+// silently provision a real `Organization` row for it and become ADMIN; every
+// OTHER personal account was then rejected as "your org is already set up",
+// pointing at that same fake org.
+const MICROSOFT_CONSUMER_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 
 // Demo-login feature — fixed to these 3 specific pre-existing accounts, one
 // per role, at the user's explicit request (not "any user with this role",
@@ -128,6 +138,18 @@ export class AuthService {
     const existingUser = await portalUserRepository.findByEntraObjectId(
       result.claims.entraObjectId,
     );
+
+    // A personal/consumer Microsoft account has no real Entra tenant, so
+    // "sign-in cold = create my org" (below) must never fire for one — that
+    // lets a stranger with a gmail.com account become ADMIN of whatever
+    // ends up sharing Microsoft's one consumer tenant id. Invited and
+    // returning users are unaffected: their org membership is already
+    // decided (by the invite, or by the account row that already exists).
+    if (!invite && !existingUser && result.claims.entraTenantId === MICROSOFT_CONSUMER_TENANT_ID) {
+      throw new PersonalMicrosoftAccountError(
+        'Sign in with your organization’s Microsoft work account, not a personal Microsoft account — ask an administrator to invite you if you don’t have one yet.',
+      );
+    }
 
     // Self-signup is only how an org is BORN, never how someone joins one
     // that already exists: once a tenant has an Organization, a new user from
