@@ -31,6 +31,15 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'get',
+  path: '/teams/{id}',
+  tags: ['Teams'],
+  summary:
+    'Retrieves a single team by id — DEPARTMENT_MANAGER may only view a team they manage (requireTeamAccess), ADMIN can view any team',
+  responses: { 200: { description: 'Team' } },
+});
+
+openApiRegistry.registerPath({
   method: 'patch',
   path: '/teams/{id}',
   tags: ['Teams'],

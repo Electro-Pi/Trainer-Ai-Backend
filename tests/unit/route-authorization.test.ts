@@ -84,13 +84,29 @@ function collectRoutes(): RouteRow[] {
   return rows;
 }
 
+function countRouteDeclarations(): number {
+  let count = 0;
+
+  for (const moduleName of fs.readdirSync(ROUTES_DIR)) {
+    const moduleDir = path.join(ROUTES_DIR, moduleName);
+    if (!fs.statSync(moduleDir).isDirectory()) continue;
+
+    for (const file of fs.readdirSync(moduleDir)) {
+      if (!file.endsWith('.routes.ts')) continue;
+      const source = fs.readFileSync(path.join(moduleDir, file), 'utf8');
+      count += source.match(/\brouter\.(?:get|post|put|patch|delete)\s*\(/g)?.length ?? 0;
+    }
+  }
+
+  return count;
+}
+
 describe('route authorization — ARCHITECTURE §7.2', () => {
   const routes = collectRoutes();
 
   it('parses the route table', () => {
-    // Guards the parser itself: a regex that silently stops matching would
-    // make every assertion below vacuously pass.
-    expect(routes.length).toBeGreaterThan(100);
+    expect(routes).not.toHaveLength(0);
+    expect(routes).toHaveLength(countRouteDeclarations());
   });
 
   it('every route has a role gate or an ownership guard', () => {

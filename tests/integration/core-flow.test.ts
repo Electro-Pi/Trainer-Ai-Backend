@@ -5,6 +5,7 @@ import { createApp } from '@/app.js';
 import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { runWithTenant } from '@/database/tenant-context.js';
+import { AssessmentService } from '@/modules/assessments/services/assessment.service.js';
 import { processCreateMeetingJob } from '@/queue/jobs/create-meeting.job.js';
 import { processGenerateReportJob } from '@/queue/jobs/generate-report.job.js';
 import { processSendReportJob } from '@/queue/jobs/send-report.job.js';
@@ -18,6 +19,7 @@ import {
 } from '../helpers/fixtures.js';
 
 const app = createApp();
+const assessmentService = new AssessmentService();
 
 // `send-report.job.ts` fetches the generated PDF back over a real HTTP
 // request to its UploadThing signed download URL rather than reading local
@@ -66,7 +68,10 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
       'DEPARTMENT_MANAGER',
     );
     await grantFakeGraphSession(org.id, manager.id);
-    const { authHeader: contentAuth } = await createAuthedUser(org.id, 'CONTENT_CREATOR');
+    const { user: contentUser, authHeader: contentAuth } = await createAuthedUser(
+      org.id,
+      'CONTENT_CREATOR',
+    );
     const department = await createDepartment(org.id);
 
     // ── Catalogue: track -> level -> two outcomes ──────────────────────
@@ -138,17 +143,23 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     expect(contentRes.status).toBe(201);
     const contentItemId = contentRes.body.id as string;
 
-    // ── Question bank + rubric on the outcome (needed for a scorable session) ──
-    const rubricRes = await request(app)
-      .put(`/api/v1/outcomes/${outcomeId}/rubric`)
-      .set('Authorization', contentAuth)
-      .send({
-        name: 'Discovery Rubric',
-        passThreshold: 60,
-        criteria: [{ label: 'Asks open questions', description: 'Open, not closed', weight: 100 }],
-      });
-    expect(rubricRes.status).toBe(200);
-    const criterionId = rubricRes.body.criteria[0].id as string;
+    // ── Rubric fixture needed for a scorable session ───────────────────
+    const { rubric, criteria } = await runWithTenant(org.id, () =>
+      assessmentService.upsertRubric(
+        { id: contentUser.id, organizationId: org.id, role: 'CONTENT_CREATOR' },
+        outcomeId,
+        {
+          name: 'Discovery Rubric',
+          passThreshold: 60,
+          criteria: [
+            { label: 'Asks open questions', description: 'Open, not closed', weight: 100 },
+          ],
+        },
+      ),
+    );
+    expect(rubric.passThreshold).toBe(60);
+    expect(criteria).toHaveLength(1);
+    const criterionId = criteria[0]!.id;
 
     // ── Team + learner ───────────────────────────────────────────────
     const teamRes = await request(app)
