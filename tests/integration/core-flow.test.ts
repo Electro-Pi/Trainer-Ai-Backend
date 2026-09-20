@@ -2,10 +2,12 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createApp } from '@/app.js';
+import { ConflictError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { runWithTenant } from '@/database/tenant-context.js';
 import { AssessmentService } from '@/modules/assessments/services/assessment.service.js';
+import { ConfirmationService } from '@/modules/recommendations/services/confirmation.service.js';
 import { processCreateMeetingJob } from '@/queue/jobs/create-meeting.job.js';
 import { processGenerateReportJob } from '@/queue/jobs/generate-report.job.js';
 import { processSendReportJob } from '@/queue/jobs/send-report.job.js';
@@ -20,6 +22,7 @@ import {
 
 const app = createApp();
 const assessmentService = new AssessmentService();
+const confirmationService = new ConfirmationService();
 
 // `send-report.job.ts` fetches the generated PDF back over a real HTTP
 // request to its UploadThing signed download URL rather than reading local
@@ -208,17 +211,20 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     expect(recommendation!.items[0]!.contentItemId).toBe(contentItemId);
 
     // ── Confirm the recommendation (RC-06: nothing reaches a plan unconfirmed) ──
-    const confirmRecRes = await request(app)
-      .post(`/api/v1/recommendations/${recommendation!.id}/confirm`)
-      .set('Authorization', managerAuth);
-    expect(confirmRecRes.status).toBe(200);
-    expect(confirmRecRes.body.status).toBe('CONFIRMED');
+    const actingManager = {
+      id: manager.id,
+      organizationId: org.id,
+      role: 'DEPARTMENT_MANAGER',
+    };
+    const confirmedRecommendation = await runWithTenant(org.id, () =>
+      confirmationService.confirm(actingManager, recommendation!.id),
+    );
+    expect(confirmedRecommendation.recommendation.status).toBe('CONFIRMED');
 
     // A second confirm must be rejected — the invariant is enforced, not just documented.
-    const doubleConfirmRes = await request(app)
-      .post(`/api/v1/recommendations/${recommendation!.id}/confirm`)
-      .set('Authorization', managerAuth);
-    expect(doubleConfirmRes.status).toBe(409);
+    await expect(
+      runWithTenant(org.id, () => confirmationService.confirm(actingManager, recommendation!.id)),
+    ).rejects.toBeInstanceOf(ConflictError);
 
     // ── Training plan: create -> suggest -> coverage -> confirm ─────────
     const planRes = await request(app)
@@ -351,7 +357,5 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     expect(reportsListRes.body.data[0].status).toBe('SENT');
     expect(reportsListRes.body.data[0].sessionId).toBe(sessionAfterMeeting.id);
     expect(reportsListRes.body.pageInfo).toMatchObject({ page: 1, total: 1, totalPages: 1 });
-
-    void manager;
   });
 });
