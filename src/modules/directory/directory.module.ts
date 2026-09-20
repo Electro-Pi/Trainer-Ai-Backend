@@ -14,14 +14,6 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'get',
-  path: '/directory/groups/{id}/members',
-  tags: ['Teams'],
-  summary: 'Lists the members of a Microsoft 365 group or Teams channel roster (`TM-06`)',
-  responses: { 200: { description: 'Group members' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
   path: '/directory/users',
   tags: ['Teams'],
   summary:

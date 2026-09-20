@@ -10,7 +10,6 @@ import {
   createFullTrackSchema,
   createTrackSchema,
   duplicateTrackSchema,
-  reorderTracksSchema,
   setTrackEnabledSchema,
   trackFilterSchema,
   trackIdParamsSchema,
@@ -40,14 +39,6 @@ export function createTracksRouter(): Router {
 
   // Static-segment routes registered before `/:id` — Express matches
   // `/:id` greedily against any single path segment, including `reorder`/`full`.
-  router.patch(
-    '/reorder',
-    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
-    validate({ body: reorderTracksSchema }),
-    (req, res, next) => {
-      controller.reorder(req, res).catch(next);
-    },
-  );
 
   router.post(
     '/full',

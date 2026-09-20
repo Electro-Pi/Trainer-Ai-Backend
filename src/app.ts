@@ -11,7 +11,6 @@ import { localeMiddleware } from '@/common/middleware/locale.middleware.js';
 import { container } from '@/config/container.js';
 import { runAllHealthChecks } from '@/health/health-checks.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
-import { agentRouter } from '@/modules/agent/agent.module.js';
 import { createAiTrainerWebhookRouter } from '@/modules/ai-trainer/ai-trainer-webhook.routes.js';
 import {
   draftAiTrainerRouter,
@@ -20,10 +19,6 @@ import {
   trackAiTrainerRouter,
 } from '@/modules/ai-trainer/ai-trainer.module.js';
 import { analyticsRouter } from '@/modules/analytics/analytics.module.js';
-import {
-  outcomeAssessmentsRouter,
-  questionsRouter,
-} from '@/modules/assessments/assessments.module.js';
 import { authRouter } from '@/modules/auth/auth.module.js';
 import { contentRouter, mediaRouter } from '@/modules/content/content.module.js';
 import { departmentsRouter } from '@/modules/departments/departments.module.js';
@@ -35,10 +30,6 @@ import { notificationsRouter } from '@/modules/notifications/notifications.modul
 import { organizationsRouter } from '@/modules/organizations/organizations.module.js';
 import { levelOutcomesRouter, outcomesRouter } from '@/modules/outcomes/outcomes.module.js';
 import { publicRouter } from '@/modules/public/public.module.js';
-import {
-  learnerRecommendationsRouter,
-  recommendationsRouter,
-} from '@/modules/recommendations/recommendations.module.js';
 import { reportsRouter } from '@/modules/reports/reports.module.js';
 import { rsvpWebhookRouter, sessionsRouter } from '@/modules/sessions/sessions.module.js';
 import { levelSkillsRouter, skillsRouter } from '@/modules/skills/skills.module.js';
@@ -87,17 +78,13 @@ export function createApp(): Express {
   v1.use('/teams', teamsRouter);
   v1.use('/teams', teamMembersRouter);
   v1.use('/learners', learnersRouter);
-  v1.use('/learners', learnerRecommendationsRouter);
-  v1.use('/recommendations', recommendationsRouter);
   v1.use('/tracks', tracksRouter);
   v1.use('/skills', skillsRouter);
   v1.use('/tracks/:trackId/levels', trackLevelsRouter);
   v1.use('/levels', levelsRouter);
   v1.use('/levels/:levelId/outcomes', levelOutcomesRouter);
   v1.use('/levels/:levelId/skills', levelSkillsRouter);
-  v1.use('/outcomes/:id', outcomeAssessmentsRouter);
   v1.use('/outcomes', outcomesRouter);
-  v1.use('/questions', questionsRouter);
   v1.use('/content', contentRouter);
   v1.use('/media', mediaRouter);
   v1.use('/plans', trainingPlansRouter);
@@ -105,7 +92,6 @@ export function createApp(): Express {
   v1.use('/learners', learnerDeactivationRouter);
   v1.use('/sessions', sessionsRouter);
   v1.use('/webhooks', rsvpWebhookRouter);
-  v1.use('/agent', agentRouter);
   v1.use('/reports', reportsRouter);
   v1.use('/notifications', notificationsRouter);
   v1.use('/analytics', analyticsRouter);

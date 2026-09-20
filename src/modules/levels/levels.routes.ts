@@ -9,10 +9,8 @@ import { LevelController } from './controllers/level.controller.js';
 import {
   createLevelSchema,
   levelIdParamsSchema,
-  reorderLevelsSchema,
   setLevelEnabledSchema,
   trackIdParamsSchema,
-  updateLevelSchema,
 } from './validators/level.validators.js';
 
 const controller = new LevelController();
@@ -36,15 +34,6 @@ export function createTrackLevelsRouter(): Router {
     },
   );
 
-  router.patch(
-    '/reorder',
-    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
-    validate({ params: trackIdParamsSchema, body: reorderLevelsSchema }),
-    (req, res, next) => {
-      controller.reorder(req, res).catch(next);
-    },
-  );
-
   return router;
 }
 
@@ -53,19 +42,6 @@ export function createLevelsRouter(): Router {
   const router = Router();
 
   router.use(authenticate(), tenantScope());
-
-  router.get('/:id', validate({ params: levelIdParamsSchema }), (req, res, next) => {
-    controller.getById(req, res).catch(next);
-  });
-
-  router.patch(
-    '/:id',
-    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
-    validate({ params: levelIdParamsSchema, body: updateLevelSchema }),
-    (req, res, next) => {
-      controller.update(req, res).catch(next);
-    },
-  );
 
   router.patch(
     '/:id/enabled',

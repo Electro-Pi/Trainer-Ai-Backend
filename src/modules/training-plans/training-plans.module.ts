@@ -55,14 +55,6 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
-  method: 'get',
-  path: '/plans/{id}',
-  tags: ['Training Plans'],
-  summary: 'Gets a training plan with its sessions',
-  responses: { 200: { description: 'Training plan' } },
-});
-
-openApiRegistry.registerPath({
   method: 'patch',
   path: '/plans/{id}',
   tags: ['Training Plans'],
@@ -173,14 +165,6 @@ openApiRegistry.registerPath({
   tags: ['Training Plans'],
   summary: 'Soft-removes a plan-scoped content snapshot',
   responses: { 204: { description: 'Removed' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
-  path: '/plans/{id}/snapshot/content/{contentSnapshotId}/media',
-  tags: ['Training Plans'],
-  summary: 'Lists media uploaded to a plan-scoped content snapshot',
-  responses: { 200: { description: 'Media list' } },
 });
 
 openApiRegistry.registerPath({

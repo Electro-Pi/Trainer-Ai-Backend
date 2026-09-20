@@ -61,14 +61,6 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
-  method: 'patch',
-  path: '/tracks/reorder',
-  tags: ['Tracks'],
-  summary: 'Reorders tracks transactionally',
-  responses: { 200: { description: 'New order' } },
-});
-
-openApiRegistry.registerPath({
   method: 'post',
   path: '/tracks/full',
   tags: ['Tracks'],

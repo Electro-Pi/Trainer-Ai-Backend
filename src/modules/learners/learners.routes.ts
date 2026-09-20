@@ -22,7 +22,6 @@ import {
   inviteLearnerSchema,
   learnerFilterSchema,
   learnerIdParamsSchema,
-  learnerOutcomeFilterSchema,
   patchLearnerOutcomesSchema,
   putLearnerExperienceSchema,
   teamIdParamsSchema,
@@ -162,15 +161,6 @@ export function createLearnersRouter(): Router {
     requireTeamAccess(resolveManagerIdByLearner),
     (req, res, next) => {
       assignmentController.assign(req, res).catch(next);
-    },
-  );
-
-  router.get(
-    '/:id/outcomes',
-    validate({ params: learnerIdParamsSchema, query: learnerOutcomeFilterSchema }),
-    requireTeamAccess(resolveManagerIdByLearner),
-    (req, res, next) => {
-      assignmentController.getOutcomeMap(req, res).catch(next);
     },
   );
 

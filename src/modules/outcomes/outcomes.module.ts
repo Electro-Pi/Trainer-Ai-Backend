@@ -32,22 +32,6 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'patch',
-  path: '/levels/{levelId}/outcomes/reorder',
-  tags: ['Outcomes'],
-  summary: 'Reorders a level’s outcomes transactionally',
-  responses: { 200: { description: 'New order' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
-  path: '/outcomes/{id}',
-  tags: ['Outcomes'],
-  summary: 'Gets an outcome by id',
-  responses: { 200: { description: 'Outcome' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'patch',
   path: '/outcomes/{id}',
   tags: ['Outcomes'],
   summary: 'Updates an outcome’s fields',

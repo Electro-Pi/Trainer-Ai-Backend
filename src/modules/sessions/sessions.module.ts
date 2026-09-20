@@ -37,14 +37,6 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
-  method: 'get',
-  path: '/sessions/{id}',
-  tags: ['Sessions'],
-  summary: 'Gets a session by id',
-  responses: { 200: { description: 'Session' } },
-});
-
-openApiRegistry.registerPath({
   method: 'post',
   path: '/sessions/{id}/reschedule',
   tags: ['Sessions'],
@@ -58,14 +50,6 @@ openApiRegistry.registerPath({
   tags: ['Sessions'],
   summary: 'Cancels a session and its Teams meeting',
   responses: { 200: { description: 'Cancelled session' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
-  path: '/sessions/{id}/invitation',
-  tags: ['Sessions'],
-  summary: 'Gets a session’s invitation and RSVP/attendance state',
-  responses: { 200: { description: 'Invitation' } },
 });
 
 openApiRegistry.registerPath({
