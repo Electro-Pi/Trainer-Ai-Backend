@@ -27,6 +27,14 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'get',
+  path: '/skills/{id}',
+  tags: ['Skills'],
+  summary: 'Gets a skill by id',
+  responses: { 200: { description: 'Skill' } },
+});
+
+openApiRegistry.registerPath({
   method: 'patch',
   path: '/skills/{id}',
   tags: ['Skills'],

@@ -32,6 +32,10 @@ export function createDepartmentsRouter(): Router {
     controller.list(req, res).catch(next);
   });
 
+  router.get('/:id', validate({ params: departmentIdParamsSchema }), (req, res, next) => {
+    controller.getById(req, res).catch(next);
+  });
+
   router.post(
     '/',
     authorize('ADMIN'),

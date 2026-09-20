@@ -44,6 +44,15 @@ export function createTeamsRouter(): Router {
     },
   );
 
+  router.get(
+    '/:id',
+    validate({ params: teamIdParamsSchema }),
+    requireTeamAccess(resolveManagerId),
+    (req, res, next) => {
+      controller.getById(req, res).catch(next);
+    },
+  );
+
   router.post(
     '/',
     authorize('DEPARTMENT_MANAGER', 'ADMIN'),

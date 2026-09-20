@@ -39,6 +39,14 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'get',
+  path: '/content/{id}',
+  tags: ['Content'],
+  summary: 'Gets a content item by id',
+  responses: { 200: { description: 'Content item' } },
+});
+
+openApiRegistry.registerPath({
   method: 'patch',
   path: '/content/{id}',
   tags: ['Content'],

@@ -27,6 +27,14 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
+  method: 'get',
+  path: '/departments/{id}',
+  tags: ['Departments'],
+  summary: 'Gets a department by id (ADMIN only)',
+  responses: { 200: { description: 'Department' }, 404: { description: 'Not found' } },
+});
+
+openApiRegistry.registerPath({
   method: 'patch',
   path: '/departments/{id}',
   tags: ['Departments'],

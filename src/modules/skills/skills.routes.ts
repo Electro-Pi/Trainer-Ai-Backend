@@ -37,6 +37,10 @@ export function createSkillsRouter(): Router {
     },
   );
 
+  router.get('/:id', validate({ params: skillIdParamsSchema }), (req, res, next) => {
+    controller.getById(req, res).catch(next);
+  });
+
   router.patch(
     '/:id',
     authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),

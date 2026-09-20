@@ -88,6 +88,15 @@ export function createTrainingPlansRouter(): Router {
     controller.listTemplates(req, res).catch(next);
   });
 
+  router.get(
+    '/:id',
+    validate({ params: planIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      controller.getById(req, res).catch(next);
+    },
+  );
+
   router.patch(
     '/:id',
     authorize(...WRITE_ROLES),
@@ -236,6 +245,15 @@ export function createTrainingPlansRouter(): Router {
     requireTeamAccess(resolveManagerIdByPlan),
     (req, res, next) => {
       snapshotController.removeContent(req, res).catch(next);
+    },
+  );
+
+  router.get(
+    '/:id/snapshot/content/:contentSnapshotId/media',
+    validate({ params: contentSnapshotIdParamsSchema }),
+    requireTeamAccess(resolveManagerIdByPlan),
+    (req, res, next) => {
+      snapshotController.listMedia(req, res).catch(next);
     },
   );
 
