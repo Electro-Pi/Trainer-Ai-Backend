@@ -6,6 +6,9 @@ import { ConflictError } from '@/common/exceptions/app-error.js';
 import { env } from '@/config/env.js';
 import { prisma } from '@/database/prisma.service.js';
 import { runWithTenant } from '@/database/tenant-context.js';
+import { AgentSessionService } from '@/modules/agent/services/agent-session.service.js';
+import { CompleteSessionService } from '@/modules/agent/services/complete-session.service.js';
+import { SessionContextService } from '@/modules/agent/services/session-context.service.js';
 import { AssessmentService } from '@/modules/assessments/services/assessment.service.js';
 import { ConfirmationService } from '@/modules/recommendations/services/confirmation.service.js';
 import { processCreateMeetingJob } from '@/queue/jobs/create-meeting.job.js';
@@ -21,8 +24,11 @@ import {
 } from '../helpers/fixtures.js';
 
 const app = createApp();
+const agentSessionService = new AgentSessionService();
 const assessmentService = new AssessmentService();
+const completeSessionService = new CompleteSessionService();
 const confirmationService = new ConfirmationService();
+const sessionContextService = new SessionContextService();
 
 // `send-report.job.ts` fetches the generated PDF back over a real HTTP
 // request to its UploadThing signed download URL rather than reading local
@@ -270,43 +276,30 @@ describe('core flow: assignment -> recommendation -> plan -> meeting -> session 
     expect(sessionAfterMeeting.graphEventId).toBeTruthy();
     expect(sessionAfterMeeting.joinToken).toBeTruthy();
 
-    // ── Agent session: context -> start -> answer -> complete (P8, on FakeLlmService's shape) ──
-    const serviceHeaders = { 'x-service-token': env.AI_SERVICE_TOKEN };
+    // ── Agent session: context -> start -> answer -> complete ──────────
+    const sessionContext = await sessionContextService.getByJoinToken(
+      sessionAfterMeeting.joinToken!,
+    );
+    expect(sessionContext.learner.id).toBe(learnerId);
+    expect(sessionContext.content.length).toBeGreaterThan(0);
+    expect(sessionContext.rubric?.criteria[0]?.id).toBe(criterionId);
 
-    const contextRes = await request(app)
-      .get(`/api/v1/agent/sessions/${sessionAfterMeeting.joinToken}/context`)
-      .set(serviceHeaders);
-    expect(contextRes.status).toBe(200);
-    expect(contextRes.body.learner.id).toBe(learnerId);
-    expect(contextRes.body.content.length).toBeGreaterThan(0);
-    expect(contextRes.body.rubric.criteria[0].id).toBe(criterionId);
+    const startedSession = await agentSessionService.start(sessionAfterMeeting.id);
+    expect(startedSession.status).toBe('IN_PROGRESS');
 
-    const startRes = await request(app)
-      .post(`/api/v1/agent/sessions/${sessionAfterMeeting.id}/start`)
-      .set(serviceHeaders);
-    expect(startRes.status).toBe(200);
+    await agentSessionService.submitAnswer(sessionAfterMeeting.id, {
+      outcomeId,
+      questionText: 'What is the first question you would ask?',
+      answerText: 'An open question about their current goals.',
+      score: 90,
+      maxScore: 100,
+      criterionScores: [
+        { criterionId, score: 90, maxScore: 100, judgement: 'Asked a clear open question.' },
+      ],
+    });
 
-    const answerRes = await request(app)
-      .post(`/api/v1/agent/sessions/${sessionAfterMeeting.id}/answers`)
-      .set(serviceHeaders)
-      .send({
-        outcomeId,
-        questionText: 'What is the first question you would ask?',
-        answerText: 'An open question about their current goals.',
-        score: 90,
-        maxScore: 100,
-        criterionScores: [
-          { criterionId, score: 90, maxScore: 100, judgement: 'Asked a clear open question.' },
-        ],
-      });
-    expect(answerRes.status).toBe(201);
-
-    const completeRes = await request(app)
-      .post(`/api/v1/agent/sessions/${sessionAfterMeeting.id}/complete`)
-      .set(serviceHeaders)
-      .send({});
-    expect(completeRes.status).toBe(200);
-    expect(completeRes.body.verdict).toBe('ACHIEVED');
+    const completedSession = await completeSessionService.complete(sessionAfterMeeting.id);
+    expect(completedSession.verdict).toBe('ACHIEVED');
 
     // ── Outcome tracking updated (OT-01) ─────────────────────────────
     const learnerOutcome = await runWithTenant(org.id, () =>

@@ -2,7 +2,6 @@ import { Router } from 'express';
 
 import { authenticate } from '@/common/guards/authenticate.guard.js';
 import { tenantScope } from '@/common/guards/tenant.guard.js';
-import { strictRateLimitMiddleware } from '@/common/middleware/rate-limit.middleware.js';
 import { validate } from '@/common/pipes/validate.js';
 
 import { AuthController } from './controllers/auth.controller.js';
@@ -18,7 +17,7 @@ const controller = new AuthController();
 export function createAuthRouter(): Router {
   const router = Router();
 
-  router.use(strictRateLimitMiddleware());
+  // Rate limiting is temporarily disabled.
 
   router.get('/microsoft/start', (req, res, next) => {
     controller.microsoftStart(req, res).catch(next);

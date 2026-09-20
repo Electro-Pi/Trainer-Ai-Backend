@@ -1,6 +1,5 @@
 import { Router } from 'express';
 
-import { strictRateLimitMiddleware } from '@/common/middleware/rate-limit.middleware.js';
 import { validate } from '@/common/pipes/validate.js';
 
 import { PublicController } from './controllers/public.controller.js';
@@ -20,14 +19,9 @@ export function createPublicRouter(): Router {
     controller.getTrack(req, res).catch(next);
   });
 
-  router.post(
-    '/demo-requests',
-    strictRateLimitMiddleware(),
-    validate({ body: demoRequestSchema }),
-    (req, res, next) => {
-      controller.submitDemoRequest(req, res).catch(next);
-    },
-  );
+  router.post('/demo-requests', validate({ body: demoRequestSchema }), (req, res, next) => {
+    controller.submitDemoRequest(req, res).catch(next);
+  });
 
   return router;
 }
