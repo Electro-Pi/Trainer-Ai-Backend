@@ -18,7 +18,7 @@ const controller = new AuthController();
 export function createAuthRouter(): Router {
   const router = Router();
 
-  // TEMP: disabled for local dev testing — never commit/push this. router.use(strictRateLimitMiddleware());
+  router.use(strictRateLimitMiddleware());
 
   router.get('/microsoft/start', (req, res, next) => {
     controller.microsoftStart(req, res).catch(next);
