@@ -8,7 +8,6 @@ import { compressionMiddleware } from '@/common/middleware/compression.middlewar
 import { corsMiddleware } from '@/common/middleware/cors.middleware.js';
 import { helmetMiddleware } from '@/common/middleware/helmet.middleware.js';
 import { localeMiddleware } from '@/common/middleware/locale.middleware.js';
-import { rateLimitMiddleware } from '@/common/middleware/rate-limit.middleware.js';
 import { container } from '@/config/container.js';
 import { runAllHealthChecks } from '@/health/health-checks.js';
 import { createHttpLogger, logger } from '@/logger/logger.service.js';
@@ -63,7 +62,8 @@ export function createApp(): Express {
   app.use(helmetMiddleware());
   app.use(corsMiddleware());
   app.use(compressionMiddleware());
-  app.use(rateLimitMiddleware());
+  // Temporarily disabled while the current integration flow is stabilized.
+  // app.use(rateLimitMiddleware());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
