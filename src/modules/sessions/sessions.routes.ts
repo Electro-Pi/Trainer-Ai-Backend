@@ -70,15 +70,6 @@ export function createSessionsRouter(): Router {
     },
   );
 
-  router.get(
-    '/:id',
-    validate({ params: sessionIdParamsSchema }),
-    requireTeamAccess(resolveManagerIdBySession),
-    (req, res, next) => {
-      controller.getById(req, res).catch(next);
-    },
-  );
-
   router.post(
     '/:id/reschedule',
     authorize(...WRITE_ROLES),
@@ -105,15 +96,6 @@ export function createSessionsRouter(): Router {
     requireTeamAccess(resolveManagerIdBySession),
     (req, res, next) => {
       controller.getTranscript(req, res).catch(next);
-    },
-  );
-
-  router.get(
-    '/:id/invitation',
-    validate({ params: sessionIdParamsSchema }),
-    requireTeamAccess(resolveManagerIdBySession),
-    (req, res, next) => {
-      controller.getInvitation(req, res).catch(next);
     },
   );
 

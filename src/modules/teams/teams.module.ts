@@ -31,14 +31,6 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
-  method: 'get',
-  path: '/teams/{id}',
-  tags: ['Teams'],
-  summary: 'Gets a team by id',
-  responses: { 200: { description: 'Team' }, 403: { description: 'Not your team' } },
-});
-
-openApiRegistry.registerPath({
   method: 'patch',
   path: '/teams/{id}',
   tags: ['Teams'],

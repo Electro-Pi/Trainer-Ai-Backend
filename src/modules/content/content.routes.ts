@@ -39,10 +39,6 @@ export function createContentRouter(): Router {
     },
   );
 
-  router.get('/:id', validate({ params: contentIdParamsSchema }), (req, res, next) => {
-    controller.getById(req, res).catch(next);
-  });
-
   router.patch(
     '/:id',
     authorize(...WRITE_ROLES),

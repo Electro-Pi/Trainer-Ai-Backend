@@ -10,7 +10,6 @@ import {
   createOutcomeSchema,
   levelIdParamsSchema,
   outcomeIdParamsSchema,
-  reorderOutcomesSchema,
   setOutcomeEnabledSchema,
   updateOutcomeSchema,
 } from './validators/outcome.validators.js';
@@ -36,15 +35,6 @@ export function createLevelOutcomesRouter(): Router {
     },
   );
 
-  router.patch(
-    '/reorder',
-    authorize('DEPARTMENT_MANAGER', 'CONTENT_CREATOR', 'ADMIN'),
-    validate({ params: levelIdParamsSchema, body: reorderOutcomesSchema }),
-    (req, res, next) => {
-      controller.reorder(req, res).catch(next);
-    },
-  );
-
   return router;
 }
 
@@ -53,10 +43,6 @@ export function createOutcomesRouter(): Router {
   const router = Router();
 
   router.use(authenticate(), tenantScope());
-
-  router.get('/:id', validate({ params: outcomeIdParamsSchema }), (req, res, next) => {
-    controller.getById(req, res).catch(next);
-  });
 
   router.patch(
     '/:id',

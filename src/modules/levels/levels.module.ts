@@ -29,30 +29,6 @@ openApiRegistry.registerPath({
 
 openApiRegistry.registerPath({
   method: 'patch',
-  path: '/tracks/{trackId}/levels/reorder',
-  tags: ['Levels'],
-  summary: 'Reorders a track’s levels transactionally',
-  responses: { 200: { description: 'New order' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'get',
-  path: '/levels/{id}',
-  tags: ['Levels'],
-  summary: 'Gets a level by id',
-  responses: { 200: { description: 'Level' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'patch',
-  path: '/levels/{id}',
-  tags: ['Levels'],
-  summary: 'Updates a level’s fields',
-  responses: { 200: { description: 'Updated level' } },
-});
-
-openApiRegistry.registerPath({
-  method: 'patch',
   path: '/levels/{id}/enabled',
   tags: ['Levels'],
   summary: 'Enables/disables a level without deleting it or its outcomes',

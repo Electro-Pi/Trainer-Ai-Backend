@@ -6,10 +6,7 @@ import { tenantScope } from '@/common/guards/tenant.guard.js';
 import { validate } from '@/common/pipes/validate.js';
 
 import { DirectoryController } from './controllers/directory.controller.js';
-import {
-  directoryGroupIdParamsSchema,
-  directorySearchFilterSchema,
-} from './validators/directory.validators.js';
+import { directorySearchFilterSchema } from './validators/directory.validators.js';
 
 const controller = new DirectoryController();
 
@@ -26,14 +23,6 @@ export function createDirectoryRouter(): Router {
   router.get('/users', (req, res, next) => {
     controller.list(req, res).catch(next);
   });
-
-  router.get(
-    '/groups/:id/members',
-    validate({ params: directoryGroupIdParamsSchema }),
-    (req, res, next) => {
-      controller.groupMembers(req, res).catch(next);
-    },
-  );
 
   return router;
 }

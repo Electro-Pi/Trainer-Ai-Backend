@@ -99,14 +99,6 @@ openApiRegistry.registerPath({
 });
 
 openApiRegistry.registerPath({
-  method: 'get',
-  path: '/learners/{id}/outcomes',
-  tags: ['Outcomes'],
-  summary: 'Gets the learner’s outcome map for their active assignment (`OT-04`)',
-  responses: { 200: { description: 'Learner outcome list' } },
-});
-
-openApiRegistry.registerPath({
   method: 'patch',
   path: '/learners/{id}/outcomes',
   tags: ['Outcomes'],
