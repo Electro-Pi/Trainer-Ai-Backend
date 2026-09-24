@@ -47,6 +47,7 @@ export class ReportController {
     const query = req.query as unknown as {
       sessionId?: string;
       planId?: string;
+      learnerId?: string;
       status?: string;
       page: number;
       limit: number;

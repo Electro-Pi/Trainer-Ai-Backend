@@ -9,6 +9,7 @@ export const reportIdParamsSchema = z.object({
 export const reportListQuerySchema = z.object({
   sessionId: cuidSchema.optional(),
   planId: cuidSchema.optional(),
+  learnerId: cuidSchema.optional(),
   status: z.enum(['PENDING', 'GENERATED', 'SENT', 'FAILED']).optional(),
   // Page/limit rather than the shared cursor `paginationSchema`: the reports
   // table needs a total count and jump-to-page controls, which a cursor

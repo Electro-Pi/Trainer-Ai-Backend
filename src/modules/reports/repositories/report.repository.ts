@@ -10,6 +10,7 @@ type ReportDelegate = typeof prisma.report;
 export interface ReportListFilters {
   sessionId?: string;
   planId?: string;
+  learnerId?: string;
   status?: string;
   /**
    * Restricts the result to reports about learners on these teams. Set by the
@@ -65,12 +66,26 @@ export class ReportRepository extends BaseRepository<Report, ReportDelegate> {
             ],
           };
 
+    // Same "reaches its learner two ways" shape as `teamScope` above —
+    // `learnerId` filters on `session.learnerId` for a SESSION report or
+    // `plan.learnerId` for a PLAN_SUMMARY, so it stays a cheap DB-level
+    // filter rather than joining the controller's hydrate-every-row path.
+    const learnerScope = filters.learnerId
+      ? {
+          OR: [
+            { session: { learnerId: filters.learnerId } },
+            { plan: { learnerId: filters.learnerId } },
+          ],
+        }
+      : {};
+
     return this.delegate.findMany({
       where: {
         ...(filters.sessionId ? { sessionId: filters.sessionId } : {}),
         ...(filters.planId ? { planId: filters.planId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
         ...teamScope,
+        ...(filters.learnerId ? { AND: [learnerScope] } : {}),
       } as never,
       orderBy: { createdAt: 'desc' } as never,
     } as never);
